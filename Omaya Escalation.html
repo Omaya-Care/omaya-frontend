@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Omaya — Escalation detail</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&display=swap"
+            rel="stylesheet"
+        />
+        <template id="__bundler_thumbnail">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100" height="100" fill="#F1E7EC" />
+                <path
+                    d="M40 24h20l14 14v20L60 72H40L26 58V38z"
+                    fill="#9C3B2C"
+                />
+                <rect x="42" y="38" width="4" height="14" rx="2" fill="#fff" />
+                <circle cx="44" cy="58" r="2.4" fill="#fff" />
+            </svg>
+        </template>
+        <style>
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            :root {
+                --ui-font: "Inter", system-ui, -apple-system, sans-serif;
+            }
+            body {
+                font-family: var(--ui-font);
+                font-size: 14px;
+                line-height: 1.6;
+                background: #ece9e4;
+                color: #1e2d42;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            #root {
+                width: 100vw;
+                height: 100vh;
+            }
+            ::placeholder {
+                color: #98a2b3;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="root"></div>
+
+        <script
+            src="https://unpkg.com/react@18.3.1/umd/react.development.js"
+            integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L"
+            crossorigin="anonymous"
+        ></script>
+        <script
+            src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"
+            integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm"
+            crossorigin="anonymous"
+        ></script>
+        <script
+            src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"
+            integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y"
+            crossorigin="anonymous"
+        ></script>
+
+        <script type="text/babel" src="dash-foundation.jsx"></script>
+        <script type="text/babel" src="dash-ui.jsx"></script>
+        <script type="text/babel" src="dash-escalation.jsx"></script>
+        <script type="text/babel" src="design-canvas.jsx"></script>
+        <script type="text/babel">
+            const { DesignCanvas, DCSection, DCArtboard } = window;
+            const EscalationDetail = window.EscalationDetail;
+
+            // ---- one L3/L4 trigger, shown across its lifecycle ----
+            const BASE = {
+                name: "Ama Mensah",
+                level: "L4",
+                day: 7,
+                age: 23,
+                ward: "Maternity B",
+                triggeredAgo: "14 minutes ago",
+                triggeredAt: "14:38",
+                reason: "Expressed thoughts of self-harm during her Day 7 check-in call.",
+                transcriptTime: "14:38",
+                transcript: [
+                    "I haven't really slept since the baby came, and most days I just feel like I'm not really here anymore.",
+                    "Sometimes I think everyone — even him — would be better off if I just wasn't around.",
+                ],
+                slaWindow: "45 min · L4",
+                ackBy: "K. Boateng, Midwife",
+                ackAt: "Today 14:52",
+                oncall: "Dr. Kwame Asare",
+                breachAt: "Today 15:23",
+            };
+
+            const STATES = {
+                active: {
+                    ...BASE,
+                    countdown: "28:12",
+                    slaPct: 0.37,
+                    slaTone: "ok",
+                },
+                acknowledged: {
+                    ...BASE,
+                    countdown: "31:48",
+                    slaPct: 0.29,
+                    triggeredAgo: "28 minutes ago",
+                },
+                breached: {
+                    ...BASE,
+                    countdown: "00:00",
+                    slaPct: 1,
+                    triggeredAgo: "1 hr 4 min ago",
+                },
+            };
+
+            const ABW = 564; // artboard / card width
+            const ABH = 560; // nominal height (focus-mode scaling); inline grows via style height:auto
+            const autoH = {
+                height: "auto",
+                border: "none",
+                boxShadow: "none",
+                background: "transparent",
+                borderRadius: 18,
+            };
+
+            function App() {
+                return (
+                    <DesignCanvas>
+                        <DCSection
+                            id="escalation"
+                            title="Escalation detail — L4 crisis"
+                            subtitle="One trigger, across its lifecycle · Ama Mensah, Day 7"
+                        >
+                            <DCArtboard
+                                id="active"
+                                label="Active"
+                                width={ABW}
+                                height={ABH}
+                                style={autoH}
+                            >
+                                <EscalationDetail
+                                    state="active"
+                                    data={STATES.active}
+                                />
+                            </DCArtboard>
+                            <DCArtboard
+                                id="acknowledged"
+                                label="Acknowledged"
+                                width={ABW}
+                                height={ABH}
+                                style={autoH}
+                            >
+                                <EscalationDetail
+                                    state="acknowledged"
+                                    data={STATES.acknowledged}
+                                />
+                            </DCArtboard>
+                            <DCArtboard
+                                id="breached"
+                                label="Breached · escalated"
+                                width={ABW}
+                                height={ABH}
+                                style={autoH}
+                            >
+                                <EscalationDetail
+                                    state="breached"
+                                    data={STATES.breached}
+                                />
+                            </DCArtboard>
+                        </DCSection>
+                    </DesignCanvas>
+                );
+            }
+
+            ReactDOM.createRoot(document.getElementById("root")).render(
+                <App />,
+            );
+        </script>
+    </body>
+</html>
