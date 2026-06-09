@@ -26,7 +26,7 @@ export const OM = {
 };
 
 // ---- Shared design tokens (Untitled UI Kit–inspired) ----
-const TK = {
+export const TK = {
   // Card: shadow-sm only, rounded-xl, subtle border
   card: {
     background: "#fff",
@@ -147,7 +147,7 @@ window.TK = TK;
 
 // Severity — clinical meaning ONLY. Triple-coded: tint + icon + label.
 // Tuned to a dusty, muted register that harmonises with the plum primary.
-const SEV = {
+export const SEV = {
   L4: {
     key: "L4",
     label: "Crisis",
@@ -188,11 +188,11 @@ const SEV = {
 window.SEV = SEV;
 
 // rank for sort L4 -> L1, inactive last
-const SEV_RANK = { L4: 4, L3: 3, L2: 2, L1: 1 };
+export const SEV_RANK = { L4: 4, L3: 3, L2: 2, L1: 1 };
 window.SEV_RANK = SEV_RANK;
 
 // record states — standard triple-coded treatment
-const MOTHER_STATUS = {
+export const MOTHER_STATUS = {
   antenatal: {
     label: "Antenatal",
     bg: "#F2F4F7",
@@ -218,7 +218,7 @@ const MOTHER_STATUS = {
 window.MOTHER_STATUS = MOTHER_STATUS;
 
 // soft dot-pill palette — calmer cohort register, shared across screens (still triple-coded: label + dot + tint)
-const SEV_SOFT = {
+export const SEV_SOFT = {
   L4: { bg: "#FDECEA", text: "#C0392B", dot: "#C0392B" },
   L3: { bg: "#FEF3E2", text: "#B45309", dot: "#B45309" },
   L2: { bg: "#EEF2FF", text: "#4338CA", dot: "#4338CA" },
@@ -507,7 +507,7 @@ export const IconsFilled = {
 };
 window.IconsFilled = IconsFilled;
 
-function useWindowWidth() {
+export function useWindowWidth() {
   const [w, setW] = React.useState(
     typeof window !== "undefined" ? window.innerWidth : 1280,
   );
