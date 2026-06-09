@@ -2,18 +2,17 @@ import { ApiReferenceReact } from '@scalar/api-reference-react'
 import '@scalar/api-reference-react/style.css'
 import '@fontsource-variable/geist/index.css'
 
-const PORTAL_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ??
-  'http://localhost:8001'
-).replace(/\/+$/, '')
+// Falls back to the bundled snapshots in public/openapi/ so the docs
+// host renders before the backend + call-service are deployed.
+const PORTAL_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '')
+const CALL_BASE = import.meta.env.VITE_CALL_SERVICE_URL?.replace(/\/+$/, '')
 
-const CALL_SERVICE_BASE_URL = (
-  import.meta.env.VITE_CALL_SERVICE_URL ??
-  'http://localhost:8000'
-).replace(/\/+$/, '')
-
-const PORTAL_OPENAPI_URL = `${PORTAL_BASE_URL}/openapi.json`
-const CALL_SERVICE_OPENAPI_URL = `${CALL_SERVICE_BASE_URL}/openapi.json`
+const PORTAL_OPENAPI_URL = PORTAL_BASE
+  ? `${PORTAL_BASE}/openapi.json`
+  : '/openapi/portal-backend.json'
+const CALL_SERVICE_OPENAPI_URL = CALL_BASE
+  ? `${CALL_BASE}/openapi.json`
+  : '/openapi/call-service.json'
 
 const OMAYA_CUSTOM_CSS = `
 :root {
