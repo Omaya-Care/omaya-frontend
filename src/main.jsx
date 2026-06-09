@@ -9,6 +9,7 @@ import { CallsView } from "./dash-calls.jsx";
 import { StaffView } from "./dash-staff.jsx";
 import { SettingsView } from "./dash-settings.jsx";
 import { AdminOverview } from "./dash-admin.jsx";
+import Docs from "./Docs.jsx";
 
 const CANVAS = "#F4F4F6";
 
@@ -86,4 +87,8 @@ function DashboardApp() {
   );
 }
 
-createRoot(document.getElementById("root")).render(<DashboardApp />);
+const isDocsHost = window.location.hostname.startsWith("docs.");
+
+createRoot(document.getElementById("root")).render(
+  isDocsHost ? <Docs /> : <DashboardApp />
+);
