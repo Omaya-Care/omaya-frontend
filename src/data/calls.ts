@@ -7,7 +7,20 @@ export const calls: Call[] = [
     motherId: '1',
     motherName: 'Abena Mansa',
     callType: 'Day 2 check-in',
-    status: 'completed'
+    status: 'completed',
+    duration: '4m 32s',
+    deliveryType: 'Vaginal',
+    dayInCare: 2,
+    severity: 'routine',
+    flagsRaised: 0,
+    summaryRows: [
+      { speaker: 'omaya', text: 'How are you feeling since leaving the hospital?' },
+      { speaker: 'mother', text: 'I am doing well. A little tired but managing.' },
+      { speaker: 'omaya', text: 'Is your baby feeding well?' },
+      { speaker: 'mother', text: 'Yes, she is breastfeeding every 2 to 3 hours.' },
+      { speaker: 'omaya', text: 'Any pain or heavy bleeding since discharge?' },
+      { speaker: 'mother', text: 'No, nothing unusual.' },
+    ],
   },
   {
     id: '2',
@@ -15,7 +28,18 @@ export const calls: Call[] = [
     motherId: '2',
     motherName: 'Ama Serwaa',
     callType: 'Day 6 check-in',
-    status: 'in_progress'
+    status: 'in_progress',
+    duration: '2m 10s',
+    deliveryType: 'C-section',
+    dayInCare: 6,
+    severity: 'elevated',
+    flagsRaised: 1,
+    summaryRows: [
+      { speaker: 'omaya', text: 'How is your wound site healing?' },
+      { speaker: 'mother', text: 'It is a bit painful and I think I see some redness.' },
+      { speaker: 'omaya', text: 'Is there any discharge or smell from the wound?' },
+      { speaker: 'mother', text: 'There is a little discharge, yes.' },
+    ],
   },
   {
     id: '3',
@@ -23,7 +47,10 @@ export const calls: Call[] = [
     motherId: '4',
     motherName: 'Akosua Adjei',
     callType: 'Day 3 check-in',
-    status: 'upcoming'
+    status: 'upcoming',
+    deliveryType: 'Vaginal',
+    dayInCare: 3,
+    summaryRows: [],
   },
   {
     id: '4',
@@ -31,7 +58,10 @@ export const calls: Call[] = [
     motherId: '5',
     motherName: 'Esi Mensah',
     callType: 'Week 2 check-in',
-    status: 'upcoming'
+    status: 'upcoming',
+    deliveryType: 'Vaginal',
+    dayInCare: 14,
+    summaryRows: [],
   },
   {
     id: '5',
@@ -39,7 +69,12 @@ export const calls: Call[] = [
     motherId: '3',
     motherName: 'Gifty Osei',
     callType: 'Day 10 check-in',
-    status: 'missed'
+    status: 'missed',
+    deliveryType: 'C-section',
+    dayInCare: 10,
+    severity: 'monitor',
+    flagsRaised: 0,
+    summaryRows: [],
   },
   {
     id: '6',
@@ -47,6 +82,9 @@ export const calls: Call[] = [
     motherId: '2',
     motherName: 'Ama Serwaa',
     callType: 'Follow-up',
-    status: 'upcoming'
-  }
+    status: 'upcoming',
+    deliveryType: 'C-section',
+    dayInCare: 7,
+    summaryRows: [],
+  },
 ];

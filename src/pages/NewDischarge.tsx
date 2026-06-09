@@ -14,8 +14,13 @@ import {
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
 import { Button, Input } from '../components/ui';
 
-const NewDischarge = () => {
+interface NewDischargeProps {
+  onClose?: () => void;
+}
+
+const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const navigate = useNavigate();
+  const handleClose = onClose ?? (() => navigate('/dashboard'));
   const [searchPhase, setSearchPhase] = useState(true);
   const [foundMother, setFoundMother] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState(1);
@@ -65,7 +70,7 @@ const NewDischarge = () => {
   if (isSuccess) {
     return (
       <OnboardingShell
-        onClose={() => navigate('/dashboard')}
+        onClose={handleClose}
         currentStep={4}
         totalSteps={4}
         stepLabel="Discharge complete"
@@ -79,7 +84,7 @@ const NewDischarge = () => {
               : "The discharge has been recorded. No automated calls will be made."}
           </p>
           <div className="mt-8 flex gap-3">
-            <Button variant="secondary" onClick={() => navigate('/dashboard')}>
+            <Button variant="secondary" onClick={() => { handleClose(); navigate('/dashboard'); }}>
               Back to dashboard
             </Button>
             <Button variant="primary" onClick={() => {
@@ -106,7 +111,7 @@ const NewDischarge = () => {
   if (searchPhase) {
     return (
       <OnboardingShell
-        onClose={() => navigate('/dashboard')}
+        onClose={handleClose}}
         currentStep={0}
         totalSteps={4}
         stepLabel="Find her record"

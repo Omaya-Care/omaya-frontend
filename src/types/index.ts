@@ -30,7 +30,18 @@ export interface Mother {
   currentFlag?: string;        // the AI-generated flag text
 }
 
+export interface CallSummaryRow {
+  speaker: 'omaya' | 'mother';
+  text: string;
+}
+
 export interface Call {
+  duration?: string;
+  deliveryType?: string;
+  dayInCare?: number;
+  severity?: Severity;
+  summaryRows?: CallSummaryRow[];
+  flagsRaised?: number;
 ...
 
   time: string;

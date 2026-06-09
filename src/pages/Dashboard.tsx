@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDrawer } from "../contexts/DrawerContext";
 import { PageHeader } from "../components/dashboard/PageHeader";
 import {
   StatCard,
@@ -15,6 +16,7 @@ import { EscalationItem } from "../types";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { openDrawer } = useDrawer();
   const [acknowledgeModal, setAcknowledgeModal] = useState<{
     open: boolean;
     item: EscalationItem | null;
@@ -24,7 +26,7 @@ const Dashboard = () => {
   });
 
   const handleNewDischarge = () => {
-    navigate("/onboarding/discharge");
+    openDrawer('discharge');
   };
 
   const handleAcknowledgeClick = (item: EscalationItem) => {
@@ -38,12 +40,12 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
       {/* BLOCK 1: PAGE HEADER */}
       <PageHeader userName="Ama" onNewDischarge={handleNewDischarge} />
 
       {/* BLOCK 2: STAT CARDS */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           label="Mothers in care"
           sublabel="Active right now"
@@ -77,7 +79,7 @@ const Dashboard = () => {
       </div>
 
       {/* BLOCK 3: TWO COLUMN ROW */}
-      <div className="flex flex-row gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row gap-4 mb-6">
         {/* LEFT — "Needs attention now" panel */}
         <div className="flex-1 bg-white rounded-2xl p-5 shadow-sm">
           <SectionHeader
@@ -86,27 +88,31 @@ const Dashboard = () => {
             onViewAll={() => navigate("/calls")}
           />
 
-          {/* Column headers row */}
-          <div className="grid grid-cols-[1fr_192px_1fr_144px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2 mb-1">
-            <div>Mother</div>
-            <div>Severity</div>
-            <div>Time Left</div>
-            <div className="text-right">Action</div>
-          </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[480px]">
+              {/* Column headers row */}
+              <div className="grid grid-cols-[1fr_192px_1fr_144px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2 mb-1">
+                <div>Mother</div>
+                <div>Severity</div>
+                <div>Time Left</div>
+                <div className="text-right">Action</div>
+              </div>
 
-          <div className="flex flex-col">
-            {escalations.map((item) => (
-              <AcknowledgeRow
-                key={item.id}
-                item={item}
-                onAcknowledge={() => handleAcknowledgeClick(item)}
-              />
-            ))}
+              <div className="flex flex-col">
+                {escalations.map((item) => (
+                  <AcknowledgeRow
+                    key={item.id}
+                    item={item}
+                    onAcknowledge={() => handleAcknowledgeClick(item)}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* RIGHT — "This week" summary panel */}
-        <div className="w-80 bg-white rounded-2xl p-5 shadow-sm h-full">
+        <div className="w-full lg:w-80 bg-white rounded-2xl p-5 shadow-sm">
           <div className="mb-4 overflow-hidden">
             <span className="text-xs text-gray-400 float-right">
               Mon – today
@@ -164,18 +170,22 @@ const Dashboard = () => {
           1 of 6 completed
         </div>
 
-        {/* Column headers */}
-        <div className="grid grid-cols-[1fr_112px_1fr_160px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2 mb-1">
-          <div>Mother</div>
-          <div>Time</div>
-          <div>Call Type</div>
-          <div className="text-right">Status</div>
-        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[480px]">
+            {/* Column headers */}
+            <div className="grid grid-cols-[1fr_112px_1fr_160px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2 mb-1">
+              <div>Mother</div>
+              <div>Time</div>
+              <div>Call Type</div>
+              <div className="text-right">Status</div>
+            </div>
 
-        <div className="flex flex-col">
-          {calls.map((call) => (
-            <CallRow key={call.id} call={call} />
-          ))}
+            <div className="flex flex-col">
+              {calls.map((call) => (
+                <CallRow key={call.id} call={call} />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

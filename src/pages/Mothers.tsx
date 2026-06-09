@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, ChevronDown } from "lucide-react";
+import { useDrawer } from "../contexts/DrawerContext";
+import { Plus, Search, ChevronDown, ArrowLeft } from "lucide-react";
 import { mothers } from "../data/mothers";
 import {
   MotherListItem,
@@ -13,13 +14,20 @@ import { Input } from "../components/ui/Input";
 
 const MothersPage = () => {
   const navigate = useNavigate();
+  const { openDrawer } = useDrawer();
   const [selectedMotherId, setSelectedMotherId] = useState<string>(
     mothers[0]?.id || "",
   );
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [logVisitModalOpen, setLogVisitModalOpen] = useState(false);
 
   const selectedMother = mothers.find((m) => m.id === selectedMotherId) || null;
+
+  const handleSelectMother = (id: string) => {
+    setSelectedMotherId(id);
+    setMobileDetailOpen(true);
+  };
 
   const handleWithdrawConfirm = () => {
     if (selectedMother) {
@@ -34,7 +42,13 @@ const MothersPage = () => {
   return (
     <div className="h-full flex flex-row gap-4">
       {/* LEFT PANEL */}
-      <div className="w-72 flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm flex-shrink-0">
+      <div
+        className={`
+          flex-shrink-0 flex-col bg-white rounded-2xl overflow-hidden shadow-sm
+          w-full lg:w-72 h-full
+          ${mobileDetailOpen ? "hidden lg:flex" : "flex"}
+        `}
+      >
         {/* Top bar */}
         <div className="px-4 pt-5 pb-3 flex justify-between items-center flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">Mothers</h2>
@@ -42,7 +56,7 @@ const MothersPage = () => {
             variant="primary"
             size="sm"
             className="flex items-center gap-1.5 px-3"
-            onClick={() => navigate("/onboarding/add-mother")}
+            onClick={() => openDrawer('add-mother')}
           >
             <Plus size={16} />
             <span className="font-medium">Add</span>
@@ -77,14 +91,29 @@ const MothersPage = () => {
               key={mother.id}
               mother={mother}
               isSelected={selectedMotherId === mother.id}
-              onClick={() => setSelectedMotherId(mother.id)}
+              onClick={() => handleSelectMother(mother.id)}
             />
           ))}
         </div>
       </div>
 
       {/* RIGHT PANEL */}
-      <div className="flex-1 bg-white rounded-2xl overflow-y-auto shadow-sm p-6">
+      <div
+        className={`
+          flex-col bg-white rounded-2xl overflow-y-auto shadow-sm p-6
+          flex-1 h-full
+          ${mobileDetailOpen ? "flex" : "hidden lg:flex"}
+        `}
+      >
+        {/* Back button — mobile only */}
+        <button
+          className="lg:hidden flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4 -mt-1 self-start"
+          onClick={() => setMobileDetailOpen(false)}
+        >
+          <ArrowLeft size={16} />
+          <span>Back to list</span>
+        </button>
+
         <MotherDetail
           mother={selectedMother}
           onWithdrawClick={() => setWithdrawModalOpen(true)}

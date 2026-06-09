@@ -22,48 +22,51 @@ const OnboardingShell = ({
 }: OnboardingShellProps) => {
   const progressPercent = (currentStep / totalSteps) * 100;
 
+  const handleOutsideClick = () => {
+    if (window.confirm('Close this flow? Your progress will be lost.')) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col overflow-hidden">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100 flex-shrink-0">
-        <div className="flex items-center">
-          <div className="w-7 h-7 bg-[#93406B] rounded-full flex items-center justify-center">
-            <div className="w-2 h-2 bg-white rounded-full" />
-          </div>
-          <span className="text-sm font-medium text-gray-500 ml-3">Omaya Care</span>
+    <div className="absolute inset-0 z-10 flex">
+      {/* Dim overlay — hidden on mobile (drawer is full-width), visible sm+ */}
+      <div
+        className="hidden sm:block sm:flex-1 bg-black/20 cursor-pointer"
+        onClick={handleOutsideClick}
+      />
+
+      {/* Drawer panel — full width on mobile, fixed 580px on sm+ */}
+      <div className="w-full sm:w-[580px] flex-none h-full bg-white border-l border-gray-200 shadow-xl flex flex-col">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <span className="text-sm font-medium text-gray-700">{stepLabel}</span>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        <div className="text-sm font-medium text-gray-700">
-          {stepLabel}
+        {/* Progress bar */}
+        <div className="w-full h-0.5 bg-gray-100 flex-shrink-0">
+          <div
+            className="h-full bg-[#93406B] transition-all duration-300 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
 
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <X size={20} />
-        </button>
-      </div>
-
-      {/* Progress bar */}
-      <div className="w-full h-0.5 bg-gray-100 flex-shrink-0">
-        <div
-          className="h-full bg-[#93406B] transition-all duration-300 ease-out"
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
-
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-8 py-10">
+        {/* Content area */}
+        <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-8 sm:py-10">
           {children}
         </div>
-      </div>
 
-      {/* Bottom bar */}
-      <div className="border-t border-gray-100 px-8 py-5 flex justify-between items-center flex-shrink-0">
-        <div>{leftAction}</div>
-        <div>{rightAction}</div>
+        {/* Bottom bar */}
+        <div className="border-t border-gray-100 px-6 py-4 flex justify-between items-center flex-shrink-0">
+          <div>{leftAction}</div>
+          <div>{rightAction}</div>
+        </div>
       </div>
     </div>
   );

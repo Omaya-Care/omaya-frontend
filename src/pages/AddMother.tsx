@@ -12,8 +12,13 @@ import {
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
 import { Button, Input } from '../components/ui';
 
-const AddMother = () => {
+interface AddMotherProps {
+  onClose?: () => void;
+}
+
+const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const navigate = useNavigate();
+  const handleClose = onClose ?? (() => navigate('/mothers'));
   const [currentStep, setCurrentStep] = useState(1);
   const [isSuccess, setIsSuccess] = useState(false);
   const [formData, setFormData] = useState({
@@ -53,7 +58,7 @@ const AddMother = () => {
   if (isSuccess) {
     return (
       <OnboardingShell
-        onClose={() => navigate('/mothers')}
+        onClose={handleClose}
         currentStep={4}
         totalSteps={4}
         stepLabel="Enrollment complete"
@@ -65,7 +70,7 @@ const AddMother = () => {
             {formData.fullName} has been added to Omaya Care. Her first check-in call will be scheduled after her delivery date.
           </p>
           <div className="mt-8 flex gap-3">
-            <Button variant="secondary" onClick={() => navigate('/mothers')}>
+            <Button variant="secondary" onClick={() => { handleClose(); navigate('/mothers'); }}>
               View her record
             </Button>
             <Button variant="primary" onClick={() => {
@@ -101,7 +106,7 @@ const AddMother = () => {
 
   return (
     <OnboardingShell
-      onClose={() => navigate('/mothers')}
+      onClose={handleClose}
       currentStep={currentStep}
       totalSteps={totalSteps}
       stepLabel={stepLabels[currentStep - 1]}
