@@ -12,6 +12,7 @@ import {
 import { useMothers } from "../hooks/useMothers";
 import { useCalls } from "../hooks/useCalls";
 import { useEscalations } from "../hooks/useEscalations";
+import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
 import DocsLoading from "../components/DocsLoading";
 
@@ -20,8 +21,8 @@ const Dashboard = () => {
   const { openDrawer } = useDrawer();
   const { data: mothers = [], isLoading: mothersLoading } = useMothers();
   const { data: calls = [], isLoading: callsLoading } = useCalls();
-  const { data: escalations = [], isLoading: escalationsLoading } =
-    useEscalations();
+  const { data: escalations = [], isLoading: escalationsLoading } = useEscalations();
+  const acknowledgeMutation = useAcknowledgeAlert();
 
   const [acknowledgeModal, setAcknowledgeModal] = useState<{
     open: boolean;
@@ -32,17 +33,25 @@ const Dashboard = () => {
   });
 
   const handleNewDischarge = () => {
-    openDrawer("discharge");
+    openDrawer('discharge');
   };
 
   const handleAcknowledgeClick = (item: EscalationItem) => {
     setAcknowledgeModal({ open: true, item });
   };
 
-  const handleAcknowledgeConfirm = () => {
+  const handleAcknowledgeConfirm = async () => {
     if (acknowledgeModal.item) {
-      console.log("acknowledged", acknowledgeModal.item.id);
+      try {
+        await acknowledgeMutation.mutateAsync(acknowledgeModal.item.id);
+        setAcknowledgeModal({ open: false, item: null });
+      } catch (err) {
+        console.error("Failed to acknowledge alert", err);
+        // Could add a toast notification here
+      }
     }
+  };
+
   };
 
   if (mothersLoading || callsLoading || escalationsLoading) {
