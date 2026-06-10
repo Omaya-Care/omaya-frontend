@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useDrawer } from "../contexts/DrawerContext";
 import { Plus, Search, ChevronDown, ArrowLeft } from "lucide-react";
 import { useMothers } from "../hooks/useMothers";
+import { useConfirmConsentAction } from "../hooks/useMutations";
 import {
   MotherListItem,
   MotherDetail,
@@ -16,6 +17,7 @@ import DocsLoading from "../components/DocsLoading";
 const MothersPage = () => {
   const { openDrawer } = useDrawer();
   const { data: mothers = [], isLoading } = useMothers();
+  const withdrawMutation = useConfirmConsentAction("withdrawal");
   const [selectedMotherId, setSelectedMotherId] = useState<string>("");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
@@ -34,9 +36,14 @@ const MothersPage = () => {
     setMobileDetailOpen(true);
   };
 
-  const handleWithdrawConfirm = () => {
+  const handleWithdrawConfirm = async () => {
     if (selectedMother) {
-      console.log("withdrawn", selectedMother.id);
+      try {
+        await withdrawMutation.mutateAsync(selectedMother.id);
+        setWithdrawModalOpen(false);
+      } catch (err) {
+        console.error("Failed to confirm withdrawal", err);
+      }
     }
   };
 
