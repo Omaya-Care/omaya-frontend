@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useDrawer } from "../contexts/DrawerContext";
 import { Plus, Search, ChevronDown, ArrowLeft } from "lucide-react";
 import { mothers } from "../data/mothers";
@@ -8,12 +7,12 @@ import {
   MotherDetail,
   WithdrawModal,
   LogVisitModal,
+  type LogVisitData,
 } from "../components/mothers";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 
 const MothersPage = () => {
-  const navigate = useNavigate();
   const { openDrawer } = useDrawer();
   const [selectedMotherId, setSelectedMotherId] = useState<string>(
     mothers[0]?.id || "",
@@ -35,7 +34,7 @@ const MothersPage = () => {
     }
   };
 
-  const handleLogVisitSave = (data: any) => {
+  const handleLogVisitSave = (data: LogVisitData) => {
     console.log("visit saved", data);
   };
 

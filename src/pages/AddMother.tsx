@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Phone,
@@ -51,7 +51,10 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
     }
   };
 
-  const updateField = (field: string, value: any) => {
+  const updateField = <K extends keyof typeof formData>(
+    field: K,
+    value: (typeof formData)[K],
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 

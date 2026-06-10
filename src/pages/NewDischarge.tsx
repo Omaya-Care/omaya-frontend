@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -18,11 +18,17 @@ interface NewDischargeProps {
   onClose?: () => void;
 }
 
+interface MotherSearchResult {
+  id: string;
+  name: string;
+  edd: string;
+}
+
 const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const navigate = useNavigate();
   const handleClose = onClose ?? (() => navigate('/dashboard'));
   const [searchPhase, setSearchPhase] = useState(true);
-  const [foundMother, setFoundMother] = useState<any>(null);
+  const [foundMother, setFoundMother] = useState<MotherSearchResult | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [isSuccess, setIsSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,7 +60,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     }
   };
 
-  const updateField = (field: string, value: any) => {
+  const updateField = <K extends keyof typeof formData>(
+    field: K,
+    value: (typeof formData)[K],
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -111,7 +120,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   if (searchPhase) {
     return (
       <OnboardingShell
-        onClose={handleClose}}
+        onClose={handleClose}
         currentStep={0}
         totalSteps={4}
         stepLabel="Find her record"
@@ -244,10 +253,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             <div className="flex flex-col">
               <label className="text-sm font-semibold text-gray-700 mb-3">How was the baby delivered?</label>
               <div className="grid grid-cols-2 gap-4">
-                {[
+                {([
                   { id: 'vaginal', icon: Baby, title: 'Vaginal delivery', sub: 'Natural birth' },
                   { id: 'caesarean', icon: Scissors, title: 'C-section', sub: 'Surgical delivery' }
-                ].map((type) => (
+                ] as const).map((type) => (
                   <div
                     key={type.id}
                     onClick={() => updateField('deliveryType', type.id)}

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Call, CallStatus } from '../../types';
 import { Badge } from '../ui/Badge';
 

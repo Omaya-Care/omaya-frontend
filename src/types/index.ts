@@ -42,8 +42,8 @@ export interface Call {
   severity?: Severity;
   summaryRows?: CallSummaryRow[];
   flagsRaised?: number;
-...
 
+  id: string;
   time: string;
   motherId: string;
   motherName: string;

@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertTriangle, Clock, Check } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';

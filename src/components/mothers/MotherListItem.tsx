@@ -1,4 +1,3 @@
-import React from "react";
 import { Mother } from "../../types";
 import { Badge } from "../ui/Badge";
 

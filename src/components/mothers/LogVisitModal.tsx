@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown, MessageSquare, Check } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -20,7 +20,7 @@ interface LogVisitModalProps {
 const LogVisitModal = ({ isOpen, onClose, onSave, motherName, dayPostpartum }: LogVisitModalProps) => {
   const [observation, setObservation] = useState('');
   const [advice, setAdvice] = useState('');
-  const [nextAction, setNextAction] = useState('');
+  const [nextAction] = useState('');
 
   const isFormValid = observation.trim() !== '' && advice.trim() !== '';
 

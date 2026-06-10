@@ -65,7 +65,7 @@ Typography:
 ## Stack
 - Vite + React + TypeScript
 - Tailwind CSS v3
-- React Router v6
+- React Router v7
 - Lucide React for icons
 - pnpm as package manager
 - No UI component library — everything is custom Tailwind

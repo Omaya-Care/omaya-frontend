@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Search, ArrowLeft } from 'lucide-react';
 import { calls } from '../data/calls';
 import { CallListItem, CallDetail } from '../components/calls';
