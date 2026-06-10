@@ -1,38 +1,54 @@
-import { useState } from 'react';
-import { Plus } from 'lucide-react';
-import { staffMembers, StaffRole } from '../data/staff';
-import { StaffRow, PermissionsMatrix, AddStaffModal, AddRoleModal } from '../components/staff';
-import { Button } from '../components/ui/Button';
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { useStaff } from "../hooks/useStaff";
+import {
+  StaffRow,
+  PermissionsMatrix,
+  AddStaffModal,
+  AddRoleModal,
+} from "../components/staff";
+import { Button } from "../components/ui/Button";
+import { StaffRole } from "../types";
+import DocsLoading from "../components/DocsLoading";
 
-type FilterKey = 'All' | StaffRole;
+type FilterKey = "All" | StaffRole;
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
-  { key: 'All',           label: 'All' },
-  { key: 'Administrator', label: 'Administrators' },
-  { key: 'Physician',     label: 'Physicians' },
-  { key: 'Midwife',       label: 'Midwifes' },
-  { key: 'Coordinator',   label: 'Coordinators' },
+  { key: "All", label: "All" },
+  { key: "Administrator", label: "Administrators" },
+  { key: "Physician", label: "Physicians" },
+  { key: "Midwife", label: "Midwifes" },
+  { key: "Coordinator", label: "Coordinators" },
 ];
 
 const StaffPage = () => {
-  const [activeFilter, setActiveFilter] = useState<FilterKey>('All');
+  const { data: staffMembers = [], isLoading } = useStaff();
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("All");
   const [addStaffOpen, setAddStaffOpen] = useState(false);
   const [addRoleOpen, setAddRoleOpen] = useState(false);
 
-  const activeCount  = staffMembers.filter(s => s.status === 'active').length;
-  const invitedCount = staffMembers.filter(s => s.status === 'invited').length;
+  if (isLoading && staffMembers.length === 0) {
+    return <DocsLoading />;
+  }
+
+  const activeCount = staffMembers.filter((s) => s.status === "active").length;
+  const invitedCount = staffMembers.filter(
+    (s) => s.status === "invited",
+  ).length;
 
   const counts: Record<FilterKey, number> = {
-    All:           staffMembers.length,
-    Administrator: staffMembers.filter(s => s.role === 'Administrator').length,
-    Physician:     staffMembers.filter(s => s.role === 'Physician').length,
-    Midwife:       staffMembers.filter(s => s.role === 'Midwife').length,
-    Coordinator:   staffMembers.filter(s => s.role === 'Coordinator').length,
+    All: staffMembers.length,
+    Administrator: staffMembers.filter((s) => s.role === "Administrator")
+      .length,
+    Physician: staffMembers.filter((s) => s.role === "Physician").length,
+    Midwife: staffMembers.filter((s) => s.role === "Midwife").length,
+    Coordinator: staffMembers.filter((s) => s.role === "Coordinator").length,
   };
 
-  const visibleStaff = activeFilter === 'All'
-    ? staffMembers
-    : staffMembers.filter(s => s.role === activeFilter);
+  const visibleStaff =
+    activeFilter === "All"
+      ? staffMembers
+      : staffMembers.filter((s) => s.role === activeFilter);
 
   return (
     <div className="flex flex-col gap-6 overflow-y-auto h-full">
@@ -40,7 +56,9 @@ const StaffPage = () => {
       <div className="flex items-start justify-between flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff & roles</h1>
-          <p className="text-sm text-gray-500 mt-1">{activeCount} active · {invitedCount} invited</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {activeCount} active · {invitedCount} invited
+          </p>
         </div>
         <Button
           variant="primary"
@@ -54,14 +72,14 @@ const StaffPage = () => {
 
       {/* FILTER PILLS */}
       <div className="flex gap-2 flex-wrap flex-shrink-0 -mt-2">
-        {FILTERS.map(f => (
+        {FILTERS.map((f) => (
           <button
             key={f.key}
             onClick={() => setActiveFilter(f.key)}
             className={`rounded-full px-3 py-1 text-sm transition-colors border ${
               activeFilter === f.key
-                ? 'bg-[#F7E8F0] text-[#93406B] border-[#93406B] font-medium'
-                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                ? "bg-[#F7E8F0] text-[#93406B] border-[#93406B] font-medium"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
             }`}
           >
             {f.label} {counts[f.key]}
@@ -75,10 +93,10 @@ const StaffPage = () => {
           <div className="min-w-[600px]">
             {/* Column headers */}
             <div className="grid grid-cols-[1fr_160px_144px_180px] px-6 py-3 border-b border-gray-100">
-              {['Name', 'Role', 'Status', 'Last active'].map((col, i) => (
+              {["Name", "Role", "Status", "Last active"].map((col, i) => (
                 <span
                   key={col}
-                  className={`text-xs font-medium text-gray-400 uppercase tracking-wide ${i === 3 ? 'text-right' : ''}`}
+                  className={`text-xs font-medium text-gray-400 uppercase tracking-wide ${i === 3 ? "text-right" : ""}`}
                 >
                   {col}
                 </span>
@@ -86,7 +104,7 @@ const StaffPage = () => {
             </div>
 
             {/* Rows */}
-            {visibleStaff.map(member => (
+            {visibleStaff.map((member) => (
               <StaffRow key={member.id} member={member} />
             ))}
           </div>
@@ -99,8 +117,14 @@ const StaffPage = () => {
       </div>
 
       {/* MODALS */}
-      <AddStaffModal isOpen={addStaffOpen} onClose={() => setAddStaffOpen(false)} />
-      <AddRoleModal  isOpen={addRoleOpen}  onClose={() => setAddRoleOpen(false)} />
+      <AddStaffModal
+        isOpen={addStaffOpen}
+        onClose={() => setAddStaffOpen(false)}
+      />
+      <AddRoleModal
+        isOpen={addRoleOpen}
+        onClose={() => setAddRoleOpen(false)}
+      />
     </div>
   );
 };
