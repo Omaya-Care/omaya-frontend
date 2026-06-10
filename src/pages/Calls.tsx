@@ -1,22 +1,30 @@
-import { useState } from 'react';
-import { Search, ArrowLeft } from 'lucide-react';
-import { calls } from '../data/calls';
-import { CallListItem, CallDetail } from '../components/calls';
-import { Input } from '../components/ui/Input';
+import { useState, useEffect } from "react";
+import { Search, ArrowLeft } from "lucide-react";
+import { useCalls } from "../hooks/useCalls";
+import { CallListItem, CallDetail } from "../components/calls";
+import { Input } from "../components/ui/Input";
+import DocsLoading from "../components/DocsLoading";
 
-type FilterTab = 'all' | 'today' | 'upcoming' | 'completed';
+type FilterTab = "all" | "today" | "upcoming" | "completed";
 
 const filterTabs: { key: FilterTab; label: string }[] = [
-  { key: 'all',       label: 'All' },
-  { key: 'today',     label: 'Today' },
-  { key: 'upcoming',  label: 'Upcoming' },
-  { key: 'completed', label: 'Completed' },
+  { key: "all", label: "All" },
+  { key: "today", label: "Today" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "completed", label: "Completed" },
 ];
 
 const CallsPage = () => {
-  const [selectedCallId, setSelectedCallId] = useState<string>(calls[0]?.id || '');
-  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
+  const { data: calls = [], isLoading } = useCalls();
+  const [selectedCallId, setSelectedCallId] = useState<string>("");
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+
+  useEffect(() => {
+    if (calls.length > 0 && !selectedCallId) {
+      setSelectedCallId(calls[0].id);
+    }
+  }, [calls, selectedCallId]);
 
   const selectedCall = calls.find((c) => c.id === selectedCallId) || null;
 
@@ -25,6 +33,10 @@ const CallsPage = () => {
     setMobileDetailOpen(true);
   };
 
+  if (isLoading && calls.length === 0) {
+    return <DocsLoading />;
+  }
+
   return (
     <div className="h-full flex flex-row gap-4">
       {/* LEFT PANEL */}
@@ -32,7 +44,7 @@ const CallsPage = () => {
         className={`
           flex-shrink-0 flex-col bg-white rounded-2xl overflow-hidden shadow-sm
           w-full lg:w-72 h-full
-          ${mobileDetailOpen ? 'hidden lg:flex' : 'flex'}
+          ${mobileDetailOpen ? "hidden lg:flex" : "flex"}
         `}
       >
         {/* Header */}
@@ -57,9 +69,11 @@ const CallsPage = () => {
               onClick={() => setActiveFilter(tab.key)}
               className={`
                 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors
-                ${activeFilter === tab.key
-                  ? 'bg-[#93406B] text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}
+                ${
+                  activeFilter === tab.key
+                    ? "bg-[#93406B] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }
               `}
             >
               {tab.label}
@@ -85,7 +99,7 @@ const CallsPage = () => {
         className={`
           flex-col bg-white rounded-2xl overflow-y-auto shadow-sm p-6
           flex-1 h-full
-          ${mobileDetailOpen ? 'flex' : 'hidden lg:flex'}
+          ${mobileDetailOpen ? "flex" : "hidden lg:flex"}
         `}
       >
         {/* Back button — mobile only */}
