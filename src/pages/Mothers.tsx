@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDrawer } from "../contexts/DrawerContext";
 import { Plus, Search, ChevronDown, ArrowLeft } from "lucide-react";
-import { mothers } from "../data/mothers";
+import { useMothers } from "../hooks/useMothers";
 import {
   MotherListItem,
   MotherDetail,
@@ -11,15 +11,21 @@ import {
 } from "../components/mothers";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+import DocsLoading from "../components/DocsLoading";
 
 const MothersPage = () => {
   const { openDrawer } = useDrawer();
-  const [selectedMotherId, setSelectedMotherId] = useState<string>(
-    mothers[0]?.id || "",
-  );
+  const { data: mothers = [], isLoading } = useMothers();
+  const [selectedMotherId, setSelectedMotherId] = useState<string>("");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [logVisitModalOpen, setLogVisitModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (mothers.length > 0 && !selectedMotherId) {
+      setSelectedMotherId(mothers[0].id);
+    }
+  }, [mothers, selectedMotherId]);
 
   const selectedMother = mothers.find((m) => m.id === selectedMotherId) || null;
 
@@ -38,6 +44,10 @@ const MothersPage = () => {
     console.log("visit saved", data);
   };
 
+  if (isLoading && mothers.length === 0) {
+    return <DocsLoading />;
+  }
+
   return (
     <div className="h-full flex flex-row gap-4">
       {/* LEFT PANEL */}
@@ -55,7 +65,7 @@ const MothersPage = () => {
             variant="primary"
             size="sm"
             className="flex items-center gap-1.5 px-3"
-            onClick={() => openDrawer('add-mother')}
+            onClick={() => openDrawer("add-mother")}
           >
             <Plus size={16} />
             <span className="font-medium">Add</span>
