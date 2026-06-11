@@ -1,16 +1,7 @@
-export type StaffRole = 'Administrator' | 'Physician' | 'Midwife' | 'Coordinator';
-export type StaffStatus = 'active' | 'invited' | 'suspended';
+import { StaffMember, StaffRole, StaffStatus } from "../types";
 
-export interface StaffMember {
-  id: string;
-  initials: string;
-  name: string;
-  email: string;
-  role: StaffRole;
-  status: StaffStatus;
-  lastActive: string;
-  isCurrentUser?: boolean;
-}
+// Re-export so existing component imports from this file keep working.
+export type { StaffMember, StaffRole, StaffStatus };
 
 export const staffMembers: StaffMember[] = [
   { id: 's1', initials: 'KB', name: 'Kwame Boateng',  email: 'k.boateng@korlebu.gov.gh', role: 'Administrator', status: 'active',    lastActive: 'Just now',   isCurrentUser: true },
