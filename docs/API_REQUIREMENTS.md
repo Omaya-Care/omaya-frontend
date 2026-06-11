@@ -23,20 +23,20 @@ All dates are ISO-8601 UTC. All IDs are UUIDs.
 {
   "token": "eyJ...",
   "token_type": "bearer",
-  "expires_in": 43200,
+  "expires_in": 28800,
   "must_change_password": false,
   "clinician": {
     "id": "uuid",
     "name": "Kwame Boateng",
     "email": "k.boateng@korlebu.gov.gh",
-    "role": "hospital_admin",
+    "role": "Administrator",
     "hospital_id": "uuid",
     "hospital_name": "Korle Bu Teaching Hospital"
   }
 }
 ```
 
-**Errors:** `401 invalid_credentials`, `423 account_locked`
+**Errors:** `401 invalid_credentials`, `403 account_suspended`, `423 account_locked`, `429 too_many_requests`
 
 ---
 
@@ -56,7 +56,7 @@ All dates are ISO-8601 UTC. All IDs are UUIDs.
 {
   "token": "eyJ...",
   "token_type": "bearer",
-  "expires_in": 43200
+  "expires_in": 28800
 }
 ```
 
@@ -334,7 +334,7 @@ List all clinicians at the hospital.
       "id": "uuid",
       "name": "Kwame Boateng",
       "email": "k.boateng@korlebu.gov.gh",
-      "role": "hospital_admin",
+      "role": "Administrator",
       "status": "active",
       "last_active_at": "2026-06-11T11:00:00Z",
       "is_current_user": true
@@ -352,7 +352,7 @@ Edit a staff member — change their role, name, or suspend/reactivate them.
 ```json
 {
   "name": "Kwame Boateng",
-  "role": "midwife",
+  "role": "Midwife",
   "status": "suspended"
 }
 ```
@@ -362,7 +362,7 @@ Edit a staff member — change their role, name, or suspend/reactivate them.
 {
   "id": "uuid",
   "name": "Kwame Boateng",
-  "role": "midwife",
+  "role": "Midwife",
   "status": "suspended"
 }
 ```
@@ -406,7 +406,7 @@ Get all roles and their permission matrix. Used to populate the Permissions Matr
 }
 ```
 
-> `is_system: true` roles (Administrator, Physician, Midwife, Coordinator) cannot be deleted or renamed.
+> `is_system: true` roles (Administrator, Physician, Midwife, Coordinator, Paediatrician, Psychologist) cannot be deleted or renamed.
 
 ---
 
