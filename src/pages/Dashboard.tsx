@@ -47,11 +47,8 @@ const Dashboard = () => {
         setAcknowledgeModal({ open: false, item: null });
       } catch (err) {
         console.error("Failed to acknowledge alert", err);
-        // Could add a toast notification here
       }
     }
-  };
-
   };
 
   if (mothersLoading || callsLoading || escalationsLoading) {
