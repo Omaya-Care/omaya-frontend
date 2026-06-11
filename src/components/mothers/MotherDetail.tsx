@@ -2,6 +2,7 @@ import {
   UserRound,
   Heart,
   Clock,
+  Calendar,
   ShieldCheck,
   MessageCircle,
   AlertTriangle,
@@ -12,6 +13,7 @@ import {
 import { Mother } from "../../types";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
+import { formatDate } from "../../lib/format";
 
 interface MotherDetailProps {
   mother: Mother | null;
@@ -88,6 +90,11 @@ const MotherDetail = ({
             icon: MessageCircle,
             label: "Last interaction",
             value: mother.lastInteraction,
+          },
+          {
+            icon: Calendar,
+            label: "Discharge date",
+            value: formatDate(mother.dischargeDate),
           },
         ].map((item, idx) => (
           <div key={idx} className="flex flex-col">
