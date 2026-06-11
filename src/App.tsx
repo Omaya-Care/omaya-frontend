@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import SignIn from "./pages/SignIn";
 import Dashboard from "./pages/Dashboard";
@@ -8,12 +9,20 @@ import StaffPage from "./pages/Staff";
 import SettingsPage from "./pages/Settings";
 import { AppShell } from "./components/layout";
 import { DrawerProvider } from "./contexts/DrawerContext";
+import { ErrorToast } from "./components/ui";
 import DocsLoading from "./components/DocsLoading";
 
 const Docs = lazy(() => import("./Docs"));
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, staleTime: 30_000 },
+  },
+});
+
 export default function App() {
   return (
+    <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <DrawerProvider>
         <Routes>
@@ -70,6 +79,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </DrawerProvider>
+      <ErrorToast />
     </BrowserRouter>
+    </QueryClientProvider>
   );
 }
