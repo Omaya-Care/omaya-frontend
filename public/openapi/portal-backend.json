@@ -1,1 +1,3889 @@
-{"openapi": "3.1.0", "info": {"title": "Omaya backend", "description": "Portal backend for the Omaya maternal-health AI voice-call platform. Schedules calls, ingests completed-call records, and never speaks to Twilio or xAI directly (that's the call-service's job).\n\n**Auth (Phase 3).** All clinical endpoints require `Authorization: Bearer <jwt>`. Tokens are issued by `POST /auth/sign-in` (HS256, 12h expiry). The JWT carries `hospital_id` + `role` + `must_change_password`; the auth middleware extracts these into `request.state` and feeds them to `tenant_session()` so every clinical query runs RLS-scoped to the caller's hospital. The dev-only `X-Test-Hospital-Id` header from Phase 2 has been removed in every environment.\n\n**Multi-tenancy (Phase 2).** Postgres RLS is enabled + forced on `mothers`, `clinicians`, `scheduled_calls`, `calls`, plus the Phase 4 tables `alerts`, `sms_log`, `audit_phi_events`. Composite FKs on `(id, hospital_id)` reject cross-tenant references at the DB layer \u2014 see `tests/test_tenancy_poison.py` for the regression suite.\n\n**SMS pipeline + L4 escalation (Phase 4).** Outbound SMS is sent by the `sms-worker` Railway service via the `SmsProvider` abstraction in `services/sms/`. The `escalation-cron` service advances open L4 alerts every minute; Twilio status callbacks land on `POST /webhooks/sms/status` and trigger the next escalation step immediately on terminal-failure receipts. L3 alerts are dashboard-only \u2014 no SMS \u2014 to keep the L4 channel trusted. Two per-mother rate caps (5/24h mother-bound, 10/24h clinician-per-mother) protect against runaway send patterns.\n\n**Reference page:** `/reference` renders this OpenAPI document via Scalar; `/docs` and `/redoc` are FastAPI's defaults and stay mounted for compatibility.", "version": "0.1.0"}, "paths": {"/health": {"get": {"tags": ["health"], "summary": "Liveness probe", "description": "Returns `{\"status\": \"ok\"}` whenever the FastAPI process is serving traffic. Used by Railway's healthcheck.", "operationId": "health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"additionalProperties": {"type": "string"}, "type": "object", "title": "Response Health Health Get"}}}}}}}, "/internal/ingest/call-completed": {"post": {"tags": ["internal"], "summary": "Ingest a completed call", "description": "Service-to-service post-call ingest. Called by `post_call_worker` once the call-service has uploaded audio + transcript to Supabase Storage and classified severity.\n\n**Auth.** `X-Omaya-Internal-Token` (constant-time compared against `INGEST_SHARED_SECRET`). **No** JWT \u2014 this is service-to-service.\n\n**Idempotency.** Dedup on `body.call_id` under the request's `tenant_session(body.hospital_id)`. Replays return `deduplicated=true`; cross-tenant replays (same `call_id`, different `hospital_id`) fall through to the INSERT path and are rejected by the composite FK on `calls(mother_id, hospital_id) \u2192 mothers(id, hospital_id)`.\n\n**Phase 4 \u2014 alert generation.** After the `calls` row commits, alert rows are written based on `body.severity`:\n\n- `L1` \u2014 note-only on the `calls` row; **no `alerts` row**.\n- `L2` \u2014 `alerts` row with `status='open'`, `last_escalation_step=0`. Dashboard task only; no SMS.\n- `L3` \u2014 `alerts` row with `status='open'`, `last_escalation_step=0`. Surfaces as a 24h follow-up task on the clinician dashboard; no SMS (`escalation_cron` filters `severity='L4'` at the query level).\n- `L4` \u2014 `alerts` row with `status='open'`, `last_escalation_step=1`, plus **two** `sms_job` rows enqueued in the same transaction: the primary-clinician step-1 page (keyed by `(mother_id, alert_id, 1)` against `uq_sms_log_idempotency`) and the mother-facing L4 SMS (keyed by `(mother_id, alert_id, NULL)`, coexisting via NULLS DISTINCT).\n\nPhone numbers + sender are read from `hospitals.config.escalation` via the `HospitalConfig` Pydantic validator; a malformed config raises 500 so the post-call worker retries and ops sees the validation error. Both alert + queue writes share the single `tenant_session` transaction \u2014 partial state (`alerts` row without enqueued SMS, or vice versa) is impossible.", "operationId": "call_completed_internal_ingest_call_completed_post", "parameters": [{"name": "X-Omaya-Internal-Token", "in": "header", "required": false, "schema": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "X-Omaya-Internal-Token"}}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PostCallIngest"}}}}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IngestResponse"}}}}, "401": {"description": "Missing `X-Omaya-Internal-Token` header."}, "403": {"description": "Invalid shared secret."}, "422": {"description": "Body validation failed."}, "500": {"description": "`INGEST_SHARED_SECRET` not configured, or `hospitals.config` failed `HospitalConfig` validation on an `L4` ingest (worker retries are the recovery path)."}}}}, "/mothers/{mother_id}/calls": {"post": {"tags": ["mothers"], "summary": "Place an ad-hoc check-in call", "description": "Enqueues a `call_job` for `mother_id` (bypasses the scheduler \u2014 E2E / admin override). Ack only; subscribe to ingest for outcome.", "operationId": "trigger_call_mothers__mother_id__calls_post", "security": [{"HTTPBearer": []}], "parameters": [{"name": "mother_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Mother Id"}}], "responses": {"201": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TriggerCallResponse"}}}}, "404": {"description": "Mother not found"}, "409": {"description": "Mother status is not 'active' (consent guardrail)"}, "422": {"description": "`mother_id` path parameter is not a valid UUID"}}}}, "/mothers/{mother_id}/confirm-consent": {"post": {"tags": ["mothers"], "summary": "Send consent-confirmation SMS to the mother", "description": "Phase 4 SMS-pipeline stub. Enqueues one `sms_job` row with `message_type='consent_confirm'` and `recipient_role='mother'`. The SMS worker renders the template, calls Twilio, and writes the matching `sms_log` row.\n\n**Auth.** JWT; `tenant_required` scopes the mother + hospital lookup to the JWT's `hospital_id`. Cross-tenant `mother_id` surfaces as 404.\n\n**Phase 4 scope.** Only exercises the SMS pipeline path \u2014 there is intentionally **no** idempotency key on these enqueues. Phase 9 wires the consent state machine and the per-state idempotency. The interim guard against double-click spam is the mother-bound 5/24h cap (`SMS_RATE_CAP_MOTHER_PER_24H`) enforced by the SMS worker before contacting Twilio.\n\nReturns 202 with `{\"status\": \"enqueued\", \"job_id\": ...}`. The job-id is the `job_queue.id` and is opaque to clients.", "operationId": "confirm_consent_mothers__mother_id__confirm_consent_post", "security": [{"HTTPBearer": []}], "parameters": [{"name": "mother_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Mother Id"}}], "responses": {"202": {"description": "`sms_job` enqueued.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": {"type": "string"}, "title": "Response Confirm Consent Mothers  Mother Id  Confirm Consent Post"}}}}, "404": {"description": "Mother not found in caller's tenant."}, "500": {"description": "Invariant violation \u2014 mother's `hospital_id` resolved to an unreachable hospital row. No PHI in the detail."}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/mothers/{mother_id}/confirm-withdrawal": {"post": {"tags": ["mothers"], "summary": "Send withdrawal-confirmation SMS to the mother", "description": "Phase 4 SMS-pipeline stub. Enqueues one `sms_job` row with `message_type='withdrawal_confirm'` and `recipient_role='mother'`. Same posture as `confirm-consent`: JWT-gated, RLS-scoped, no idempotency key (Phase 9 owns that), interim safety is the mother-bound 5/24h cap.\n\nReturns 202 with `{\"status\": \"enqueued\", \"job_id\": ...}`.", "operationId": "confirm_withdrawal_mothers__mother_id__confirm_withdrawal_post", "security": [{"HTTPBearer": []}], "parameters": [{"name": "mother_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Mother Id"}}], "responses": {"202": {"description": "`sms_job` enqueued.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": {"type": "string"}, "title": "Response Confirm Withdrawal Mothers  Mother Id  Confirm Withdrawal Post"}}}}, "404": {"description": "Mother not found in caller's tenant."}, "500": {"description": "Invariant violation \u2014 mother's `hospital_id` resolved to an unreachable hospital row. No PHI in the detail."}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/auth/sign-in": {"post": {"tags": ["auth"], "summary": "Sign in with email + password", "description": "Returns a JWT on success. Failure returns a generic `invalid_credentials` error_code regardless of which step failed (anti-enumeration). 5 failures in 15 minutes locks the account for 30 minutes.", "operationId": "sign_in_auth_sign_in_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/SignInRequest"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SignInResponse"}}}}, "401": {"description": "`invalid_credentials` \u2014 wrong email or password"}, "423": {"description": "`account_locked` \u2014 too many recent failures"}, "500": {"description": "`internal_error` \u2014 infrastructure failure"}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/auth/change-password": {"post": {"tags": ["auth"], "summary": "Rotate the signed-in clinician's password", "description": "Reachable even when `must_change_password=true` (does NOT depend on `force_change_guard`). Returns a fresh JWT with the flag cleared so the caller can drop the stale one.", "operationId": "change_password_auth_change_password_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/ChangePasswordRequest"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ChangePasswordResponse"}}}}, "400": {"description": "`weak_password` \u2014 new password fails the complexity rule"}, "401": {"description": "`invalid_credentials` \u2014 current password wrong, OR missing/bad JWT"}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"HTTPBearer": []}]}}, "/admin/clinicians": {"post": {"tags": ["admin"], "summary": "Create a clinician seat under the calling admin's hospital", "description": "Returns a one-shot `temp_password` the admin must communicate to the new clinician via a side channel. The clinician's first sign-in is force-rotated.", "operationId": "create_clinician_admin_clinicians_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateClinicianRequest"}}}, "required": true}, "responses": {"201": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateClinicianResponse"}}}}, "401": {"description": "`token_missing` / `token_expired` / `token_invalid`"}, "403": {"description": "`password_change_required` (admin owes their own first-rotation), `insufficient_role` (non-admin), or `hospital_admin_create_forbidden`"}, "409": {"description": "`email_taken` \u2014 global UNIQUE constraint hit"}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"HTTPBearer": []}]}}, "/alerts/{alert_id}/acknowledge": {"post": {"tags": ["alerts"], "summary": "Acknowledge an open alert; stops the L4 escalation chain", "description": "Acknowledge an open `L2` / `L3` / `L4` alert.\n\n**Auth.** `Authorization: Bearer <jwt>`. The JWT-derived `hospital_id` scopes the read via a manually-opened `tenant_session`; cross-tenant lookups surface as a plain 404 (anti-API-mapping, same posture as the auth handlers).\n\n**Effect on the L4 chain.** Setting `status='acknowledged'` stops further SMS \u2014 the `escalation_cron` filters acknowledged alerts out of both the threshold sweep and the 60s no-callback sweep, and the webhook's terminal-failure trigger also no-ops on non-`open` alerts. L2 / L3 alerts can be acknowledged through the same endpoint (purely a dashboard status flip \u2014 they never entered the SMS chain).\n\n**Idempotency.** Re-acknowledging an already-acknowledged alert returns 200 with the **original** `acknowledged_at` and `acknowledged_by` so dashboards displaying multi-click protection don't see the timestamp jump. Re-acks **do not** write a second `audit_phi_events` row.\n\n**Audit.** A fresh acknowledge writes one `audit_phi_events` row with `action='acknowledge'`, `resource_type='alert'` on a separate, short-lived transaction that opens **after** the alert UPDATE commits \u2014 so the audit row only lands if the ack itself actually persisted. Audit failures log + swallow; the clinician still gets a 200.", "operationId": "acknowledge_alerts__alert_id__acknowledge_post", "security": [{"HTTPBearer": []}], "parameters": [{"name": "alert_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Alert Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AcknowledgeAlertResponse"}}}}, "404": {"description": "Alert not visible to caller's tenant, or doesn't exist (deliberately indistinguishable)."}, "409": {"description": "Alert `status='resolved'` \u2014 terminal state, no further transitions allowed."}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/webhooks/sms/status": {"post": {"tags": ["webhooks"], "summary": "SMS delivery-receipt webhook (Twilio in MVP)", "description": "Twilio Programmable Messaging status callback. **Public** \u2014 no JWT; the only auth gate is the provider signature.\n\n**Signature validation.** Twilio computes an HMAC-SHA1 over the **public URL** Twilio called plus the sorted form params, signed with `TWILIO_AUTH_TOKEN`, and sends it in the `X-Twilio-Signature` header. The handler reconstructs the URL from `request.url`, which only reflects the public origin (`https://portal-api.omaya.dev/...`) **after** `ProxyHeadersMiddleware` rewrites Railway's `X-Forwarded-Proto` / `X-Forwarded-Host`. Without that middleware, signature checks would 403 every webhook. A lifespan check in `main.py` refuses to start the process if the middleware is unmounted.\n\n**Status mapping.** Twilio's `MessageStatus` is mapped to `sms_log.delivery_status` (`accepted`/`queued` \u2192 `queued`, `sending`/`sent` \u2192 `sent`, then `delivered`, `failed`, `undelivered` pass through). Terminal statuses (`delivered`, `failed`, `undelivered`) also set `sms_log.delivered_at = now()`.\n\n**L4 terminal-failure trigger.** If the matching `sms_log` row is tied to an open `L4` alert AND the mapped status is `failed` or `undelivered`, the handler calls `advance_escalation` synchronously inside the same transaction \u2014 the next rung (primary \u2192 secondary \u2192 hospital_admin) is paged immediately instead of waiting up to 5 minutes for the cron sweep. The advance is race-safe vs. the cron's 60s no-callback sweep via an optimistic `UPDATE \u2026 WHERE last_escalation_step = prev` on the alert row.\n\n**Unknown SID.** Returns 200 with `{\"status\": \"unknown_sid\"}` rather than 404 \u2014 the receipt may have beaten the worker's `sms_log` INSERT, and 4xx would trigger Twilio's retry storm instead of letting the next callback resolve the race.\n\n**AT migration note.** The URL stays the same after the Africa's Talking migration; AT sends JSON (not form-encoded) and authenticates by IP allowlist (not HMAC). The branch lives inside `provider.validate_signature`.", "operationId": "sms_status_webhooks_sms_status_post", "responses": {"200": {"description": "Receipt accepted. `{\"status\": \"ok\"}` on a normal update; `{\"status\": \"unknown_sid\"}` when the `MessageSid` isn't in `sms_log` yet (race with the worker's INSERT \u2014 Twilio retries, next callback resolves).", "content": {"application/json": {"schema": {"additionalProperties": {"type": "string"}, "type": "object", "title": "Response Sms Status Webhooks Sms Status Post"}}}}, "403": {"description": "`X-Twilio-Signature` missing or HMAC mismatch. The body is **not** inspected on this path."}, "422": {"description": "Form body missing `MessageSid` / `MessageStatus`, or `MessageStatus` outside Twilio's documented vocabulary."}}}}, "/platform/hospitals": {"post": {"tags": ["platform"], "summary": "Onboard a new hospital + its seed hospital_admin", "description": "Internal Omaya operator surface. Creates a hospital row and provisions the first `hospital_admin` clinician in a single transaction; returns a one-time `admin_temp_password` that ops delivers to the admin out-of-band. The admin's first sign-in is force-rotated (`must_change_password=true`).\n\n**Auth.** `X-Omaya-Platform-Admin-Token` (constant-time compared against `PLATFORM_ADMIN_TOKEN`). **No JWT** \u2014 no admin exists pre-creation. Distinct token from `INGEST_SHARED_SECRET` so a leaked service-to-service token can't pivot to hospital creation.\n\n**Connection.** Runs on the `omaya_platform_admin` BYPASSRLS pool because `omaya_app` (the tenant runtime role) has SELECT-only on `hospitals` (migration 0004). The endpoint is intentionally outside the tenant-scoped surface \u2014 it predates any tenant.\n\n**Validation.** `config` carries the full `HospitalConfig` Pydantic shape \u2014 threshold bounded `[1, 60]` minutes, all four phones Ghana E.164, `sms_sender_id` Ghana E.164 or AT-style alphanumeric. Required at onboarding so a misconfigured tenant fails fast here rather than at first-L4-ingest time.\n\n**Audit.** Writes one `audit_auth_events` row of type `password_change` for the seed admin in the same transaction. Operator-level events beyond that are logged but not yet audited to a dedicated table (deferred to Phase 11).\n\n**One-time temp password.** The `admin_temp_password` field in the response is shown ONCE; the backend has no API to re-fetch it. Operator delivers via 1Password share / Signal / in-person handoff. NEVER log it.", "operationId": "create_hospital_platform_hospitals_post", "parameters": [{"name": "X-Omaya-Platform-Admin-Token", "in": "header", "required": false, "schema": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "X-Omaya-Platform-Admin-Token"}}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateHospitalRequest"}}}}, "responses": {"201": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateHospitalResponse"}}}}, "401": {"description": "`platform_admin_token_missing` \u2014 header absent.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}}, "403": {"description": "`platform_admin_token_invalid` \u2014 token mismatch.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}}, "409": {"description": "`admin_email_taken` \u2014 the admin email is already used by another clinician (global UNIQUE index on `clinicians.email`).", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}}, "422": {"description": "Body validation failed \u2014 typically a malformed `HospitalConfig` (threshold out of bounds, bad E.164 phone, missing escalation block) or a typo in a field name (`extra='forbid'`)."}, "500": {"description": "`platform_admin_token_not_configured` \u2014 backend env var unset. Other 500s are unexpected DB errors.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}}}}}}, "components": {"schemas": {"AcknowledgeAlertResponse": {"properties": {"alert_id": {"type": "string", "format": "uuid", "title": "Alert Id", "description": "`alerts.id` that was acknowledged."}, "status": {"type": "string", "enum": ["open", "acknowledged", "resolved"], "title": "Status", "description": "Always `'acknowledged'` on the success path. On a re-ack of a row already in `'acknowledged'`, the same value is returned (idempotent)."}, "acknowledged_at": {"type": "string", "format": "date-time", "title": "Acknowledged At", "description": "UTC timestamp the ack landed. On idempotent re-ack, this is the **original** timestamp (not `now()`) so dashboard multi-click guards don't see the value jump."}, "acknowledged_by": {"type": "string", "format": "uuid", "title": "Acknowledged By", "description": "`clinicians.id` of the acknowledging clinician. On re-ack, this is the **original** acknowledger (not the re-clicker)."}}, "additionalProperties": false, "type": "object", "required": ["alert_id", "status", "acknowledged_at", "acknowledged_by"], "title": "AcknowledgeAlertResponse", "description": "Response from ``POST /alerts/{alert_id}/acknowledge``.\n\nReturned on both first-acknowledge AND idempotent re-acknowledge of\nan already-acked alert (the route returns 200 with the original\n``acknowledged_at`` timestamp in the latter case).", "examples": [{"acknowledged_at": "2026-06-04T12:34:56.789012+00:00", "acknowledged_by": "01902d29-7c2b-7c00-a000-0000000000aa", "alert_id": "01902d29-7c2b-7c00-a000-000000000001", "status": "acknowledged"}]}, "ChangePasswordRequest": {"properties": {"current_password": {"type": "string", "maxLength": 200, "minLength": 1, "title": "Current Password"}, "new_password": {"type": "string", "maxLength": 200, "minLength": 1, "title": "New Password"}}, "type": "object", "required": ["current_password", "new_password"], "title": "ChangePasswordRequest", "description": "``POST /auth/change-password`` request body."}, "ChangePasswordResponse": {"properties": {"token": {"type": "string", "title": "Token"}, "token_type": {"type": "string", "const": "bearer", "title": "Token Type", "default": "bearer"}, "expires_in": {"type": "integer", "title": "Expires In"}}, "type": "object", "required": ["token", "expires_in"], "title": "ChangePasswordResponse", "description": "Returns a fresh JWT with ``must_change_password=false`` so the\ncaller can drop the stale one on the floor."}, "CreateClinicianRequest": {"properties": {"email": {"type": "string", "format": "email", "title": "Email"}, "role": {"type": "string", "enum": ["midwife", "ob_gyn", "psychologist", "hospital_admin"], "title": "Role"}, "name": {"type": "string", "maxLength": 200, "minLength": 1, "title": "Name"}}, "type": "object", "required": ["email", "role", "name"], "title": "CreateClinicianRequest", "description": "``POST /admin/clinicians`` request body.\n\n``role`` is bounded by the same CHECK constraint that's on the\n``clinicians`` table \u2014 including ``hospital_admin``, which the\n*handler* rejects (internal-only role; provisioned via SQL, never\nvia the API). We allow the literal in the schema so the 403 fires\nin the handler with a precise error_code, not as a generic\nvalidation 422."}, "CreateClinicianResponse": {"properties": {"clinician_id": {"type": "string", "format": "uuid", "title": "Clinician Id"}, "email": {"type": "string", "format": "email", "title": "Email"}, "role": {"type": "string", "title": "Role"}, "temp_password": {"type": "string", "title": "Temp Password"}, "must_change_password": {"type": "boolean", "const": true, "title": "Must Change Password", "default": true}}, "type": "object", "required": ["clinician_id", "email", "role", "temp_password"], "title": "CreateClinicianResponse", "description": "201 Created \u2014 the temp_password is shown ONCE. The admin UI is\nresponsible for surfacing it to the new clinician via a side channel\n(in-person, SMS, etc); the backend never logs it."}, "CreateHospitalRequest": {"properties": {"name": {"type": "string", "maxLength": 200, "minLength": 1, "title": "Name", "description": "Display name of the hospital. Surfaces in clinician dashboards."}, "phone_number_e164": {"type": "string", "title": "Phone Number E164", "description": "Hospital main / front-desk number, Ghana E.164. The L4 mother-facing SMS template includes this so the mother knows who to call back."}, "config": {"$ref": "#/components/schemas/HospitalConfig", "description": "Phase 4 escalation block + ``sms_sender_id``. Validated by ``HospitalConfig`` (``extra='forbid'`` at every level; threshold bounded [1, 60] minutes; all four phone fields Ghana E.164). Required \u2014 missing or malformed config would fail the first L4 ingest, so we surface it here at 422 instead of at clinical-fire time."}, "admin_email": {"type": "string", "format": "email", "title": "Admin Email", "description": "Email for the seed ``hospital_admin`` clinician. Must be globally unique across the ``clinicians`` table. Lowercased + whitespace-stripped on persist."}, "admin_name": {"type": "string", "maxLength": 200, "minLength": 1, "title": "Admin Name", "description": "Display name of the seed admin. Captured for audit context. The ``clinicians`` table does not yet have a ``name`` column (symmetric with ``admin_clinicians.py``); this is recorded in the audit-event row only."}}, "additionalProperties": false, "type": "object", "required": ["name", "phone_number_e164", "config", "admin_email", "admin_name"], "title": "CreateHospitalRequest", "description": "``POST /platform/hospitals`` request body.\n\n``extra=\"forbid\"`` \u2014 typos like ``phone_e164`` (wrong key) fail\nloudly at 422 rather than silently dropping a load-bearing field.\n\n``config`` is REQUIRED (not Optional) \u2014 Phase 4's ingest endpoint\nfails closed on L4 calls if ``hospitals.config`` is malformed; we\nsurface that failure at onboarding time rather than at the first\nL4 page-fire. The full ``HospitalConfig`` Pydantic model validates\nthe escalation block, threshold bounds, and Ghana E.164 on every\nphone field.\n\nNo ``id`` field on the request \u2014 the server mints ``uuid7()`` so\nthat hospital_id is time-sortable and not a frontend attack\nsurface.", "examples": [{"admin_email": "first.admin@korlebu.example", "admin_name": "Akua Mensah", "config": {"escalation": {"hospital_admin_phone_e164": "+233200000003", "l4_acknowledgment_threshold_min": 5, "primary_oncall_phone_e164": "+233200000001", "secondary_oncall_phone_e164": "+233200000002"}, "sms_sender_id": "+233200000000"}, "name": "Korle Bu Maternity Pilot", "phone_number_e164": "+233244000000"}]}, "CreateHospitalResponse": {"properties": {"hospital_id": {"type": "string", "format": "uuid", "title": "Hospital Id", "description": "The newly created hospital's id. Time-sortable UUID v7."}, "admin_clinician_id": {"type": "string", "format": "uuid", "title": "Admin Clinician Id", "description": "The newly created seed admin's clinician_id."}, "admin_email": {"type": "string", "format": "email", "title": "Admin Email", "description": "The seed admin's email (lowercased + whitespace-stripped)."}, "admin_temp_password": {"type": "string", "title": "Admin Temp Password", "description": "One-time temporary password for the seed admin. Shown ONCE in this response; the backend has no API to re-fetch it. Operator delivers to the admin via a side channel; the admin's first sign-in force-rotates."}, "admin_must_change_password": {"type": "boolean", "const": true, "title": "Admin Must Change Password", "default": true}}, "type": "object", "required": ["hospital_id", "admin_clinician_id", "admin_email", "admin_temp_password"], "title": "CreateHospitalResponse", "description": "201 Created \u2014 the ``admin_temp_password`` is shown ONCE.\n\nThe operator is responsible for delivering it to the new admin via\na side channel (1Password share, Signal, in-person handoff); the\nbackend never logs it and there is no API to re-fetch it. The\nadmin's first sign-in is gated on ``must_change_password=true``.", "examples": [{"admin_clinician_id": "01931f00-0000-7000-8000-000000000002", "admin_email": "first.admin@korlebu.example", "admin_must_change_password": true, "admin_temp_password": "Xm3LpQrZk7VnTw9F", "hospital_id": "01931f00-0000-7000-8000-000000000001"}]}, "ErrorResponse": {"properties": {"error_code": {"type": "string", "title": "Error Code"}, "message": {"type": "string", "title": "Message"}}, "type": "object", "required": ["error_code", "message"], "title": "ErrorResponse", "description": "All Phase 3 auth-surface errors use this shape.\n\n``error_code`` is the stable frontend contract; ``message`` is a\nhuman-readable tagline tuned for UI display. NEVER include\n``locked_until`` (gives attackers a retry schedule), the required\nrole on a 403 (maps the API), or whether the email existed on a\nsign-in failure (enables enumeration)."}, "EscalationConfig": {"properties": {"l4_acknowledgment_threshold_min": {"type": "integer", "maximum": 60.0, "minimum": 1.0, "title": "L4 Acknowledgment Threshold Min", "description": "Minutes between escalation steps. Spec default: 5 (mvp-build L1087). Floor 1 (anything tighter would melt Twilio and lose signal-to-noise); ceiling 60 (anything longer means the chain isn't really an emergency channel).", "examples": [5]}, "primary_oncall_phone_e164": {"type": "string", "title": "Primary Oncall Phone E164", "description": "Step 1 recipient \u2014 primary on-call clinician. Ghana E.164 (starts `+233`)."}, "secondary_oncall_phone_e164": {"type": "string", "title": "Secondary Oncall Phone E164", "description": "Step 2 recipient \u2014 secondary on-call clinician. Paged `l4_acknowledgment_threshold_min` after step 1 if the alert is still `status='open'`."}, "hospital_admin_phone_e164": {"type": "string", "title": "Hospital Admin Phone E164", "description": "Step 3 recipient \u2014 hospital admin. **Terminal** rung; if the admin doesn't acknowledge, the open alert stays on the dashboard but no further SMS goes out."}}, "additionalProperties": false, "type": "object", "required": ["l4_acknowledgment_threshold_min", "primary_oncall_phone_e164", "secondary_oncall_phone_e164", "hospital_admin_phone_e164"], "title": "EscalationConfig", "description": "The ``escalation`` block of ``hospitals.config``.\n\nThree rungs (primary \u2192 secondary \u2192 hospital_admin) per spec L1095.\nThe L4 chain stops at hospital_admin \u2014 the founder is never paged\non a clinical event."}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "HospitalConfig": {"properties": {"escalation": {"$ref": "#/components/schemas/EscalationConfig", "description": "L4 escalation rules. The chain has exactly three rungs and stops at `hospital_admin`. L3 has no escalation config because L3 alerts never enter the SMS pipeline."}, "sms_sender_id": {"type": "string", "title": "Sms Sender Id", "description": "Ghana E.164 (Twilio MVP \u2014 must be a Ghana long-code Twilio provisioned for the hospital) OR alphanumeric 3\u201311 chars `[A-Za-z0-9 ]` (reserved for Africa's Talking \u2014 not used in MVP)."}}, "additionalProperties": false, "type": "object", "required": ["escalation", "sms_sender_id"], "title": "HospitalConfig", "description": "Full ``hospitals.config`` shape.\n\n``extra=\"forbid\"`` at both levels \u2014 any unknown key is a configuration\ndrift smell that should surface in CI / at onboarding time, not at L4\nfire time.", "examples": [{"escalation": {"hospital_admin_phone_e164": "+233200000003", "l4_acknowledgment_threshold_min": 5, "primary_oncall_phone_e164": "+233200000001", "secondary_oncall_phone_e164": "+233200000002"}, "sms_sender_id": "+233200000000"}]}, "IngestResponse": {"properties": {"call_id": {"type": "string", "format": "uuid", "title": "Call Id"}, "deduplicated": {"type": "boolean", "title": "Deduplicated"}}, "type": "object", "required": ["call_id", "deduplicated"], "title": "IngestResponse", "description": "Response from ``POST /internal/ingest/call-completed``."}, "PostCallIngest": {"properties": {"call_id": {"type": "string", "format": "uuid", "title": "Call Id"}, "hospital_id": {"type": "string", "format": "uuid", "title": "Hospital Id"}, "mother_id": {"type": "string", "format": "uuid", "title": "Mother Id"}, "scheduled_call_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Scheduled Call Id"}, "started_at": {"type": "string", "format": "date-time", "title": "Started At"}, "ended_at": {"type": "string", "format": "date-time", "title": "Ended At"}, "severity": {"type": "string", "enum": ["L1", "L2", "L3", "L4"], "title": "Severity"}, "audio_storage_key": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Audio Storage Key"}, "transcript_storage_key": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Transcript Storage Key"}, "classification": {"anyOf": [{"additionalProperties": true, "type": "object"}, {"type": "null"}], "title": "Classification"}, "metadata": {"additionalProperties": true, "type": "object", "title": "Metadata"}, "symptoms": {"items": {"$ref": "#/components/schemas/SymptomItem"}, "type": "array", "maxItems": 50, "title": "Symptoms"}}, "additionalProperties": false, "type": "object", "required": ["call_id", "hospital_id", "mother_id", "started_at", "ended_at", "severity"], "title": "PostCallIngest", "description": "Wire contract from ``post_call_worker`` \u2192 backend after a call ends.\n\nIdempotency on ``call_id``; replays return ``deduplicated=true``.\n``extra=\"forbid\"`` \u2192 unknown fields 422 instead of silent drop.\n\nPhase 5: ``symptoms`` extends the contract. Default ``[]`` keeps\nPhase 4 fixtures + an older ``post_call_worker`` deployment\nbackward-compatible."}, "SignInRequest": {"properties": {"email": {"type": "string", "format": "email", "title": "Email"}, "password": {"type": "string", "maxLength": 200, "minLength": 1, "title": "Password"}}, "type": "object", "required": ["email", "password"], "title": "SignInRequest", "description": "``POST /auth/sign-in`` request body.\n\nNote ``password`` is a plain ``str`` (not ``SecretStr``) \u2014 Pydantic's\n``SecretStr`` only hides the value in ``__repr__``; the bytes still\nflow through the handler, where they're fed straight to bcrypt and\ndiscarded. The repr-hiding adds no security but does interfere with\ntest asserts. Phase 3 keeps it simple."}, "SignInResponse": {"properties": {"token": {"type": "string", "title": "Token"}, "token_type": {"type": "string", "const": "bearer", "title": "Token Type", "default": "bearer"}, "expires_in": {"type": "integer", "title": "Expires In"}, "must_change_password": {"type": "boolean", "title": "Must Change Password"}}, "type": "object", "required": ["token", "expires_in", "must_change_password"], "title": "SignInResponse", "description": "Success body \u2014 200 OK."}, "SymptomItem": {"properties": {"name": {"type": "string", "maxLength": 200, "minLength": 1, "title": "Name"}, "severity": {"anyOf": [{"type": "string", "enum": ["mild", "moderate", "severe"]}, {"type": "null"}], "title": "Severity"}, "notes": {"anyOf": [{"type": "string", "maxLength": 2000}, {"type": "null"}], "title": "Notes"}}, "type": "object", "required": ["name"], "title": "SymptomItem", "description": "One symptom extracted from the transcript by Grok-4.\n\nPhase 5: the post-call worker's classification prompt now returns a\n``symptoms[]`` array alongside severity/evidence/etc. Ingest writes\none ``symptoms`` row per item in the same tx as the parent ``calls``\nrow.\n\n``extra=\"ignore\"`` (not ``forbid``) is deliberate \u2014 Grok-4 occasionally\nadds drift fields like ``confidence`` or ``location`` to symptom\nobjects. We tolerate the drift at the item level rather than rejecting\nthe whole ingest payload. The outer ``PostCallIngest`` keeps\n``extra=\"forbid\"`` because the wire contract IS frozen at the call\nlevel; only per-symptom shape varies with the LLM."}, "TriggerCallResponse": {"properties": {"call_id": {"type": "string", "format": "uuid", "title": "Call Id"}, "job_id": {"type": "string", "format": "uuid", "title": "Job Id"}}, "type": "object", "required": ["call_id", "job_id"], "title": "TriggerCallResponse", "description": "Ack from ``POST /mothers/{mother_id}/calls`` \u2014 the ``call_job`` has\nbeen enqueued; the call has not yet been placed."}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}, "input": {"title": "Input"}, "ctx": {"type": "object", "title": "Context"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}}, "securitySchemes": {"HTTPBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}}}, "tags": [{"name": "health", "description": "Liveness probe consumed by Railway."}, {"name": "auth", "description": "Sign-in and password change. `POST /auth/sign-in` is the only public endpoint on this service \u2014 every other clinical route requires the JWT it issues. `must_change_password=true` is set for seeded + provisioned clinicians on first sign-in and gates every other endpoint with `403 password_change_required` until the clinician rotates via `POST /auth/change-password`."}, {"name": "admin", "description": "Hospital-admin provisioning surface. Restricted to `role=hospital_admin` JWTs. New clinicians come back with a one-time `temp_password` that the response shows ONCE; the admin is responsible for delivering it to the clinician out-of-band, after which the clinician's first sign-in forces a password change."}, {"name": "mothers", "description": "Clinical surface bound to the JWT-derived `hospital_id`. Every endpoint here runs inside `tenant_session(hospital_id)` so Postgres RLS gates the read AND the composite FK `mothers(id, hospital_id)` gates cross-tenant writes."}, {"name": "internal", "description": "Service-to-service ingest. Authenticated by `X-Omaya-Internal-Token` (constant-time compared against `INGEST_SHARED_SECRET`), NOT by JWT. The handler wraps the write in `tenant_session(body.hospital_id)` so misattributed payloads raise on the composite FK."}, {"name": "alerts", "description": "Clinician alert surface. `POST /alerts/{id}/acknowledge` stops the L4 escalation chain. RLS-scoped via the same `tenant_required` chain as the `mothers` surface. PHI actions write to `audit_phi_events` on a separate tx (see `services/alert_audit.py`)."}, {"name": "webhooks", "description": "Provider delivery-receipt webhooks. Public endpoints, authenticated by provider-specific signature validation (Twilio's `X-Twilio-Signature` HMAC in MVP; AT's IP allowlist post-migration). The L4 escalation chain uses these receipts to detect Twilio-side delivery failures and advance the next step synchronously, without waiting for the cron-based threshold sweep."}, {"name": "platform", "description": "**Internal Omaya operator surface \u2014 not exposed to hospital users or clinical staff.** Authenticated by `X-Omaya-Platform-Admin-Token` (constant-time compared against `PLATFORM_ADMIN_TOKEN`). Distinct from the `admin` tag (which scopes to a hospital_admin operating WITHIN their own tenant) and from `internal` (service-to-service ingest from the post-call-worker). Hospital onboarding lives here; future per-hospital config-update endpoints and any platform-ops debug surfaces will too. **Operationally**: the token is stored in 1Password under \"Omaya / Platform admin token\" and rotated on operator changes. Loss of the token does NOT compromise existing tenants \u2014 RLS still gates clinical data."}]}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Omaya backend",
+    "description": "Portal backend for the Omaya maternal-health AI voice-call platform. Serves the hospital clinician portal (mothers, alerts, calls, staff, roles), schedules calls, ingests completed-call records, and never speaks to Twilio or xAI directly (that's the call-service's job).\n\n**Portal API surface.** The clinician portal reads through `GET /mothers`, `/mothers/search`, `/mothers/{id}`, `/alerts`, `/calls`, `/admin/clinicians`, and `/admin/roles`; it writes through `POST /mothers` (antenatal enroll), `POST /mothers/{id}/discharge`, the `/admin/clinicians` create/edit/delete trio, and the `/admin/roles` create/edit/delete trio. Read responses speak the portal vocabulary \u2014 dashboard severity (`crisis`/`elevated`/`monitor`/`routine`/`inactive`, mapped from the stored L1\u2013L4) and derived fields like `day_postpartum`, `consent_status`, `time_left_minutes`, and `last_interaction` that are computed at read time, never stored.\n\n**Auth.** All clinical endpoints require `Authorization: Bearer <jwt>`. Tokens are issued by `POST /auth/sign-in` (HS256, 8h TTL) and carry pinned `iss`/`aud` claims, `hospital_id`, `role` (one of Administrator / Physician / Midwife / Coordinator / Paediatrician / Psychologist), `must_change_password`, and a 5-key boolean `permissions` matrix \u2014 `view_mothers`, `message_mothers`, `escalate`, `create_discharges`, `manage_staff` \u2014 resolved from the clinician's role (`roles.permissions`) at sign-in and frozen into the token. The auth middleware extracts these into `request.state` and feeds `hospital_id` to `tenant_session()` so every clinical query runs RLS-scoped to the caller's hospital; `require_permission(...)` gates the privileged routes off the `permissions` claim (`manage_staff` \u2192 the `/admin` surface, `escalate` \u2192 alert acknowledge, `create_discharges` \u2192 discharge). Sign-in additionally blocks suspended seats (`403 account_suspended`), locks an account after 5 failures in 15 min (`423 account_locked`), and is bounded by a per-IP rate limit (`429 too_many_requests`). The dev-only `X-Test-Hospital-Id` header has been removed in every environment.\n\n**Multi-tenancy.** Postgres RLS is enabled + forced on every clinical table \u2014 `mothers`, `clinicians`, `scheduled_calls`, `calls`, `alerts`, `sms_log`, `audit_phi_events`, `symptoms`, and the new `roles` + `discharges` tables. Composite FKs on `(id, hospital_id)` reject cross-tenant references at the DB layer \u2014 see `tests/test_tenancy_poison.py` for the regression suite. Two tables back the portal-API + auth work: `roles` (the per-hospital role + permission-matrix table \u2014 six seeded `is_system` roles plus any custom roles) and `discharges` (append-only discharge event records the returned `discharge_id` resolves to).\n\n**SMS pipeline + L4 escalation.** Outbound SMS is sent by the `sms-worker` service via the `SmsProvider` abstraction in `services/sms/`. The `escalation-cron` service advances open L4 alerts every minute; Twilio status callbacks land on `POST /webhooks/sms/status` and trigger the next escalation step immediately on terminal-failure receipts. L3 alerts are dashboard-only \u2014 no SMS \u2014 to keep the L4 channel trusted. Two per-mother rate caps (5/24h mother-bound, 10/24h clinician-per-mother) protect against runaway send patterns.\n\n**Reference page:** `/reference` renders this OpenAPI document via Scalar; `/docs` and `/redoc` are FastAPI's defaults and stay mounted for compatibility.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness probe",
+        "description": "Returns `{\"status\": \"ok\"}` whenever the FastAPI process is serving traffic. Used by Railway's healthcheck.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/ingest/call-completed": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Ingest a completed call",
+        "description": "Service-to-service post-call ingest. Called by `post_call_worker` once the call-service has uploaded audio + transcript to Supabase Storage and classified severity.\n\n**Auth.** `X-Omaya-Internal-Token` (constant-time compared against `INGEST_SHARED_SECRET`). **No** JWT \u2014 this is service-to-service.\n\n**Idempotency.** Dedup on `body.call_id` under the request's `tenant_session(body.hospital_id)`. Replays return `deduplicated=true`; cross-tenant replays (same `call_id`, different `hospital_id`) fall through to the INSERT path and are rejected by the composite FK on `calls(mother_id, hospital_id) \u2192 mothers(id, hospital_id)`.\n\n**Phase 4 \u2014 alert generation.** After the `calls` row commits, alert rows are written based on `body.severity`:\n\n- `L1` \u2014 note-only on the `calls` row; **no `alerts` row**.\n- `L2` \u2014 `alerts` row with `status='open'`, `last_escalation_step=0`. Dashboard task only; no SMS.\n- `L3` \u2014 `alerts` row with `status='open'`, `last_escalation_step=0`. Surfaces as a 24h follow-up task on the clinician dashboard; no SMS (`escalation_cron` filters `severity='L4'` at the query level).\n- `L4` \u2014 `alerts` row with `status='open'`, `last_escalation_step=1`, plus **two** `sms_job` rows enqueued in the same transaction: the primary-clinician step-1 page (keyed by `(mother_id, alert_id, 1)` against `uq_sms_log_idempotency`) and the mother-facing L4 SMS (keyed by `(mother_id, alert_id, NULL)`, coexisting via NULLS DISTINCT).\n\nPhone numbers + sender are read from `hospitals.config.escalation` via the `HospitalConfig` Pydantic validator; a malformed config raises 500 so the post-call worker retries and ops sees the validation error. Both alert + queue writes share the single `tenant_session` transaction \u2014 partial state (`alerts` row without enqueued SMS, or vice versa) is impossible.",
+        "operationId": "call_completed_internal_ingest_call_completed_post",
+        "parameters": [
+          {
+            "name": "X-Omaya-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Omaya-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostCallIngest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing `X-Omaya-Internal-Token` header."
+          },
+          "403": {
+            "description": "Invalid shared secret."
+          },
+          "422": {
+            "description": "Body validation failed."
+          },
+          "500": {
+            "description": "`INGEST_SHARED_SECRET` not configured, or `hospitals.config` failed `HospitalConfig` validation on an `L4` ingest (worker retries are the recovery path)."
+          }
+        }
+      }
+    },
+    "/mothers": {
+      "get": {
+        "tags": [
+          "mothers"
+        ],
+        "summary": "List mothers for the signed-in clinician's hospital",
+        "operationId": "list_mothers_mothers_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "crisis",
+                    "elevated",
+                    "monitor",
+                    "routine",
+                    "inactive"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "name": "consent_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "withdrawn",
+                    "pending"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent Status"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 2
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "most_urgent",
+                "newest",
+                "name"
+              ],
+              "type": "string",
+              "default": "most_urgent",
+              "title": "Sort"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotherListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "mothers"
+        ],
+        "summary": "Antenatally enroll a mother (Add Mother flow)",
+        "operationId": "enroll_mother_mothers_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollMotherRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollMotherResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`phone_already_enrolled` \u2014 phone already on a mother in this hospital"
+          },
+          "422": {
+            "description": "validation (invalid risk/language enum, non-Ghana phone, etc.)"
+          }
+        }
+      }
+    },
+    "/mothers/search": {
+      "get": {
+        "tags": [
+          "mothers"
+        ],
+        "summary": "Search antenatally-enrolled mothers (New Discharge flow)",
+        "operationId": "search_mothers_mothers_search_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotherSearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mothers/{mother_id}": {
+      "get": {
+        "tags": [
+          "mothers"
+        ],
+        "summary": "Single mother profile with check-in history",
+        "operationId": "get_mother_mothers__mother_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "mother_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Mother Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotherDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`not_found` \u2014 no such mother in this hospital"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mothers/{mother_id}/discharge": {
+      "post": {
+        "tags": [
+          "mothers"
+        ],
+        "summary": "Record a discharge; schedule the first postpartum call",
+        "description": "Persists the discharge onto the mother and flips her to postpartum. For `outcome='well'` a first postpartum call is scheduled (the scheduler/hydrator pipeline picks up the new `scheduled_calls` row). For `outcome='loss'` NO call is scheduled and the mother is marked non-active. Requires the `create_discharges` permission.",
+        "operationId": "discharge_mother_mothers__mother_id__discharge_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "mother_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Mother Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DischargeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DischargeResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`insufficient_role` \u2014 caller lacks `create_discharges`"
+          },
+          "404": {
+            "description": "`mother_not_found`"
+          },
+          "409": {
+            "description": "`already_discharged`"
+          },
+          "422": {
+            "description": "validation"
+          }
+        }
+      }
+    },
+    "/mothers/{mother_id}/calls": {
+      "post": {
+        "tags": [
+          "mothers"
+        ],
+        "summary": "Place an ad-hoc check-in call",
+        "description": "Enqueues a `call_job` for `mother_id` (bypasses the scheduler \u2014 E2E / admin override). Ack only; subscribe to ingest for outcome.",
+        "operationId": "trigger_call_mothers__mother_id__calls_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "mother_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Mother Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerCallResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Mother not found"
+          },
+          "409": {
+            "description": "Mother status is not 'active' (consent guardrail)"
+          },
+          "422": {
+            "description": "`mother_id` path parameter is not a valid UUID"
+          }
+        }
+      }
+    },
+    "/mothers/{mother_id}/confirm-consent": {
+      "post": {
+        "tags": [
+          "mothers"
+        ],
+        "summary": "Send consent-confirmation SMS to the mother",
+        "description": "Phase 4 SMS-pipeline stub. Enqueues one `sms_job` row with `message_type='consent_confirm'` and `recipient_role='mother'`. The SMS worker renders the template, calls Twilio, and writes the matching `sms_log` row.\n\n**Auth.** JWT; `tenant_required` scopes the mother + hospital lookup to the JWT's `hospital_id`. Cross-tenant `mother_id` surfaces as 404.\n\n**Phase 4 scope.** Only exercises the SMS pipeline path \u2014 there is intentionally **no** idempotency key on these enqueues. Phase 9 wires the consent state machine and the per-state idempotency. The interim guard against double-click spam is the mother-bound 5/24h cap (`SMS_RATE_CAP_MOTHER_PER_24H`) enforced by the SMS worker before contacting Twilio.\n\nReturns 202 with `{\"status\": \"enqueued\", \"job_id\": ...}`. The job-id is the `job_queue.id` and is opaque to clients.",
+        "operationId": "confirm_consent_mothers__mother_id__confirm_consent_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "mother_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Mother Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "`sms_job` enqueued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Confirm Consent Mothers  Mother Id  Confirm Consent Post"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Mother not found in caller's tenant."
+          },
+          "500": {
+            "description": "Invariant violation \u2014 mother's `hospital_id` resolved to an unreachable hospital row. No PHI in the detail."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mothers/{mother_id}/confirm-withdrawal": {
+      "post": {
+        "tags": [
+          "mothers"
+        ],
+        "summary": "Send withdrawal-confirmation SMS to the mother",
+        "description": "Phase 4 SMS-pipeline stub. Enqueues one `sms_job` row with `message_type='withdrawal_confirm'` and `recipient_role='mother'`. Same posture as `confirm-consent`: JWT-gated, RLS-scoped, no idempotency key (Phase 9 owns that), interim safety is the mother-bound 5/24h cap.\n\nReturns 202 with `{\"status\": \"enqueued\", \"job_id\": ...}`.",
+        "operationId": "confirm_withdrawal_mothers__mother_id__confirm_withdrawal_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "mother_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Mother Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "`sms_job` enqueued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Confirm Withdrawal Mothers  Mother Id  Confirm Withdrawal Post"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Mother not found in caller's tenant."
+          },
+          "500": {
+            "description": "Invariant violation \u2014 mother's `hospital_id` resolved to an unreachable hospital row. No PHI in the detail."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/sign-in": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sign in with email + password",
+        "description": "Returns a JWT on success. Failure returns a generic `invalid_credentials` error_code regardless of which step failed (anti-enumeration). 5 failures in 15 minutes locks the account for 30 minutes.",
+        "operationId": "sign_in_auth_sign_in_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_credentials` \u2014 wrong email or password"
+          },
+          "403": {
+            "description": "`account_suspended` \u2014 the clinician's seat is suspended"
+          },
+          "423": {
+            "description": "`account_locked` \u2014 too many recent failures"
+          },
+          "429": {
+            "description": "`too_many_requests` \u2014 per-IP sign-in rate limit"
+          },
+          "500": {
+            "description": "`internal_error` \u2014 infrastructure failure"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Rotate the signed-in clinician's password",
+        "description": "Reachable even when `must_change_password=true` (does NOT depend on `force_change_guard`). Returns a fresh JWT with the flag cleared so the caller can drop the stale one.",
+        "operationId": "change_password_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePasswordResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`weak_password` \u2014 new password fails the complexity rule"
+          },
+          "401": {
+            "description": "`invalid_credentials` \u2014 current password wrong, OR missing/bad JWT"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/clinicians": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List clinicians at the calling admin's hospital",
+        "operationId": "list_clinicians_admin_clinicians_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicianListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`token_missing` / `token_expired` / `token_invalid`"
+          },
+          "403": {
+            "description": "`password_change_required` or `insufficient_role` (lacks manage_staff)"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create a clinician seat under the calling admin's hospital",
+        "description": "Returns a one-shot `temp_password` the admin must communicate to the new clinician via a side channel. The clinician's first sign-in is force-rotated.",
+        "operationId": "create_clinician_admin_clinicians_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClinicianRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateClinicianResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`token_missing` / `token_expired` / `token_invalid`"
+          },
+          "403": {
+            "description": "`password_change_required` (admin owes their own first-rotation), `insufficient_role` (lacks manage_staff), or `administrator_create_forbidden`"
+          },
+          "409": {
+            "description": "`email_taken` \u2014 global UNIQUE constraint hit"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/clinicians/{clinician_id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Edit a clinician \u2014 name, role, and/or suspend/reactivate",
+        "operationId": "update_clinician_admin_clinicians__clinician_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clinician_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Clinician Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClinicianRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateClinicianResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`token_missing` / `token_expired` / `token_invalid`"
+          },
+          "403": {
+            "description": "`cannot_edit_own_role`, `cannot_suspend_self`, or `insufficient_role` (lacks manage_staff)"
+          },
+          "404": {
+            "description": "`not_found`"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Remove a clinician seat",
+        "operationId": "delete_clinician_admin_clinicians__clinician_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clinician_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Clinician Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "`token_missing` / `token_expired` / `token_invalid`"
+          },
+          "403": {
+            "description": "`cannot_delete_self`, `insufficient_role` (lacks manage_staff)"
+          },
+          "404": {
+            "description": "`not_found`"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/roles": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List roles + their permission matrix (Staff page)",
+        "operationId": "list_roles_admin_roles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`token_missing` / `token_expired` / `token_invalid`"
+          },
+          "403": {
+            "description": "`password_change_required` or `insufficient_role` (lacks manage_staff)"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create a custom role",
+        "operationId": "create_role_admin_roles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`token_missing` / `token_expired` / `token_invalid`"
+          },
+          "403": {
+            "description": "`password_change_required` or `insufficient_role` (lacks manage_staff)"
+          },
+          "409": {
+            "description": "`role_name_taken`"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/roles/{role_id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Edit a role's permissions / description (or rename a custom role)",
+        "operationId": "update_role_admin_roles__role_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "role_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Role Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`token_missing` / `token_expired` / `token_invalid`"
+          },
+          "403": {
+            "description": "`cannot_rename_system_role` or `insufficient_role`"
+          },
+          "404": {
+            "description": "`not_found`"
+          },
+          "409": {
+            "description": "`role_name_taken`"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Delete a custom role",
+        "operationId": "delete_role_admin_roles__role_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "role_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Role Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "`token_missing` / `token_expired` / `token_invalid`"
+          },
+          "403": {
+            "description": "`cannot_delete_system_role` or `insufficient_role`"
+          },
+          "404": {
+            "description": "`not_found`"
+          },
+          "409": {
+            "description": "`role_in_use` \u2014 still assigned to a clinician"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "List escalation alerts (dashboard 'needs attention now'; polled 60s)",
+        "operationId": "list_alerts_alerts_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "acknowledged",
+                "resolved"
+              ],
+              "type": "string",
+              "default": "open",
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts/{alert_id}/acknowledge": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Acknowledge an open alert; stops the L4 escalation chain",
+        "description": "Acknowledge an open `L2` / `L3` / `L4` alert.\n\n**Auth.** `Authorization: Bearer <jwt>`. The JWT-derived `hospital_id` scopes the read via a manually-opened `tenant_session`; cross-tenant lookups surface as a plain 404 (anti-API-mapping, same posture as the auth handlers).\n\n**Effect on the L4 chain.** Setting `status='acknowledged'` stops further SMS \u2014 the `escalation_cron` filters acknowledged alerts out of both the threshold sweep and the 60s no-callback sweep, and the webhook's terminal-failure trigger also no-ops on non-`open` alerts. L2 / L3 alerts can be acknowledged through the same endpoint (purely a dashboard status flip \u2014 they never entered the SMS chain).\n\n**Idempotency.** Re-acknowledging an already-acknowledged alert returns 200 with the **original** `acknowledged_at` and `acknowledged_by` so dashboards displaying multi-click protection don't see the timestamp jump. Re-acks **do not** write a second `audit_phi_events` row.\n\n**Audit.** A fresh acknowledge writes one `audit_phi_events` row with `action='acknowledge'`, `resource_type='alert'` on a separate, short-lived transaction that opens **after** the alert UPDATE commits \u2014 so the audit row only lands if the ack itself actually persisted. Audit failures log + swallow; the clinician still gets a 200.",
+        "operationId": "acknowledge_alerts__alert_id__acknowledge_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcknowledgeAlertResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`insufficient_role` \u2014 caller's role lacks `escalate`, or `password_change_required`."
+          },
+          "404": {
+            "description": "Alert not visible to caller's tenant, or doesn't exist (deliberately indistinguishable)."
+          },
+          "409": {
+            "description": "Alert `status='resolved'` \u2014 terminal state, no further transitions allowed."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/calls": {
+      "get": {
+        "tags": [
+          "calls"
+        ],
+        "summary": "List calls (dashboard 'today's calls' + Calls page)",
+        "operationId": "list_calls_calls_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "completed",
+                    "in_progress",
+                    "upcoming",
+                    "missed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "mother_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mother Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/sms/status": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "SMS delivery-receipt webhook (Twilio in MVP)",
+        "description": "Twilio Programmable Messaging status callback. **Public** \u2014 no JWT; the only auth gate is the provider signature.\n\n**Signature validation.** Twilio computes an HMAC-SHA1 over the **public URL** Twilio called plus the sorted form params, signed with `TWILIO_AUTH_TOKEN`, and sends it in the `X-Twilio-Signature` header. The handler reconstructs the URL from `request.url`, which only reflects the public origin (`https://portal-api.omaya.dev/...`) **after** `ProxyHeadersMiddleware` rewrites Railway's `X-Forwarded-Proto` / `X-Forwarded-Host`. Without that middleware, signature checks would 403 every webhook. A lifespan check in `main.py` refuses to start the process if the middleware is unmounted.\n\n**Status mapping.** Twilio's `MessageStatus` is mapped to `sms_log.delivery_status` (`accepted`/`queued` \u2192 `queued`, `sending`/`sent` \u2192 `sent`, then `delivered`, `failed`, `undelivered` pass through). Terminal statuses (`delivered`, `failed`, `undelivered`) also set `sms_log.delivered_at = now()`.\n\n**L4 terminal-failure trigger.** If the matching `sms_log` row is tied to an open `L4` alert AND the mapped status is `failed` or `undelivered`, the handler calls `advance_escalation` synchronously inside the same transaction \u2014 the next rung (primary \u2192 secondary \u2192 hospital_admin) is paged immediately instead of waiting up to 5 minutes for the cron sweep. The advance is race-safe vs. the cron's 60s no-callback sweep via an optimistic `UPDATE \u2026 WHERE last_escalation_step = prev` on the alert row.\n\n**Unknown SID.** Returns 200 with `{\"status\": \"unknown_sid\"}` rather than 404 \u2014 the receipt may have beaten the worker's `sms_log` INSERT, and 4xx would trigger Twilio's retry storm instead of letting the next callback resolve the race.\n\n**AT migration note.** The URL stays the same after the Africa's Talking migration; AT sends JSON (not form-encoded) and authenticates by IP allowlist (not HMAC). The branch lives inside `provider.validate_signature`.",
+        "operationId": "sms_status_webhooks_sms_status_post",
+        "responses": {
+          "200": {
+            "description": "Receipt accepted. `{\"status\": \"ok\"}` on a normal update; `{\"status\": \"unknown_sid\"}` when the `MessageSid` isn't in `sms_log` yet (race with the worker's INSERT \u2014 Twilio retries, next callback resolves).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Sms Status Webhooks Sms Status Post"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Twilio-Signature` missing or HMAC mismatch. The body is **not** inspected on this path."
+          },
+          "422": {
+            "description": "Form body missing `MessageSid` / `MessageStatus`, or `MessageStatus` outside Twilio's documented vocabulary."
+          }
+        }
+      }
+    },
+    "/platform/hospitals": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Onboard a new hospital + its seed hospital_admin",
+        "description": "Internal Omaya operator surface. Creates a hospital row and provisions the first `hospital_admin` clinician in a single transaction; returns a one-time `admin_temp_password` that ops delivers to the admin out-of-band. The admin's first sign-in is force-rotated (`must_change_password=true`).\n\n**Auth.** `X-Omaya-Platform-Admin-Token` (constant-time compared against `PLATFORM_ADMIN_TOKEN`). **No JWT** \u2014 no admin exists pre-creation. Distinct token from `INGEST_SHARED_SECRET` so a leaked service-to-service token can't pivot to hospital creation.\n\n**Connection.** Runs on the `omaya_platform_admin` BYPASSRLS pool because `omaya_app` (the tenant runtime role) has SELECT-only on `hospitals` (migration 0004). The endpoint is intentionally outside the tenant-scoped surface \u2014 it predates any tenant.\n\n**Validation.** `config` carries the full `HospitalConfig` Pydantic shape \u2014 threshold bounded `[1, 60]` minutes, all four phones Ghana E.164, `sms_sender_id` Ghana E.164 or AT-style alphanumeric. Required at onboarding so a misconfigured tenant fails fast here rather than at first-L4-ingest time.\n\n**Audit.** Writes one `audit_auth_events` row of type `password_change` for the seed admin in the same transaction. Operator-level events beyond that are logged but not yet audited to a dedicated table (deferred to Phase 11).\n\n**One-time temp password.** The `admin_temp_password` field in the response is shown ONCE; the backend has no API to re-fetch it. Operator delivers via 1Password share / Signal / in-person handoff. NEVER log it.",
+        "operationId": "create_hospital_platform_hospitals_post",
+        "parameters": [
+          {
+            "name": "X-Omaya-Platform-Admin-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Omaya-Platform-Admin-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHospitalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateHospitalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`platform_admin_token_missing` \u2014 header absent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`platform_admin_token_invalid` \u2014 token mismatch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`admin_email_taken` \u2014 the admin email is already used by another clinician (global UNIQUE index on `clinicians.email`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Body validation failed \u2014 typically a malformed `HospitalConfig` (threshold out of bounds, bad E.164 phone, missing escalation block) or a typo in a field name (`extra='forbid'`)."
+          },
+          "500": {
+            "description": "`platform_admin_token_not_configured` \u2014 backend env var unset. Other 500s are unexpected DB errors.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcknowledgeAlertResponse": {
+        "properties": {
+          "alert_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Alert Id",
+            "description": "`alerts.id` that was acknowledged."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "acknowledged",
+              "resolved"
+            ],
+            "title": "Status",
+            "description": "Always `'acknowledged'` on the success path. On a re-ack of a row already in `'acknowledged'`, the same value is returned (idempotent)."
+          },
+          "acknowledged_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Acknowledged At",
+            "description": "UTC timestamp the ack landed. On idempotent re-ack, this is the **original** timestamp (not `now()`) so dashboard multi-click guards don't see the value jump."
+          },
+          "acknowledged_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Acknowledged By",
+            "description": "`clinicians.id` of the acknowledging clinician. On re-ack, this is the **original** acknowledger (not the re-clicker)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "alert_id",
+          "status",
+          "acknowledged_at",
+          "acknowledged_by"
+        ],
+        "title": "AcknowledgeAlertResponse",
+        "description": "Response from ``POST /alerts/{alert_id}/acknowledge``.\n\nReturned on both first-acknowledge AND idempotent re-acknowledge of\nan already-acked alert (the route returns 200 with the original\n``acknowledged_at`` timestamp in the latter case).",
+        "examples": [
+          {
+            "acknowledged_at": "2026-06-04T12:34:56.789012+00:00",
+            "acknowledged_by": "01902d29-7c2b-7c00-a000-0000000000aa",
+            "alert_id": "01902d29-7c2b-7c00-a000-000000000001",
+            "status": "acknowledged"
+          }
+        ]
+      },
+      "AlertListItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "mother_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Mother Id"
+          },
+          "mother_name": {
+            "type": "string",
+            "title": "Mother Name"
+          },
+          "day_postpartum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Postpartum",
+            "description": "Days since the mother's care phase started; `null` if not yet started."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "crisis",
+              "elevated",
+              "monitor",
+              "routine",
+              "inactive"
+            ],
+            "title": "Severity",
+            "description": "Dashboard severity mapped from the alert's stored L-level: one of `crisis` / `elevated` / `monitor` / `routine` / `inactive`."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "When the alert was raised (UTC)."
+          },
+          "sla_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Deadline At",
+            "description": "Absolute SLA deadline (`created_at` + the SLA window). `null` on legacy rows created before the column existed \u2014 the read path falls back to a computed deadline in that case."
+          },
+          "time_left_minutes": {
+            "type": "integer",
+            "title": "Time Left Minutes",
+            "description": "Whole minutes until `sla_deadline_at`, derived per request (the dashboard polls every 60s); negative once the deadline has passed. Never stored."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "acknowledged",
+              "resolved"
+            ],
+            "title": "Status",
+            "description": "`open`, `acknowledged`, or `resolved`."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "mother_id",
+          "mother_name",
+          "day_postpartum",
+          "severity",
+          "created_at",
+          "sla_deadline_at",
+          "time_left_minutes",
+          "status"
+        ],
+        "title": "AlertListItem",
+        "description": "One row in the ``GET /alerts`` list. Distinct from ``AlertOut`` (the\nraw DB row): severity is the DASHBOARD vocabulary (mapped from L-level),\nand ``time_left_minutes`` is derived per request from the SLA deadline\n(it changes every minute \u2014 never stored).",
+        "example": {
+          "created_at": "2026-06-11T07:30:00Z",
+          "day_postpartum": 6,
+          "id": "0190f3a1-2b4c-7d8e-9f00-0000000000a1",
+          "mother_id": "0190f3a1-2b4c-7d8e-9f00-000000000001",
+          "mother_name": "Ama Serwaa",
+          "severity": "crisis",
+          "sla_deadline_at": "2026-06-11T09:30:00Z",
+          "status": "open",
+          "time_left_minutes": 42
+        }
+      },
+      "AlertListResponse": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertListItem"
+            },
+            "type": "array",
+            "title": "Alerts"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "alerts"
+        ],
+        "title": "AlertListResponse"
+      },
+      "CallListItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "mother_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Mother Id"
+          },
+          "mother_name": {
+            "type": "string",
+            "title": "Mother Name"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At",
+            "description": "When the call was scheduled / placed (UTC); the list sorts on this."
+          },
+          "call_type": {
+            "type": "string",
+            "title": "Call Type",
+            "description": "Human-readable label derived from `day_in_care`, e.g. `'Day 2 check-in'`."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "in_progress",
+              "upcoming",
+              "missed"
+            ],
+            "title": "Status",
+            "description": "Derived call status: `completed`, `in_progress`, `upcoming`, or `missed`."
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds",
+            "description": "Call duration in seconds; `null` for upcoming / missed / in-progress calls."
+          },
+          "delivery_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "vaginal",
+                  "caesarean"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Type",
+            "description": "Mother's delivery type (`vaginal` / `caesarean`); `null` if not yet known."
+          },
+          "day_in_care": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day In Care",
+            "description": "Days since the mother's care phase started at the time of the call."
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "crisis",
+                  "elevated",
+                  "monitor",
+                  "routine",
+                  "inactive"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity",
+            "description": "Dashboard severity from the call's classification; `null` for a call with no severity yet (upcoming / missed / unclassified)."
+          },
+          "flags_raised": {
+            "type": "integer",
+            "title": "Flags Raised",
+            "description": "Count of `alerts` rows raised by this call (0 for scheduled-only rows)."
+          },
+          "transcript": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptTurn"
+            },
+            "type": "array",
+            "title": "Transcript",
+            "description": "Turn-by-turn transcript. Always `[]` for MVP \u2014 the real transcript lives in Supabase Storage, not Postgres."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "mother_id",
+          "mother_name",
+          "scheduled_at",
+          "call_type",
+          "status",
+          "duration_seconds",
+          "delivery_type",
+          "day_in_care",
+          "severity",
+          "flags_raised",
+          "transcript"
+        ],
+        "title": "CallListItem",
+        "description": "One row in the ``GET /calls`` list.",
+        "example": {
+          "call_type": "Day 2 check-in",
+          "day_in_care": 2,
+          "delivery_type": "vaginal",
+          "duration_seconds": 272,
+          "flags_raised": 0,
+          "id": "0190f3a1-2b4c-7d8e-9f00-0000000000e1",
+          "mother_id": "0190f3a1-2b4c-7d8e-9f00-000000000001",
+          "mother_name": "Abena Mansa",
+          "scheduled_at": "2026-06-11T09:00:00Z",
+          "severity": "routine",
+          "status": "completed",
+          "transcript": [
+            {
+              "speaker": "omaya",
+              "text": "How are you feeling since leaving the hospital?"
+            },
+            {
+              "speaker": "mother",
+              "text": "I am doing well. A little tired but managing."
+            }
+          ]
+        }
+      },
+      "CallListResponse": {
+        "properties": {
+          "calls": {
+            "items": {
+              "$ref": "#/components/schemas/CallListItem"
+            },
+            "type": "array",
+            "title": "Calls"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "calls"
+        ],
+        "title": "CallListResponse"
+      },
+      "ChangePasswordRequest": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Current Password"
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "New Password",
+            "description": "New password. Must be \u226510 chars and contain at least one letter and one digit, else `400 weak_password`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "ChangePasswordRequest",
+        "description": "``POST /auth/change-password`` request body.",
+        "example": {
+          "current_password": "temp-issued-password",
+          "new_password": "my new strong pass 9"
+        }
+      },
+      "ChangePasswordResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token",
+            "description": "Fresh JWT with `must_change_password` cleared \u2014 replace the stale token."
+          },
+          "token_type": {
+            "type": "string",
+            "const": "bearer",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "description": "Token lifetime in seconds (8h = 28800 by default)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "expires_in"
+        ],
+        "title": "ChangePasswordResponse",
+        "description": "Returns a fresh JWT with ``must_change_password=false`` so the\ncaller can drop the stale one on the floor.",
+        "example": {
+          "expires_in": 28800,
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...",
+          "token_type": "bearer"
+        }
+      },
+      "CheckInItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date",
+            "description": "When the check-in call took place (UTC)."
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day",
+            "description": "Day-in-care of this check-in (days since the care phase started)."
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Classifier-generated one-line summary of the call; `''` if none extracted."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "crisis",
+              "elevated",
+              "monitor",
+              "routine",
+              "inactive"
+            ],
+            "title": "Severity",
+            "description": "Dashboard severity for this individual check-in."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "date",
+          "day",
+          "summary",
+          "severity"
+        ],
+        "title": "CheckInItem",
+        "description": "One past check-in (= one ``calls`` row) in the mother profile."
+      },
+      "ClinicianListItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Display name; `null` if never set."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Role NAME \u2014 one of Administrator / Physician / Midwife / Coordinator / Paediatrician / Psychologist."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "invited",
+              "suspended"
+            ],
+            "title": "Status",
+            "description": "Account lifecycle state: `active`, `invited`, or `suspended`."
+          },
+          "last_active_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Active At",
+            "description": "Last successful sign-in (UTC); `null` if the clinician has never signed in."
+          },
+          "is_current_user": {
+            "type": "boolean",
+            "title": "Is Current User",
+            "description": "`true` for the row matching the calling admin's own JWT identity."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "status",
+          "last_active_at",
+          "is_current_user"
+        ],
+        "title": "ClinicianListItem",
+        "example": {
+          "email": "k.boateng@korlebu.gov.gh",
+          "id": "0190f3a1-2b4c-7d8e-9f00-0000000000b1",
+          "is_current_user": true,
+          "last_active_at": "2026-06-11T11:00:00Z",
+          "name": "Kwame Boateng",
+          "role": "Administrator",
+          "status": "active"
+        }
+      },
+      "ClinicianListResponse": {
+        "properties": {
+          "clinicians": {
+            "items": {
+              "$ref": "#/components/schemas/ClinicianListItem"
+            },
+            "type": "array",
+            "title": "Clinicians"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "clinicians"
+        ],
+        "title": "ClinicianListResponse"
+      },
+      "CreateClinicianRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "Administrator",
+              "Physician",
+              "Midwife",
+              "Coordinator",
+              "Paediatrician",
+              "Psychologist"
+            ],
+            "title": "Role",
+            "description": "System role name to assign: one of Physician / Midwife / Coordinator / Paediatrician / Psychologist. `Administrator` is accepted by the schema but rejected by the handler (`403 administrator_create_forbidden`)."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Clinician display name."
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "role",
+          "name"
+        ],
+        "title": "CreateClinicianRequest",
+        "description": "``POST /admin/clinicians`` request body.\n\n``role`` is bounded by the same CHECK constraint that's on the\n``clinicians`` table \u2014 including ``Administrator``, which the\n*handler* rejects (internal-only; provisioned at onboarding, never\nvia the API). We allow the literal in the schema so the 403 fires\nin the handler with a precise error_code, not as a generic\nvalidation 422.",
+        "example": {
+          "email": "n.owusu@korlebu.gov.gh",
+          "name": "Naa Owusu",
+          "role": "Midwife"
+        }
+      },
+      "CreateClinicianResponse": {
+        "properties": {
+          "clinician_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Clinician Id"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "temp_password": {
+            "type": "string",
+            "title": "Temp Password",
+            "description": "One-time temporary password, shown ONCE. Deliver it to the clinician out-of-band; their first sign-in forces a rotation. Never logged by the backend."
+          },
+          "must_change_password": {
+            "type": "boolean",
+            "const": true,
+            "title": "Must Change Password",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "clinician_id",
+          "email",
+          "role",
+          "temp_password"
+        ],
+        "title": "CreateClinicianResponse",
+        "description": "201 Created \u2014 the temp_password is shown ONCE. The admin UI is\nresponsible for surfacing it to the new clinician via a side channel\n(in-person, SMS, etc); the backend never logs it.",
+        "example": {
+          "clinician_id": "0190f3a1-2b4c-7d8e-9f00-0000000000b1",
+          "email": "n.owusu@korlebu.gov.gh",
+          "must_change_password": true,
+          "role": "Midwife",
+          "temp_password": "xY3k-Qf9mZ2pL7tA"
+        }
+      },
+      "CreateHospitalRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Display name of the hospital. Surfaces in clinician dashboards."
+          },
+          "phone_number_e164": {
+            "type": "string",
+            "title": "Phone Number E164",
+            "description": "Hospital main / front-desk number, Ghana E.164. The L4 mother-facing SMS template includes this so the mother knows who to call back."
+          },
+          "config": {
+            "$ref": "#/components/schemas/HospitalConfig",
+            "description": "Phase 4 escalation block + ``sms_sender_id``. Validated by ``HospitalConfig`` (``extra='forbid'`` at every level; threshold bounded [1, 60] minutes; all four phone fields Ghana E.164). Required \u2014 missing or malformed config would fail the first L4 ingest, so we surface it here at 422 instead of at clinical-fire time."
+          },
+          "admin_email": {
+            "type": "string",
+            "format": "email",
+            "title": "Admin Email",
+            "description": "Email for the seed ``hospital_admin`` clinician. Must be globally unique across the ``clinicians`` table. Lowercased + whitespace-stripped on persist."
+          },
+          "admin_name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Admin Name",
+            "description": "Display name of the seed admin. Captured for audit context. The ``clinicians`` table does not yet have a ``name`` column (symmetric with ``admin_clinicians.py``); this is recorded in the audit-event row only."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "phone_number_e164",
+          "config",
+          "admin_email",
+          "admin_name"
+        ],
+        "title": "CreateHospitalRequest",
+        "description": "``POST /platform/hospitals`` request body.\n\n``extra=\"forbid\"`` \u2014 typos like ``phone_e164`` (wrong key) fail\nloudly at 422 rather than silently dropping a load-bearing field.\n\n``config`` is REQUIRED (not Optional) \u2014 Phase 4's ingest endpoint\nfails closed on L4 calls if ``hospitals.config`` is malformed; we\nsurface that failure at onboarding time rather than at the first\nL4 page-fire. The full ``HospitalConfig`` Pydantic model validates\nthe escalation block, threshold bounds, and Ghana E.164 on every\nphone field.\n\nNo ``id`` field on the request \u2014 the server mints ``uuid7()`` so\nthat hospital_id is time-sortable and not a frontend attack\nsurface.",
+        "examples": [
+          {
+            "admin_email": "first.admin@korlebu.example",
+            "admin_name": "Akua Mensah",
+            "config": {
+              "escalation": {
+                "hospital_admin_phone_e164": "+233200000003",
+                "l4_acknowledgment_threshold_min": 5,
+                "primary_oncall_phone_e164": "+233200000001",
+                "secondary_oncall_phone_e164": "+233200000002"
+              },
+              "sms_sender_id": "+233200000000"
+            },
+            "name": "Korle Bu Maternity Pilot",
+            "phone_number_e164": "+233244000000"
+          }
+        ]
+      },
+      "CreateHospitalResponse": {
+        "properties": {
+          "hospital_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Hospital Id",
+            "description": "The newly created hospital's id. Time-sortable UUID v7."
+          },
+          "admin_clinician_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Admin Clinician Id",
+            "description": "The newly created seed admin's clinician_id."
+          },
+          "admin_email": {
+            "type": "string",
+            "format": "email",
+            "title": "Admin Email",
+            "description": "The seed admin's email (lowercased + whitespace-stripped)."
+          },
+          "admin_temp_password": {
+            "type": "string",
+            "title": "Admin Temp Password",
+            "description": "One-time temporary password for the seed admin. Shown ONCE in this response; the backend has no API to re-fetch it. Operator delivers to the admin via a side channel; the admin's first sign-in force-rotates."
+          },
+          "admin_must_change_password": {
+            "type": "boolean",
+            "const": true,
+            "title": "Admin Must Change Password",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "hospital_id",
+          "admin_clinician_id",
+          "admin_email",
+          "admin_temp_password"
+        ],
+        "title": "CreateHospitalResponse",
+        "description": "201 Created \u2014 the ``admin_temp_password`` is shown ONCE.\n\nThe operator is responsible for delivering it to the new admin via\na side channel (1Password share, Signal, in-person handoff); the\nbackend never logs it and there is no API to re-fetch it. The\nadmin's first sign-in is gated on ``must_change_password=true``.",
+        "examples": [
+          {
+            "admin_clinician_id": "01931f00-0000-7000-8000-000000000002",
+            "admin_email": "first.admin@korlebu.example",
+            "admin_must_change_password": true,
+            "admin_temp_password": "Xm3LpQrZk7VnTw9F",
+            "hospital_id": "01931f00-0000-7000-8000-000000000001"
+          }
+        ]
+      },
+      "CreateRoleRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Role name; must be unique per hospital (`409 role_name_taken` otherwise)."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/RolePermissions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "permissions"
+        ],
+        "title": "CreateRoleRequest",
+        "description": "``POST /admin/roles`` \u2014 create a custom role.",
+        "example": {
+          "description": "Supports breastfeeding follow-up",
+          "name": "Lactation Consultant",
+          "permissions": {
+            "create_discharges": false,
+            "escalate": false,
+            "manage_staff": false,
+            "message_mothers": true,
+            "view_mothers": true
+          }
+        }
+      },
+      "DischargeRequest": {
+        "properties": {
+          "delivery_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Delivery Date"
+          },
+          "discharge_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Discharge Date"
+          },
+          "delivery_type": {
+            "type": "string",
+            "enum": [
+              "vaginal",
+              "caesarean"
+            ],
+            "title": "Delivery Type",
+            "description": "`vaginal` or `caesarean`."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "well",
+              "loss"
+            ],
+            "title": "Outcome",
+            "description": "Baby outcome. `well` schedules the first postpartum call; `loss` schedules no calls and marks the mother non-active."
+          },
+          "medications": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "pain_relief",
+                "antibiotics",
+                "iron_folic",
+                "wound_care",
+                "none"
+              ]
+            },
+            "type": "array",
+            "title": "Medications",
+            "description": "Discharge medications. Each value is one of `pain_relief`, `antibiotics`, `iron_folic`, `wound_care`, `none`."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "delivery_date",
+          "discharge_date",
+          "delivery_type",
+          "outcome",
+          "medications"
+        ],
+        "title": "DischargeRequest",
+        "description": "``POST /mothers/{id}/discharge`` body \u2014 New Discharge flow.",
+        "example": {
+          "delivery_date": "2026-06-01",
+          "delivery_type": "caesarean",
+          "discharge_date": "2026-06-02",
+          "medications": [
+            "pain_relief",
+            "wound_care"
+          ],
+          "outcome": "well"
+        }
+      },
+      "DischargeResponse": {
+        "properties": {
+          "mother_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Mother Id"
+          },
+          "discharge_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Discharge Id",
+            "description": "Id of the append-only `discharges` event row this discharge created."
+          },
+          "first_call_scheduled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Call Scheduled At",
+            "description": "When the first postpartum call is scheduled (discharge_date + 1 day at 08:00 UTC) for a live outcome with consent intact; `null` when no call was scheduled (outcome `loss`, or consent withdrawn)."
+          },
+          "automated_calls_enabled": {
+            "type": "boolean",
+            "title": "Automated Calls Enabled",
+            "description": "`true` when the postpartum call pipeline was armed for this mother; `false` for `outcome='loss'` or a withdrawn mother."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mother_id",
+          "discharge_id",
+          "first_call_scheduled_at",
+          "automated_calls_enabled"
+        ],
+        "title": "DischargeResponse",
+        "example": {
+          "automated_calls_enabled": true,
+          "discharge_id": "0190f3a1-2b4c-7d8e-9f00-0000000000d1",
+          "first_call_scheduled_at": "2026-06-03T08:00:00Z",
+          "mother_id": "0190f3a1-2b4c-7d8e-9f00-000000000001"
+        }
+      },
+      "EnrollMotherRequest": {
+        "properties": {
+          "full_name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Full Name",
+            "description": "Mother's full name."
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone",
+            "description": "Phone number \u2014 validated + canonicalized to Ghana E.164 (`+233\u2026`)."
+          },
+          "date_of_birth": {
+            "type": "string",
+            "format": "date",
+            "title": "Date Of Birth"
+          },
+          "edd": {
+            "type": "string",
+            "format": "date",
+            "title": "Edd",
+            "description": "Estimated delivery date."
+          },
+          "gravida": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Gravida",
+            "description": "Number of pregnancies (gravidity)."
+          },
+          "para": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Para",
+            "description": "Number of births past viability (parity)."
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "english",
+              "twi",
+              "ga",
+              "ewe",
+              "dagbani"
+            ],
+            "title": "Language",
+            "description": "Preferred call language: `english` / `twi` / `ga` / `ewe` / `dagbani`."
+          },
+          "risks": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "prior_csection",
+                "hypertension",
+                "diabetes",
+                "multiple",
+                "sickle_cell",
+                "prior_loss",
+                "hiv_pmtct"
+              ]
+            },
+            "type": "array",
+            "title": "Risks",
+            "description": "Antenatal risk flags. Each value is one of `prior_csection`, `hypertension`, `diabetes`, `multiple`, `sickle_cell`, `prior_loss`, `hiv_pmtct`."
+          },
+          "consent_calls": {
+            "type": "boolean",
+            "title": "Consent Calls",
+            "description": "Whether the mother consented to receiving check-in calls. `true` enrolls her `active`; `false` enrolls her `pending_consent`."
+          },
+          "consent_recording": {
+            "type": "boolean",
+            "title": "Consent Recording",
+            "description": "Whether the mother consented to call audio being recorded."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "full_name",
+          "phone",
+          "date_of_birth",
+          "edd",
+          "gravida",
+          "para",
+          "language",
+          "risks",
+          "consent_calls",
+          "consent_recording"
+        ],
+        "title": "EnrollMotherRequest",
+        "description": "``POST /mothers`` body \u2014 antenatal enrollment (Add Mother flow).",
+        "example": {
+          "consent_calls": true,
+          "consent_recording": false,
+          "date_of_birth": "1995-03-14",
+          "edd": "2026-09-10",
+          "full_name": "Ama Mensah",
+          "gravida": 2,
+          "language": "twi",
+          "para": 1,
+          "phone": "+233241234567",
+          "risks": [
+            "hypertension",
+            "prior_csection"
+          ]
+        }
+      },
+      "EnrollMotherResponse": {
+        "properties": {
+          "mother_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Mother Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "const": "enrolled",
+            "title": "Status",
+            "default": "enrolled"
+          },
+          "first_call_scheduled": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Call Scheduled",
+            "description": "Always `null` on antenatal enrollment \u2014 the first postpartum call is scheduled later, by `POST /mothers/{id}/discharge`."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mother_id",
+          "name"
+        ],
+        "title": "EnrollMotherResponse",
+        "example": {
+          "mother_id": "0190f3a1-2b4c-7d8e-9f00-000000000001",
+          "name": "Ama Mensah",
+          "status": "enrolled"
+        }
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error_code": {
+            "type": "string",
+            "title": "Error Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error_code",
+          "message"
+        ],
+        "title": "ErrorResponse",
+        "description": "All Phase 3 auth-surface errors use this shape.\n\n``error_code`` is the stable frontend contract; ``message`` is a\nhuman-readable tagline tuned for UI display. NEVER include\n``locked_until`` (gives attackers a retry schedule), the required\nrole on a 403 (maps the API), or whether the email existed on a\nsign-in failure (enables enumeration)."
+      },
+      "EscalationConfig": {
+        "properties": {
+          "l4_acknowledgment_threshold_min": {
+            "type": "integer",
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "L4 Acknowledgment Threshold Min",
+            "description": "Minutes between escalation steps. Spec default: 5 (mvp-build L1087). Floor 1 (anything tighter would melt Twilio and lose signal-to-noise); ceiling 60 (anything longer means the chain isn't really an emergency channel).",
+            "examples": [
+              5
+            ]
+          },
+          "primary_oncall_phone_e164": {
+            "type": "string",
+            "title": "Primary Oncall Phone E164",
+            "description": "Step 1 recipient \u2014 primary on-call clinician. Ghana E.164 (starts `+233`)."
+          },
+          "secondary_oncall_phone_e164": {
+            "type": "string",
+            "title": "Secondary Oncall Phone E164",
+            "description": "Step 2 recipient \u2014 secondary on-call clinician. Paged `l4_acknowledgment_threshold_min` after step 1 if the alert is still `status='open'`."
+          },
+          "hospital_admin_phone_e164": {
+            "type": "string",
+            "title": "Hospital Admin Phone E164",
+            "description": "Step 3 recipient \u2014 hospital admin. **Terminal** rung; if the admin doesn't acknowledge, the open alert stays on the dashboard but no further SMS goes out."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "l4_acknowledgment_threshold_min",
+          "primary_oncall_phone_e164",
+          "secondary_oncall_phone_e164",
+          "hospital_admin_phone_e164"
+        ],
+        "title": "EscalationConfig",
+        "description": "The ``escalation`` block of ``hospitals.config``.\n\nThree rungs (primary \u2192 secondary \u2192 hospital_admin) per spec L1095.\nThe L4 chain stops at hospital_admin \u2014 the founder is never paged\non a clinical event."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HospitalConfig": {
+        "properties": {
+          "escalation": {
+            "$ref": "#/components/schemas/EscalationConfig",
+            "description": "L4 escalation rules. The chain has exactly three rungs and stops at `hospital_admin`. L3 has no escalation config because L3 alerts never enter the SMS pipeline."
+          },
+          "sms_sender_id": {
+            "type": "string",
+            "title": "Sms Sender Id",
+            "description": "Ghana E.164 (Twilio MVP \u2014 must be a Ghana long-code Twilio provisioned for the hospital) OR alphanumeric 3\u201311 chars `[A-Za-z0-9 ]` (reserved for Africa's Talking \u2014 not used in MVP)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "escalation",
+          "sms_sender_id"
+        ],
+        "title": "HospitalConfig",
+        "description": "Full ``hospitals.config`` shape.\n\n``extra=\"forbid\"`` at both levels \u2014 any unknown key is a configuration\ndrift smell that should surface in CI / at onboarding time, not at L4\nfire time.",
+        "examples": [
+          {
+            "escalation": {
+              "hospital_admin_phone_e164": "+233200000003",
+              "l4_acknowledgment_threshold_min": 5,
+              "primary_oncall_phone_e164": "+233200000001",
+              "secondary_oncall_phone_e164": "+233200000002"
+            },
+            "sms_sender_id": "+233200000000"
+          }
+        ]
+      },
+      "IngestResponse": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Call Id"
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "title": "Deduplicated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "call_id",
+          "deduplicated"
+        ],
+        "title": "IngestResponse",
+        "description": "Response from ``POST /internal/ingest/call-completed``."
+      },
+      "MotherDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone",
+            "description": "Mother's phone in Ghana E.164 form, e.g. `+233241234567`."
+          },
+          "day_postpartum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Postpartum",
+            "description": "Whole days since `care_phase_started_at` (the delivery date once discharged). Derived at read time; `null` before the care phase has a start (antenatal-only)."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "crisis",
+              "elevated",
+              "monitor",
+              "routine",
+              "inactive"
+            ],
+            "title": "Severity",
+            "description": "Dashboard severity, mapped from the latest call's stored L-level (and forced to `inactive` for non-active mothers): one of `crisis` / `elevated` / `monitor` / `routine` / `inactive`."
+          },
+          "midwife": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Midwife",
+            "description": "Display name of the assigned clinician, or `null` if unassigned."
+          },
+          "hospital": {
+            "type": "string",
+            "title": "Hospital"
+          },
+          "discharge_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharge Date",
+            "description": "Discharge date, or `null` for a mother who has not been discharged yet."
+          },
+          "delivery_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "vaginal",
+                  "caesarean"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Type",
+            "description": "`vaginal` or `caesarean`; `null` before discharge is recorded."
+          },
+          "consent_status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "withdrawn",
+              "pending"
+            ],
+            "title": "Consent Status",
+            "description": "Derived from the mother's internal `status`: `active` (calls permitted), `withdrawn` (consent withdrawn / pending withdrawal), or `pending` (awaiting consent confirmation)."
+          },
+          "last_interaction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Interaction",
+            "description": "Human-readable label for the most recent check-in, e.g. `'Day 5 check-in \u00b7 2 days ago'`; `null` if never called."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Short dashboard annotation; `null` until set."
+          },
+          "current_flag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Flag",
+            "description": "One-line attention flag surfaced on the dashboard; `null` if none."
+          },
+          "date_of_birth": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Of Birth"
+          },
+          "delivery_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Date",
+            "description": "Delivery date; `null` before discharge. Anchors `day_postpartum`."
+          },
+          "consent_recording": {
+            "type": "boolean",
+            "title": "Consent Recording",
+            "description": "Whether the mother consented to call audio being recorded."
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "english",
+                  "twi",
+                  "ga",
+                  "ewe",
+                  "dagbani"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language",
+            "description": "Preferred call language: `english` / `twi` / `ga` / `ewe` / `dagbani`."
+          },
+          "risks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Risks",
+            "description": "Antenatal risk flags captured at enrollment (see `EnrollMotherRequest.risks`)."
+          },
+          "medications": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Medications",
+            "description": "Discharge medications (see `DischargeRequest.medications`)."
+          },
+          "gravida": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gravida",
+            "description": "Number of pregnancies (gravidity)."
+          },
+          "para": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Para",
+            "description": "Number of births past viability (parity)."
+          },
+          "check_ins": {
+            "items": {
+              "$ref": "#/components/schemas/CheckInItem"
+            },
+            "type": "array",
+            "title": "Check Ins",
+            "description": "Full check-in history, newest first (one item per completed call)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "phone",
+          "day_postpartum",
+          "severity",
+          "midwife",
+          "hospital",
+          "discharge_date",
+          "delivery_type",
+          "consent_status",
+          "last_interaction",
+          "note",
+          "current_flag",
+          "date_of_birth",
+          "delivery_date",
+          "consent_recording",
+          "language",
+          "risks",
+          "medications",
+          "gravida",
+          "para",
+          "check_ins"
+        ],
+        "title": "MotherDetail",
+        "description": "Single-mother profile \u2014 the list item plus clinical detail + history.\n\nInherits every ``MotherListItem`` field and adds the clinical-background\ndetail plus the full ``check_ins`` history.",
+        "example": {
+          "check_ins": [
+            {
+              "date": "2026-06-07T09:00:00Z",
+              "day": 5,
+              "id": "0190f3a1-2b4c-7d8e-9f00-0000000000c1",
+              "severity": "crisis",
+              "summary": "Flagged severe pain and breastfeeding difficulties."
+            }
+          ],
+          "consent_recording": true,
+          "consent_status": "active",
+          "current_flag": "Has not responded to two consecutive calls.",
+          "date_of_birth": "1995-03-14",
+          "day_postpartum": 7,
+          "delivery_date": "2026-06-01",
+          "delivery_type": "caesarean",
+          "discharge_date": "2026-06-02",
+          "gravida": 2,
+          "hospital": "Korle Bu Teaching Hospital",
+          "id": "0190f3a1-2b4c-7d8e-9f00-000000000001",
+          "language": "twi",
+          "last_interaction": "Day 5 check-in \u00b7 2 days ago",
+          "medications": [
+            "pain_relief",
+            "wound_care"
+          ],
+          "midwife": "K. Boateng",
+          "name": "Ama Mensah",
+          "note": "Missed scheduled check-in",
+          "para": 1,
+          "phone": "+233241234567",
+          "risks": [
+            "prior_csection",
+            "hypertension"
+          ],
+          "severity": "crisis"
+        }
+      },
+      "MotherListItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone",
+            "description": "Mother's phone in Ghana E.164 form, e.g. `+233241234567`."
+          },
+          "day_postpartum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Postpartum",
+            "description": "Whole days since `care_phase_started_at` (the delivery date once discharged). Derived at read time; `null` before the care phase has a start (antenatal-only)."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "crisis",
+              "elevated",
+              "monitor",
+              "routine",
+              "inactive"
+            ],
+            "title": "Severity",
+            "description": "Dashboard severity, mapped from the latest call's stored L-level (and forced to `inactive` for non-active mothers): one of `crisis` / `elevated` / `monitor` / `routine` / `inactive`."
+          },
+          "midwife": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Midwife",
+            "description": "Display name of the assigned clinician, or `null` if unassigned."
+          },
+          "hospital": {
+            "type": "string",
+            "title": "Hospital"
+          },
+          "discharge_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharge Date",
+            "description": "Discharge date, or `null` for a mother who has not been discharged yet."
+          },
+          "delivery_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "vaginal",
+                  "caesarean"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Type",
+            "description": "`vaginal` or `caesarean`; `null` before discharge is recorded."
+          },
+          "consent_status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "withdrawn",
+              "pending"
+            ],
+            "title": "Consent Status",
+            "description": "Derived from the mother's internal `status`: `active` (calls permitted), `withdrawn` (consent withdrawn / pending withdrawal), or `pending` (awaiting consent confirmation)."
+          },
+          "last_interaction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Interaction",
+            "description": "Human-readable label for the most recent check-in, e.g. `'Day 5 check-in \u00b7 2 days ago'`; `null` if never called."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Short dashboard annotation; `null` until set."
+          },
+          "current_flag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Flag",
+            "description": "One-line attention flag surfaced on the dashboard; `null` if none."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "phone",
+          "day_postpartum",
+          "severity",
+          "midwife",
+          "hospital",
+          "discharge_date",
+          "delivery_type",
+          "consent_status",
+          "last_interaction",
+          "note",
+          "current_flag"
+        ],
+        "title": "MotherListItem",
+        "description": "One row in the ``GET /mothers`` list.",
+        "example": {
+          "consent_status": "active",
+          "current_flag": "Has not responded to two consecutive calls.",
+          "day_postpartum": 7,
+          "delivery_type": "caesarean",
+          "discharge_date": "2026-06-02",
+          "hospital": "Korle Bu Teaching Hospital",
+          "id": "0190f3a1-2b4c-7d8e-9f00-000000000001",
+          "last_interaction": "Day 5 check-in \u00b7 2 days ago",
+          "midwife": "K. Boateng",
+          "name": "Ama Mensah",
+          "note": "Missed scheduled check-in",
+          "phone": "+233241234567",
+          "severity": "crisis"
+        }
+      },
+      "MotherListResponse": {
+        "properties": {
+          "mothers": {
+            "items": {
+              "$ref": "#/components/schemas/MotherListItem"
+            },
+            "type": "array",
+            "title": "Mothers"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mothers"
+        ],
+        "title": "MotherListResponse"
+      },
+      "MotherSearchResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "title": "MotherSearchResponse"
+      },
+      "PostCallIngest": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Call Id"
+          },
+          "hospital_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Hospital Id"
+          },
+          "mother_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Mother Id"
+          },
+          "scheduled_call_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled Call Id"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ended At"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "L1",
+              "L2",
+              "L3",
+              "L4"
+            ],
+            "title": "Severity"
+          },
+          "audio_storage_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Storage Key"
+          },
+          "transcript_storage_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Storage Key"
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classification"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "symptoms": {
+            "items": {
+              "$ref": "#/components/schemas/SymptomItem"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Symptoms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "call_id",
+          "hospital_id",
+          "mother_id",
+          "started_at",
+          "ended_at",
+          "severity"
+        ],
+        "title": "PostCallIngest",
+        "description": "Wire contract from ``post_call_worker`` \u2192 backend after a call ends.\n\nIdempotency on ``call_id``; replays return ``deduplicated=true``.\n``extra=\"forbid\"`` \u2192 unknown fields 422 instead of silent drop.\n\nPhase 5: ``symptoms`` extends the contract. Default ``[]`` keeps\nPhase 4 fixtures + an older ``post_call_worker`` deployment\nbackward-compatible."
+      },
+      "RoleListResponse": {
+        "properties": {
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "roles"
+        ],
+        "title": "RoleListResponse"
+      },
+      "RoleOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_system": {
+            "type": "boolean",
+            "title": "Is System",
+            "description": "`true` for one of the six seeded system roles (Administrator / Physician / Midwife / Coordinator / Paediatrician / Psychologist) \u2014 these cannot be renamed or deleted, though their permissions can be edited."
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/RolePermissions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "is_system",
+          "permissions"
+        ],
+        "title": "RoleOut",
+        "description": "One role in ``GET /admin/roles`` (and the create/update responses).",
+        "example": {
+          "description": "Frontline care \u2014 reviews and messages mothers, escalates alerts",
+          "id": "0190f3a1-2b4c-7d8e-9f00-0000000000f1",
+          "is_system": true,
+          "name": "Midwife",
+          "permissions": {
+            "create_discharges": true,
+            "escalate": true,
+            "manage_staff": false,
+            "message_mothers": true,
+            "view_mothers": true
+          }
+        }
+      },
+      "RolePermissions": {
+        "properties": {
+          "view_mothers": {
+            "type": "boolean",
+            "title": "View Mothers",
+            "description": "May read the mothers / calls / alerts clinical surface.",
+            "default": false
+          },
+          "message_mothers": {
+            "type": "boolean",
+            "title": "Message Mothers",
+            "description": "May send mother-facing messages (consent / withdrawal SMS).",
+            "default": false
+          },
+          "escalate": {
+            "type": "boolean",
+            "title": "Escalate",
+            "description": "May acknowledge alerts (silences the L4 escalation chain).",
+            "default": false
+          },
+          "create_discharges": {
+            "type": "boolean",
+            "title": "Create Discharges",
+            "description": "May record a discharge via `POST /mothers/{id}/discharge`.",
+            "default": false
+          },
+          "manage_staff": {
+            "type": "boolean",
+            "title": "Manage Staff",
+            "description": "May manage the `/admin/clinicians` + `/admin/roles` surface (admin gate).",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RolePermissions",
+        "description": "The 5-key boolean permission matrix. ``extra=\"forbid\"`` so an\nunknown permission key is a 422 (or a JWT validation failure).\n\nThese five keys are the closed permission vocabulary. They are resolved\nfrom the clinician's role at sign-in, frozen into the JWT, and gate the\nprivileged routes via ``require_permission(...)``.",
+        "example": {
+          "create_discharges": true,
+          "escalate": true,
+          "manage_staff": false,
+          "message_mothers": true,
+          "view_mothers": true
+        }
+      },
+      "SearchResult": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone",
+            "description": "Mother's phone in Ghana E.164 form."
+          },
+          "edd": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edd",
+            "description": "Estimated delivery date; `null` if unknown."
+          },
+          "enrolled": {
+            "type": "boolean",
+            "title": "Enrolled",
+            "description": "`true` when the mother was antenatally enrolled (care_phase `antenatal` or an EDD on file) \u2014 i.e. the New Discharge flow can attach a discharge to an existing record."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "phone",
+          "edd",
+          "enrolled"
+        ],
+        "title": "SearchResult",
+        "description": "One antenatally-enrolled mother matched by the New Discharge search.",
+        "example": {
+          "edd": "2026-06-12",
+          "enrolled": true,
+          "id": "0190f3a1-2b4c-7d8e-9f00-000000000002",
+          "name": "Abena Frimpong",
+          "phone": "+233241234567"
+        }
+      },
+      "SignInClinician": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Display name; `null` if never set."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "Administrator",
+              "Physician",
+              "Midwife",
+              "Coordinator",
+              "Paediatrician",
+              "Psychologist"
+            ],
+            "title": "Role",
+            "description": "System role name \u2014 drives the JWT permission matrix."
+          },
+          "hospital_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Hospital Id"
+          },
+          "hospital_name": {
+            "type": "string",
+            "title": "Hospital Name",
+            "description": "The clinician's hospital, for display."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "hospital_id",
+          "hospital_name"
+        ],
+        "title": "SignInClinician",
+        "description": "The signed-in clinician's profile \u2014 lets the portal render the\ncurrent user (name, role, hospital) without a second request.",
+        "example": {
+          "email": "k.boateng@korlebu.gov.gh",
+          "hospital_id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+          "hospital_name": "Korle Bu Teaching Hospital",
+          "id": "0f9c2a3e-1b4d-7c8a-9e2f-3a4b5c6d7e8f",
+          "name": "Kwame Boateng",
+          "role": "Administrator"
+        }
+      },
+      "SignInRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "SignInRequest",
+        "description": "``POST /auth/sign-in`` request body.\n\nNote ``password`` is a plain ``str`` (not ``SecretStr``) \u2014 Pydantic's\n``SecretStr`` only hides the value in ``__repr__``; the bytes still\nflow through the handler, where they're fed straight to bcrypt and\ndiscarded. The repr-hiding adds no security but does interfere with\ntest asserts. Phase 3 keeps it simple.",
+        "example": {
+          "email": "k.boateng@korlebu.gov.gh",
+          "password": "correct horse battery 7"
+        }
+      },
+      "SignInResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token",
+            "description": "Signed HS256 JWT (8h TTL). Send as `Authorization: Bearer <token>`."
+          },
+          "token_type": {
+            "type": "string",
+            "const": "bearer",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "description": "Token lifetime in seconds (8h = 28800 by default; env-overridable)."
+          },
+          "must_change_password": {
+            "type": "boolean",
+            "title": "Must Change Password",
+            "description": "`true` for a seeded / newly-provisioned clinician on first sign-in \u2014 every non-auth endpoint returns `403 password_change_required` until the clinician rotates via `POST /auth/change-password`."
+          },
+          "clinician": {
+            "$ref": "#/components/schemas/SignInClinician",
+            "description": "The signed-in clinician's profile (for rendering the current user)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "expires_in",
+          "must_change_password",
+          "clinician"
+        ],
+        "title": "SignInResponse",
+        "description": "Success body \u2014 200 OK.",
+        "example": {
+          "clinician": {
+            "email": "k.boateng@korlebu.gov.gh",
+            "hospital_id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+            "hospital_name": "Korle Bu Teaching Hospital",
+            "id": "0f9c2a3e-1b4d-7c8a-9e2f-3a4b5c6d7e8f",
+            "name": "Kwame Boateng",
+            "role": "Administrator"
+          },
+          "expires_in": 28800,
+          "must_change_password": false,
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...",
+          "token_type": "bearer"
+        }
+      },
+      "SymptomItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "mild",
+                  "moderate",
+                  "severe"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "SymptomItem",
+        "description": "One symptom extracted from the transcript by Grok-4.\n\nPhase 5: the post-call worker's classification prompt now returns a\n``symptoms[]`` array alongside severity/evidence/etc. Ingest writes\none ``symptoms`` row per item in the same tx as the parent ``calls``\nrow.\n\n``extra=\"ignore\"`` (not ``forbid``) is deliberate \u2014 Grok-4 occasionally\nadds drift fields like ``confidence`` or ``location`` to symptom\nobjects. We tolerate the drift at the item level rather than rejecting\nthe whole ingest payload. The outer ``PostCallIngest`` keeps\n``extra=\"forbid\"`` because the wire contract IS frozen at the call\nlevel; only per-symptom shape varies with the LLM."
+      },
+      "TranscriptTurn": {
+        "properties": {
+          "speaker": {
+            "type": "string",
+            "enum": [
+              "omaya",
+              "mother"
+            ],
+            "title": "Speaker",
+            "description": "Who spoke this turn: `omaya` (the AI nurse) or `mother`."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "speaker",
+          "text"
+        ],
+        "title": "TranscriptTurn"
+      },
+      "TriggerCallResponse": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Call Id"
+          },
+          "job_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "call_id",
+          "job_id"
+        ],
+        "title": "TriggerCallResponse",
+        "description": "Ack from ``POST /mothers/{mother_id}/calls`` \u2014 the ``call_job`` has\nbeen enqueued; the call has not yet been placed."
+      },
+      "UpdateClinicianRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "New display name."
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Administrator",
+                  "Physician",
+                  "Midwife",
+                  "Coordinator",
+                  "Paediatrician",
+                  "Psychologist"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role",
+            "description": "New role NAME (Administrator / Physician / Midwife / Coordinator / Paediatrician / Psychologist). An admin cannot change their own role (`403 cannot_edit_own_role`)."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "suspended"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Set `suspended` to block sign-in, `active` to reactivate. An admin cannot suspend themselves (`403 cannot_suspend_self`)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "UpdateClinicianRequest",
+        "description": "All fields optional \u2014 edit name, role, and/or suspend/reactivate.\n``status`` is limited to active/suspended ('invited' is a creation-time\nstate, not settable here).",
+        "example": {
+          "name": "Kwame Boateng",
+          "role": "Midwife",
+          "status": "suspended"
+        }
+      },
+      "UpdateClinicianResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Role NAME after the edit."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "invited",
+              "suspended"
+            ],
+            "title": "Status",
+            "description": "Account status after the edit."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "role",
+          "status"
+        ],
+        "title": "UpdateClinicianResponse",
+        "example": {
+          "id": "0190f3a1-2b4c-7d8e-9f00-0000000000b1",
+          "name": "Kwame Boateng",
+          "role": "Midwife",
+          "status": "suspended"
+        }
+      },
+      "UpdateRoleRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "New name (custom roles only \u2014 renaming a system role is `403`)."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "permissions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RolePermissions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "UpdateRoleRequest",
+        "description": "``PATCH /admin/roles/{id}`` \u2014 all fields optional. Renaming a\nsystem role is rejected at the handler (cannot_rename_system_role);\nediting a system role's permissions/description is allowed.",
+        "example": {
+          "description": "Updated description",
+          "permissions": {
+            "create_discharges": true,
+            "escalate": true,
+            "manage_staff": false,
+            "message_mothers": false,
+            "view_mothers": true
+          }
+        }
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "health",
+      "description": "Liveness probe consumed by Railway."
+    },
+    {
+      "name": "auth",
+      "description": "Sign-in and password change. `POST /auth/sign-in` is the only public endpoint on this service \u2014 every other clinical route requires the JWT it issues (HS256, 8h TTL, pinned `iss`/`aud`, carrying `hospital_id` + `role` + a 5-key `permissions` matrix resolved from the clinician's role at sign-in). Sign-in blocks suspended seats (`403 account_suspended`), locks an account after 5 failures in 15 min (`423 account_locked`), and is bounded by a per-IP rate limit (`429 too_many_requests`); failures return a generic `invalid_credentials` regardless of which step failed (anti-enumeration). `must_change_password=true` is set for seeded + provisioned clinicians on first sign-in and gates every other endpoint with `403 password_change_required` until the clinician rotates via `POST /auth/change-password`."
+    },
+    {
+      "name": "admin",
+      "description": "Hospital-admin staff + roles surface. Every route is gated by `require_permission(\"manage_staff\")` (only the Administrator system role carries it) on top of `force_change_guard` + `tenant_required`, so it is RLS-scoped to the caller's own hospital.\n\n**Clinicians** (`/admin/clinicians`): list seats, create a seat, edit (name / role / suspend-reactivate), and remove a seat. A newly-created clinician comes back with a one-time `temp_password` the response shows ONCE \u2014 the admin delivers it out-of-band and the clinician's first sign-in forces a rotation. `Administrator` rows cannot be created via the API (provisioned at onboarding); an admin cannot change their own role, suspend, or delete themselves.\n\n**Roles** (`/admin/roles`): list roles + their 5-key permission matrix, create a custom role, edit a role's permissions / description (or rename a custom role), and delete a custom role. The six `is_system` roles cannot be renamed or deleted, though their permissions can be edited; a role still assigned to a clinician can't be deleted (`409 role_in_use`, enforced by the `clinicians.role_id` ON DELETE RESTRICT FK)."
+    },
+    {
+      "name": "mothers",
+      "description": "Clinical surface bound to the JWT-derived `hospital_id`. Every endpoint here runs inside `tenant_session(hospital_id)` so Postgres RLS gates the read AND the composite FK `mothers(id, hospital_id)` gates cross-tenant writes. Covers the portal reads (`GET /mothers` list with severity / consent / search filters, `GET /mothers/search` for the New Discharge flow, `GET /mothers/{id}` profile + check-in history), the writes (`POST /mothers` antenatal enroll, `POST /mothers/{id}/discharge` \u2014 gated on `create_discharges`), plus the ad-hoc call trigger and the consent / withdrawal SMS stubs."
+    },
+    {
+      "name": "calls",
+      "description": "Portal call log (`GET /calls`) \u2014 the dashboard 'today's calls' panel and the Calls page. A portal 'call' merges two backend rows: a completed / in-progress `calls` row, or a future / missed `scheduled_calls` row with no `calls` row yet. `status` / `duration_seconds` / `call_type` / `day_in_care` / `severity` are derived at read time; `transcript` is `[]` for MVP (the real transcript lives in Supabase Storage). RLS-scoped via `tenant_required`."
+    },
+    {
+      "name": "internal",
+      "description": "Service-to-service ingest. Authenticated by `X-Omaya-Internal-Token` (constant-time compared against `INGEST_SHARED_SECRET`), NOT by JWT. The handler wraps the write in `tenant_session(body.hospital_id)` so misattributed payloads raise on the composite FK."
+    },
+    {
+      "name": "alerts",
+      "description": "Clinician alert surface. `GET /alerts` is the dashboard 'needs attention now' list (polled every 60s; severity is the dashboard vocabulary mapped from the stored L-level and `time_left_minutes` is derived per request from the SLA deadline). `POST /alerts/{id}/acknowledge` stops the L4 escalation chain and is gated on the `escalate` permission (acknowledging silences L4 SMS, so only roles granting `escalate` may do it \u2014 `403 insufficient_role` otherwise). RLS-scoped via the same tenant chain as the `mothers` surface. PHI actions write to `audit_phi_events` on a separate tx (see `services/alert_audit.py`)."
+    },
+    {
+      "name": "webhooks",
+      "description": "Provider delivery-receipt webhooks. Public endpoints, authenticated by provider-specific signature validation (Twilio's `X-Twilio-Signature` HMAC in MVP; AT's IP allowlist post-migration). The L4 escalation chain uses these receipts to detect Twilio-side delivery failures and advance the next step synchronously, without waiting for the cron-based threshold sweep."
+    },
+    {
+      "name": "platform",
+      "description": "**Internal Omaya operator surface \u2014 not exposed to hospital users or clinical staff.** Authenticated by `X-Omaya-Platform-Admin-Token` (constant-time compared against `PLATFORM_ADMIN_TOKEN`). Distinct from the `admin` tag (which scopes to a hospital_admin operating WITHIN their own tenant) and from `internal` (service-to-service ingest from the post-call-worker). Hospital onboarding lives here; future per-hospital config-update endpoints and any platform-ops debug surfaces will too. **Operationally**: the token is stored in 1Password under \"Omaya / Platform admin token\" and rotated on operator changes. Loss of the token does NOT compromise existing tenants \u2014 RLS still gates clinical data."
+    }
+  ]
+}
