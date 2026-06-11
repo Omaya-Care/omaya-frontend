@@ -14,6 +14,18 @@ const CALL_SERVICE_OPENAPI_URL = CALL_BASE
   ? `${CALL_BASE}/openapi.json`
   : '/openapi/call-service.json'
 
+// Server picker (rendered above Authentication): which base URL "Test Request"
+// targets. Localhost for a locally-running service; the deployment domain
+// (EC2 / Dokploy) for production. Each service points at its own hosting.
+const PORTAL_SERVERS = [
+  { url: 'http://localhost:8000', description: 'Local dev' },
+  { url: 'https://backend-api.omayacare.com', description: 'Production' },
+]
+const CALL_SERVERS = [
+  { url: 'http://localhost:8081', description: 'Local dev' },
+  { url: 'https://call-service.omayacare.com', description: 'Production' },
+]
+
 const OMAYA_CUSTOM_CSS = `
 :root {
   --scalar-font: "Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -105,6 +117,7 @@ export default function Docs() {
             slug: 'omaya-portal-backend',
             title: 'Omaya Portal Backend',
             url: PORTAL_OPENAPI_URL,
+            servers: PORTAL_SERVERS,
             default: true,
             agent: { disabled: true },
           },
@@ -112,12 +125,15 @@ export default function Docs() {
             slug: 'omaya-call-service',
             title: 'Omaya Call Service',
             url: CALL_SERVICE_OPENAPI_URL,
+            servers: CALL_SERVERS,
             agent: { disabled: true },
           },
         ],
         theme: 'default',
         layout: 'modern',
-        hideDarkModeToggle: false,
+        // Lock to light mode (default + no toggle).
+        forceDarkModeState: 'light',
+        hideDarkModeToggle: true,
         defaultOpenAllTags: false,
         customCss: OMAYA_CUSTOM_CSS,
         _integration: 'fastapi',
