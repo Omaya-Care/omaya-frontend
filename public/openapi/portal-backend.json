@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Omaya backend",
-    "description": "Portal backend for the Omaya maternal-health AI voice-call platform. Serves the hospital clinician portal (mothers, alerts, calls, staff, roles), schedules calls, ingests completed-call records, and never speaks to Twilio or xAI directly (that's the call-service's job).\n\n**Portal API surface.** The clinician portal reads through `GET /mothers`, `/mothers/search`, `/mothers/{id}`, `/alerts`, `/calls`, `/admin/clinicians`, and `/admin/roles`; it writes through `POST /mothers` (antenatal enroll), `POST /mothers/{id}/discharge`, the `/admin/clinicians` create/edit/delete trio, and the `/admin/roles` create/edit/delete trio. Read responses speak the portal vocabulary \u2014 dashboard severity (`crisis`/`elevated`/`monitor`/`routine`/`inactive`, mapped from the stored L1\u2013L4) and derived fields like `day_postpartum`, `consent_status`, `time_left_minutes`, and `last_interaction` that are computed at read time, never stored.\n\n**Auth.** All clinical endpoints require `Authorization: Bearer <jwt>`. Tokens are issued by `POST /auth/sign-in` (HS256, 8h TTL) and carry pinned `iss`/`aud` claims, `hospital_id`, `role` (one of Administrator / Physician / Midwife / Coordinator / Paediatrician / Psychologist), `must_change_password`, and a 5-key boolean `permissions` matrix \u2014 `view_mothers`, `message_mothers`, `escalate`, `create_discharges`, `manage_staff` \u2014 resolved from the clinician's role (`roles.permissions`) at sign-in and frozen into the token. The auth middleware extracts these into `request.state` and feeds `hospital_id` to `tenant_session()` so every clinical query runs RLS-scoped to the caller's hospital; `require_permission(...)` gates the privileged routes off the `permissions` claim (`manage_staff` \u2192 the `/admin` surface, `escalate` \u2192 alert acknowledge, `create_discharges` \u2192 discharge). Sign-in additionally blocks suspended seats (`403 account_suspended`), locks an account after 5 failures in 15 min (`423 account_locked`), and is bounded by a per-IP rate limit (`429 too_many_requests`). The dev-only `X-Test-Hospital-Id` header has been removed in every environment.\n\n**Multi-tenancy.** Postgres RLS is enabled + forced on every clinical table \u2014 `mothers`, `clinicians`, `scheduled_calls`, `calls`, `alerts`, `sms_log`, `audit_phi_events`, `symptoms`, and the new `roles` + `discharges` tables. Composite FKs on `(id, hospital_id)` reject cross-tenant references at the DB layer \u2014 see `tests/test_tenancy_poison.py` for the regression suite. Two tables back the portal-API + auth work: `roles` (the per-hospital role + permission-matrix table \u2014 six seeded `is_system` roles plus any custom roles) and `discharges` (append-only discharge event records the returned `discharge_id` resolves to).\n\n**SMS pipeline + L4 escalation.** Outbound SMS is sent by the `sms-worker` service via the `SmsProvider` abstraction in `services/sms/`. The `escalation-cron` service advances open L4 alerts every minute; Twilio status callbacks land on `POST /webhooks/sms/status` and trigger the next escalation step immediately on terminal-failure receipts. L3 alerts are dashboard-only \u2014 no SMS \u2014 to keep the L4 channel trusted. Two per-mother rate caps (5/24h mother-bound, 10/24h clinician-per-mother) protect against runaway send patterns.\n\n**Reference page:** `/reference` renders this OpenAPI document via Scalar; `/docs` and `/redoc` are FastAPI's defaults and stay mounted for compatibility.",
+    "description": "Portal backend for the Omaya maternal-health AI voice-call platform. Serves the hospital clinician portal (mothers, alerts, calls, staff, roles), schedules calls, ingests completed-call records, and never speaks to Twilio or xAI directly (that's the call-service's job).\n\n**Portal API surface.** The clinician portal reads through `GET /mothers`, `/mothers/search`, `/mothers/{id}`, `/alerts`, `/calls`, `/admin/clinicians`, and `/admin/roles`; it writes through `POST /mothers` (antenatal enroll), `POST /mothers/{id}/discharge`, the `/admin/clinicians` create/edit/delete trio, and the `/admin/roles` create/edit/delete trio. Read responses speak the portal vocabulary \u2014 dashboard severity (`crisis`/`elevated`/`monitor`/`routine`/`inactive`, mapped from the stored L1\u2013L4) and derived fields like `day_postpartum`, `consent_status`, `time_left_minutes`, and `last_interaction` that are computed at read time, never stored.\n\n**Auth.** All clinical endpoints require `Authorization: Bearer <jwt>`. Tokens are issued by `POST /auth/sign-in` and `POST /auth/set-password` (HS256, 8h TTL) and carry pinned `iss`/`aud` claims, `hospital_id`, `role` (one of Administrator / Physician / Midwife / Coordinator / Paediatrician / Psychologist), `must_change_password`, and a 5-key boolean `permissions` matrix \u2014 `view_mothers`, `message_mothers`, `escalate`, `create_discharges`, `manage_staff` \u2014 resolved from the clinician's role (`roles.permissions`) at sign-in and frozen into the token. The auth middleware extracts these into `request.state` and feeds `hospital_id` to `tenant_session()` so every clinical query runs RLS-scoped to the caller's hospital; `require_permission(...)` gates the privileged routes off the `permissions` claim (`manage_staff` \u2192 the `/admin` surface, `escalate` \u2192 alert acknowledge, `create_discharges` \u2192 discharge). Sign-in additionally blocks suspended seats (`403 account_suspended`), locks an account after 5 failures in 15 min (`423 account_locked`), and is bounded by a per-IP rate limit (`429 too_many_requests`). The dev-only `X-Test-Hospital-Id` header has been removed in every environment.\n\n**Onboarding is link-based \u2014 there are no temp passwords.** `POST /admin/clinicians` and `POST /platform/hospitals` create an `invited` seat and email a one-time **invite link**; their responses carry `invite_sent` / `admin_invite_sent`, not a password. The clinician confirms their email + sets a password via `POST /auth/verify-token` (link token \u2192 short-lived setup token) \u2192 `POST /auth/set-password` (single-use consume of the link, returns a portal JWT). `POST /auth/forgot-password` is anti-enumeration (always a generic 200) and emails a reset link to an active confirmed seat or re-sends the invite link to a never-activated one. Tokens are one-time, sha256-hashed at rest in the `auth_token` table, and single-use-enforced at set-password. Subsequent login is plain email + password.\n\n**Multi-tenancy.** Postgres RLS is enabled + forced on every clinical table \u2014 `mothers`, `clinicians`, `scheduled_calls`, `calls`, `alerts`, `sms_log`, `audit_phi_events`, `symptoms`, and the new `roles` + `discharges` tables. Composite FKs on `(id, hospital_id)` reject cross-tenant references at the DB layer \u2014 see `tests/test_tenancy_poison.py` for the regression suite. Two tables back the portal-API + auth work: `roles` (the per-hospital role + permission-matrix table \u2014 six seeded `is_system` roles plus any custom roles) and `discharges` (append-only discharge event records the returned `discharge_id` resolves to).\n\n**SMS pipeline + L4 escalation.** Outbound SMS is sent by the `sms-worker` service via the `SmsProvider` abstraction in `services/sms/`. The `escalation-cron` service advances open L4 alerts every minute; Twilio status callbacks land on `POST /webhooks/sms/status` and trigger the next escalation step immediately on terminal-failure receipts. L3 alerts are dashboard-only \u2014 no SMS \u2014 to keep the L4 channel trusted. Two per-mother rate caps (5/24h mother-bound, 10/24h clinician-per-mother) protect against runaway send patterns.\n\n**Reference page:** `/reference` renders this OpenAPI document via Scalar; `/docs` and `/redoc` are FastAPI's defaults and stay mounted for compatibility.",
     "version": "0.1.0"
   },
   "paths": {
@@ -684,6 +684,144 @@
         ]
       }
     },
+    "/auth/verify-token": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Exchange a one-time invite/reset link token for a setup token",
+        "description": "The frontend `/activate?token=` and `/reset?token=` pages call this. For an invite, it also confirms the clinician's email. Returns a short-lived setup token authorizing `POST /auth/set-password`. The link token is NOT consumed here (so an expired setup token can be re-minted by re-opening the link) \u2014 it's consumed at set-password.",
+        "operationId": "verify_token_auth_verify_token_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_token` \u2014 invalid, expired, or already used"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/set-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Set a password via a setup token (first-login or reset)",
+        "description": "Consumes the one-time link bound to the setup token (single-use) and sets the password. Returns a portal JWT \u2014 the clinician is now logged in.",
+        "operationId": "set_password_auth_set_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetPasswordResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`weak_password` or `link_already_used`"
+          },
+          "401": {
+            "description": "`invalid_setup_token` / `setup_token_expired`"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Request an emailed reset link (or re-invite)",
+        "description": "Always returns a generic 200 \u2014 never reveals whether the email exists. For an active confirmed seat, emails a reset link; for an `invited` seat that never activated, re-sends the invite link; suspended seats get nothing. Per-IP rate limited; a per-email cooldown blunts spam.",
+        "operationId": "forgot_password_auth_forgot_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForgotPasswordResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`too_many_requests` \u2014 per-IP rate limit"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/clinicians": {
       "get": {
         "tags": [
@@ -720,7 +858,7 @@
           "admin"
         ],
         "summary": "Create a clinician seat under the calling admin's hospital",
-        "description": "Returns a one-shot `temp_password` the admin must communicate to the new clinician via a side channel. The clinician's first sign-in is force-rotated.",
+        "description": "Creates an `invited` seat and emails the new clinician a one-time invite link to confirm their email + set a password. No temp password is returned. `invite_sent=false` means the email failed \u2014 resend via POST /auth/forgot-password.",
         "operationId": "create_clinician_admin_clinicians_post",
         "requestBody": {
           "content": {
@@ -1334,7 +1472,7 @@
           "platform"
         ],
         "summary": "Onboard a new hospital + its seed hospital_admin",
-        "description": "Internal Omaya operator surface. Creates a hospital row and provisions the first `hospital_admin` clinician in a single transaction; returns a one-time `admin_temp_password` that ops delivers to the admin out-of-band. The admin's first sign-in is force-rotated (`must_change_password=true`).\n\n**Auth.** `X-Omaya-Platform-Admin-Token` (constant-time compared against `PLATFORM_ADMIN_TOKEN`). **No JWT** \u2014 no admin exists pre-creation. Distinct token from `INGEST_SHARED_SECRET` so a leaked service-to-service token can't pivot to hospital creation.\n\n**Connection.** Runs on the `omaya_platform_admin` BYPASSRLS pool because `omaya_app` (the tenant runtime role) has SELECT-only on `hospitals` (migration 0004). The endpoint is intentionally outside the tenant-scoped surface \u2014 it predates any tenant.\n\n**Validation.** `config` carries the full `HospitalConfig` Pydantic shape \u2014 threshold bounded `[1, 60]` minutes, all four phones Ghana E.164, `sms_sender_id` Ghana E.164 or AT-style alphanumeric. Required at onboarding so a misconfigured tenant fails fast here rather than at first-L4-ingest time.\n\n**Audit.** Writes one `audit_auth_events` row of type `password_change` for the seed admin in the same transaction. Operator-level events beyond that are logged but not yet audited to a dedicated table (deferred to Phase 11).\n\n**One-time temp password.** The `admin_temp_password` field in the response is shown ONCE; the backend has no API to re-fetch it. Operator delivers via 1Password share / Signal / in-person handoff. NEVER log it.",
+        "description": "Internal Omaya operator surface. Creates a hospital row and provisions the first `hospital_admin` clinician as an `invited` seat in a single transaction, then emails the admin a one-time **invite link**. No temp password is issued \u2014 the admin confirms their email + sets a password via `POST /auth/verify-token` \u2192 `set-password`, which logs them straight in. The response carries `admin_invite_sent` (a boolean), not a password.\n\n**Auth.** `X-Omaya-Platform-Admin-Token` (constant-time compared against `PLATFORM_ADMIN_TOKEN`). **No JWT** \u2014 no admin exists pre-creation. Distinct token from `INGEST_SHARED_SECRET` so a leaked service-to-service token can't pivot to hospital creation.\n\n**Connection.** Runs on the `omaya_platform_admin` BYPASSRLS pool because `omaya_app` (the tenant runtime role) has SELECT-only on `hospitals` (migration 0004). The endpoint is intentionally outside the tenant-scoped surface \u2014 it predates any tenant. The invite-link mint runs separately on `omaya_auth` after the admin_session commits (the `auth_token` FK needs the committed admin row).\n\n**Validation.** `config` carries the full `HospitalConfig` Pydantic shape \u2014 threshold bounded `[1, 60]` minutes, all four phones Ghana E.164, `sms_sender_id` Ghana E.164 or AT-style alphanumeric. Required at onboarding so a misconfigured tenant fails fast here rather than at first-L4-ingest time.\n\n**Audit.** The hospital-creation transaction writes the seed admin's row; the invite send writes an `invite_sent` `audit_auth_events` row. Operator-level events beyond that are logged but not yet audited to a dedicated table (deferred to Phase 11).\n\n**Invite delivery.** `admin_invite_sent=false` means the seat exists but the email send failed \u2014 re-send the invite via `POST /auth/forgot-password` (it re-invites a never-activated seat). The link itself is one-time, sha256-hashed at rest, and single-use-enforced at set-password.",
         "operationId": "create_hospital_platform_hospitals_post",
         "parameters": [
           {
@@ -1776,7 +1914,8 @@
             "type": "string",
             "maxLength": 200,
             "minLength": 1,
-            "title": "Current Password"
+            "title": "Current Password",
+            "description": "The clinician's current password \u2014 re-verified against the live hash."
           },
           "new_password": {
             "type": "string",
@@ -1794,7 +1933,7 @@
         "title": "ChangePasswordRequest",
         "description": "``POST /auth/change-password`` request body.",
         "example": {
-          "current_password": "temp-issued-password",
+          "current_password": "my current strong pass 4",
           "new_password": "my new strong pass 9"
         }
       },
@@ -2040,16 +2179,10 @@
             "type": "string",
             "title": "Role"
           },
-          "temp_password": {
-            "type": "string",
-            "title": "Temp Password",
-            "description": "One-time temporary password, shown ONCE. Deliver it to the clinician out-of-band; their first sign-in forces a rotation. Never logged by the backend."
-          },
-          "must_change_password": {
+          "invite_sent": {
             "type": "boolean",
-            "const": true,
-            "title": "Must Change Password",
-            "default": true
+            "title": "Invite Sent",
+            "description": "Whether the invite email was dispatched. `false` means the seat exists but the email failed \u2014 resend via POST /auth/forgot-password."
           }
         },
         "type": "object",
@@ -2057,16 +2190,15 @@
           "clinician_id",
           "email",
           "role",
-          "temp_password"
+          "invite_sent"
         ],
         "title": "CreateClinicianResponse",
-        "description": "201 Created \u2014 the temp_password is shown ONCE. The admin UI is\nresponsible for surfacing it to the new clinician via a side channel\n(in-person, SMS, etc); the backend never logs it.",
+        "description": "201 Created. The new clinician is emailed a one-time invite LINK to\nconfirm their email + set a password \u2014 no temp password is returned.",
         "example": {
           "clinician_id": "0190f3a1-2b4c-7d8e-9f00-0000000000b1",
           "email": "n.owusu@korlebu.gov.gh",
-          "must_change_password": true,
-          "role": "Midwife",
-          "temp_password": "xY3k-Qf9mZ2pL7tA"
+          "invite_sent": true,
+          "role": "Midwife"
         }
       },
       "CreateHospitalRequest": {
@@ -2098,7 +2230,7 @@
             "maxLength": 200,
             "minLength": 1,
             "title": "Admin Name",
-            "description": "Display name of the seed admin. Captured for audit context. The ``clinicians`` table does not yet have a ``name`` column (symmetric with ``admin_clinicians.py``); this is recorded in the audit-event row only."
+            "description": "Display name of the seed admin. Stored on the new ``clinicians.name`` column (symmetric with ``admin_clinicians.py``) and used to personalize the invite email."
           }
         },
         "additionalProperties": false,
@@ -2150,16 +2282,10 @@
             "title": "Admin Email",
             "description": "The seed admin's email (lowercased + whitespace-stripped)."
           },
-          "admin_temp_password": {
-            "type": "string",
-            "title": "Admin Temp Password",
-            "description": "One-time temporary password for the seed admin. Shown ONCE in this response; the backend has no API to re-fetch it. Operator delivers to the admin via a side channel; the admin's first sign-in force-rotates."
-          },
-          "admin_must_change_password": {
+          "admin_invite_sent": {
             "type": "boolean",
-            "const": true,
-            "title": "Admin Must Change Password",
-            "default": true
+            "title": "Admin Invite Sent",
+            "description": "Whether the invite email was dispatched to the seed admin. `false` means the seat exists but the email failed \u2014 resend via POST /auth/forgot-password."
           }
         },
         "type": "object",
@@ -2167,16 +2293,15 @@
           "hospital_id",
           "admin_clinician_id",
           "admin_email",
-          "admin_temp_password"
+          "admin_invite_sent"
         ],
         "title": "CreateHospitalResponse",
-        "description": "201 Created \u2014 the ``admin_temp_password`` is shown ONCE.\n\nThe operator is responsible for delivering it to the new admin via\na side channel (1Password share, Signal, in-person handoff); the\nbackend never logs it and there is no API to re-fetch it. The\nadmin's first sign-in is gated on ``must_change_password=true``.",
+        "description": "201 Created \u2014 the seed admin is emailed a one-time invite link.\n\nNo temp password is returned: the admin confirms their email + sets a\npassword via the invite link (POST /auth/verify-token \u2192 set-password).\n``admin_invite_sent=false`` means the seat exists but the email failed \u2014\nresend via POST /auth/forgot-password.",
         "examples": [
           {
             "admin_clinician_id": "01931f00-0000-7000-8000-000000000002",
             "admin_email": "first.admin@korlebu.example",
-            "admin_must_change_password": true,
-            "admin_temp_password": "Xm3LpQrZk7VnTw9F",
+            "admin_invite_sent": true,
             "hospital_id": "01931f00-0000-7000-8000-000000000001"
           }
         ]
@@ -2552,6 +2677,50 @@
         ],
         "title": "EscalationConfig",
         "description": "The ``escalation`` block of ``hospitals.config``.\n\nThree rungs (primary \u2192 secondary \u2192 hospital_admin) per spec L1095.\nThe L4 chain stops at hospital_admin \u2014 the founder is never paged\non a clinical event."
+      },
+      "ForgotPasswordRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email",
+            "description": "The seat's email. Normalized (lowercased + trimmed) server-side."
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "ForgotPasswordRequest",
+        "description": "``POST /auth/forgot-password`` \u2014 request an emailed reset/invite link.",
+        "example": {
+          "email": "n.owusu@korlebu.gov.gh"
+        }
+      },
+      "ForgotPasswordResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status",
+            "default": "ok"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Generic, non-revealing confirmation copy for the UI."
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ForgotPasswordResponse",
+        "description": "Always-generic 200 \u2014 never reveals whether the email exists.\n\nThe same body is returned whether a reset link was sent, the invite\nwas re-sent, the seat is suspended, the per-email cooldown suppressed\nthe send, or no such email exists (anti-enumeration).",
+        "example": {
+          "message": "If an account exists for that email, we've sent a link.",
+          "status": "ok"
+        }
       },
       "HTTPValidationError": {
         "properties": {
@@ -3397,6 +3566,79 @@
           "phone": "+233241234567"
         }
       },
+      "SetPasswordRequest": {
+        "properties": {
+          "setup_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Setup Token",
+            "description": "The setup token returned by `POST /auth/verify-token`."
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "New Password",
+            "description": "\u226510 chars, \u22651 letter, \u22651 digit, else `400 weak_password`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "setup_token",
+          "new_password"
+        ],
+        "title": "SetPasswordRequest",
+        "description": "``POST /auth/set-password`` \u2014 set the password using a setup token.",
+        "example": {
+          "new_password": "my new strong pass 9",
+          "setup_token": "eyJ..."
+        }
+      },
+      "SetPasswordResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token",
+            "description": "Portal JWT (8h TTL) with `must_change_password` already cleared \u2014 send as `Authorization: Bearer <token>`. The clinician is now logged in; no separate sign-in is needed."
+          },
+          "token_type": {
+            "type": "string",
+            "const": "bearer",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "description": "Token lifetime in seconds (8h = 28800 by default)."
+          },
+          "clinician": {
+            "$ref": "#/components/schemas/SignInClinician",
+            "description": "The clinician's profile (for rendering the current user)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "expires_in",
+          "clinician"
+        ],
+        "title": "SetPasswordResponse",
+        "description": "200 \u2014 password set; returns a portal JWT (the user is now logged in).",
+        "example": {
+          "clinician": {
+            "email": "n.owusu@korlebu.gov.gh",
+            "hospital_id": "0190f3a1-2b4c-7d8e-9f00-0000000000a1",
+            "hospital_name": "Korle Bu Teaching Hospital",
+            "id": "0190f3a1-2b4c-7d8e-9f00-0000000000b1",
+            "name": "Naa Owusu",
+            "role": "Midwife"
+          },
+          "expires_in": 28800,
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...",
+          "token_type": "bearer"
+        }
+      },
       "SignInClinician": {
         "properties": {
           "id": {
@@ -3838,6 +4080,82 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerifyTokenRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Token",
+            "description": "The raw token from the emailed link's `?token=`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "VerifyTokenRequest",
+        "description": "``POST /auth/verify-token`` \u2014 exchange a one-time invite/reset link\ntoken for a short-lived setup token.",
+        "example": {
+          "token": "kQ7f...Zp2x"
+        }
+      },
+      "VerifyTokenResponse": {
+        "properties": {
+          "setup_token": {
+            "type": "string",
+            "title": "Setup Token",
+            "description": "Short-lived token (15 min default) authorizing exactly `POST /auth/set-password`. Distinct audience from the portal JWT, so it can't be used as a session token. The link token itself is NOT consumed here \u2014 re-open the link to re-mint an expired setup token."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email",
+            "description": "The seat's email, for pre-filling the set-password form."
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Always `null` here \u2014 the display name rides on the set-password response."
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "invite",
+              "reset"
+            ],
+            "title": "Purpose",
+            "description": "`invite` \u2014 a never-activated seat (first login; set-password also flips `status` to `active` + confirms the email). `reset` \u2014 an existing active seat resetting its password."
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "description": "Setup-token lifetime in seconds (900 = 15 min default)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "setup_token",
+          "email",
+          "name",
+          "purpose",
+          "expires_in"
+        ],
+        "title": "VerifyTokenResponse",
+        "example": {
+          "email": "n.owusu@korlebu.gov.gh",
+          "expires_in": 900,
+          "name": "Naa Owusu",
+          "purpose": "invite",
+          "setup_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ..."
+        }
       }
     },
     "securitySchemes": {
@@ -3855,11 +4173,11 @@
     },
     {
       "name": "auth",
-      "description": "Sign-in and password change. `POST /auth/sign-in` is the only public endpoint on this service \u2014 every other clinical route requires the JWT it issues (HS256, 8h TTL, pinned `iss`/`aud`, carrying `hospital_id` + `role` + a 5-key `permissions` matrix resolved from the clinician's role at sign-in). Sign-in blocks suspended seats (`403 account_suspended`), locks an account after 5 failures in 15 min (`423 account_locked`), and is bounded by a per-IP rate limit (`429 too_many_requests`); failures return a generic `invalid_credentials` regardless of which step failed (anti-enumeration). `must_change_password=true` is set for seeded + provisioned clinicians on first sign-in and gates every other endpoint with `403 password_change_required` until the clinician rotates via `POST /auth/change-password`."
+      "description": "Sign-in, password change, and the invite/reset **link flow**. `POST /auth/sign-in`, `/auth/verify-token`, `/auth/set-password`, and `/auth/forgot-password` are the only public endpoints on this service \u2014 every other clinical route requires the JWT sign-in / set-password issue (HS256, 8h TTL, pinned `iss`/`aud`, carrying `hospital_id` + `role` + a 5-key `permissions` matrix resolved from the clinician's role).\n\n**Sign-in** blocks suspended seats (`403 account_suspended`), locks an account after 5 failures in 15 min (`423 account_locked`), and is bounded by a per-IP rate limit (`429 too_many_requests`); failures return a generic `invalid_credentials` regardless of which step failed (anti-enumeration).\n\n**Invite / reset link flow (no temp passwords).** Onboarding (`/admin/clinicians`, `/platform/hospitals`) creates an `invited` seat and emails a one-time **invite link**. The frontend `/activate?token=` and `/reset?token=` pages call `POST /auth/verify-token` to exchange the link token for a short-lived setup token (and, for an invite, confirm the email), then `POST /auth/set-password` to consume the link (single-use) and set the password \u2014 which returns a portal JWT, so the clinician is logged straight in. `POST /auth/forgot-password` is anti-enumeration: it always returns a generic 200 and emails a reset link (active confirmed seat) or re-sends the invite link (never-activated seat). Subsequent logins are plain email + password via `/auth/sign-in`.\n\n`must_change_password` is carried for compatibility but the link flow clears it on set-password; `POST /auth/change-password` remains for an in-session rotation by an already-signed-in clinician."
     },
     {
       "name": "admin",
-      "description": "Hospital-admin staff + roles surface. Every route is gated by `require_permission(\"manage_staff\")` (only the Administrator system role carries it) on top of `force_change_guard` + `tenant_required`, so it is RLS-scoped to the caller's own hospital.\n\n**Clinicians** (`/admin/clinicians`): list seats, create a seat, edit (name / role / suspend-reactivate), and remove a seat. A newly-created clinician comes back with a one-time `temp_password` the response shows ONCE \u2014 the admin delivers it out-of-band and the clinician's first sign-in forces a rotation. `Administrator` rows cannot be created via the API (provisioned at onboarding); an admin cannot change their own role, suspend, or delete themselves.\n\n**Roles** (`/admin/roles`): list roles + their 5-key permission matrix, create a custom role, edit a role's permissions / description (or rename a custom role), and delete a custom role. The six `is_system` roles cannot be renamed or deleted, though their permissions can be edited; a role still assigned to a clinician can't be deleted (`409 role_in_use`, enforced by the `clinicians.role_id` ON DELETE RESTRICT FK)."
+      "description": "Hospital-admin staff + roles surface. Every route is gated by `require_permission(\"manage_staff\")` (only the Administrator system role carries it) on top of `force_change_guard` + `tenant_required`, so it is RLS-scoped to the caller's own hospital.\n\n**Clinicians** (`/admin/clinicians`): list seats, create a seat, edit (name / role / suspend-reactivate), and remove a seat. A newly-created clinician is an `invited` seat emailed a one-time **invite link** (the response carries `invite_sent`, not a temp password); the clinician confirms their email + sets a password via `POST /auth/verify-token` \u2192 `set-password`. `Administrator` rows cannot be created via the API (provisioned at onboarding); an admin cannot change their own role, suspend, or delete themselves.\n\n**Roles** (`/admin/roles`): list roles + their 5-key permission matrix, create a custom role, edit a role's permissions / description (or rename a custom role), and delete a custom role. The six `is_system` roles cannot be renamed or deleted, though their permissions can be edited; a role still assigned to a clinician can't be deleted (`409 role_in_use`, enforced by the `clinicians.role_id` ON DELETE RESTRICT FK)."
     },
     {
       "name": "mothers",
