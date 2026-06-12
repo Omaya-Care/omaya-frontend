@@ -9,7 +9,7 @@ import {
 } from "../components/staff";
 import { Button } from "../components/ui/Button";
 import { StaffRole } from "../types";
-import DocsLoading from "../components/DocsLoading";
+import PageLoading from "../components/PageLoading";
 
 type FilterKey = "All" | StaffRole;
 
@@ -28,7 +28,7 @@ const StaffPage = () => {
   const [addRoleOpen, setAddRoleOpen] = useState(false);
 
   if (isLoading && staffMembers.length === 0) {
-    return <DocsLoading />;
+    return <PageLoading />;
   }
 
   const activeCount = staffMembers.filter((s) => s.status === "active").length;

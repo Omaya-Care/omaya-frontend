@@ -10,7 +10,6 @@ export const useStaff = () => {
   return useQuery<StaffMember[]>({
     queryKey: ["staff"],
     queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 500));
       // Real API: const response = await api.get("/admin/clinicians"); return response.data;
       return mockStaff;
     },

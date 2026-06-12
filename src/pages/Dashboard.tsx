@@ -14,7 +14,7 @@ import { useCalls } from "../hooks/useCalls";
 import { useEscalations } from "../hooks/useEscalations";
 import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
-import DocsLoading from "../components/DocsLoading";
+import PageLoading from "../components/PageLoading";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -52,7 +52,7 @@ const Dashboard = () => {
   };
 
   if (mothersLoading || callsLoading || escalationsLoading) {
-    return <DocsLoading />;
+    return <PageLoading />;
   }
 
   return (

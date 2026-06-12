@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { Input, Button } from "../components/ui";
 import { AuthCard, AuthError } from "../components/auth/AuthCard";
@@ -9,15 +9,20 @@ import { isAuthenticated } from "../lib/auth";
 
 const SignIn = () => {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  // In-app single-slash path only — reject protocol-relative ("//host") and
+  // backslash variants ("/\\host") that some browsers normalize to off-site.
+  const rawNext = params.get("next");
+  const next = rawNext && /^\/(?![/\\])/.test(rawNext) ? rawNext : null;
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Already signed in → skip straight to the app.
+  // Already signed in → honor ?next= (e.g. the docs gate), else dashboard.
   if (isAuthenticated()) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={next || "/dashboard"} replace />;
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -26,7 +31,7 @@ const SignIn = () => {
     setSubmitting(true);
     try {
       const { mustChangePassword } = await signIn(email, password);
-      navigate(mustChangePassword ? "/change-password" : "/dashboard", {
+      navigate(mustChangePassword ? "/change-password" : next || "/dashboard", {
         replace: true,
       });
     } catch (err) {

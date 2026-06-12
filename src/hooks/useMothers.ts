@@ -11,9 +11,6 @@ export const useMothers = () => {
   return useQuery<Mother[]>({
     queryKey: ["mothers"],
     queryFn: async () => {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
       // When the API is ready, we will do:
       // const response = await api.get("/mothers");
       // return response.data;
@@ -30,7 +27,6 @@ export const useMother = (id: string) => {
   return useQuery<Mother | null>({
     queryKey: ["mother", id],
     queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 400));
       return mockMothers.find((m) => m.id === id) || null;
     },
     enabled: !!id,

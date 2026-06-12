@@ -12,7 +12,7 @@ import {
 } from "../components/mothers";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import DocsLoading from "../components/DocsLoading";
+import PageLoading from "../components/PageLoading";
 
 const MothersPage = () => {
   const { openDrawer } = useDrawer();
@@ -52,7 +52,7 @@ const MothersPage = () => {
   };
 
   if (isLoading && mothers.length === 0) {
-    return <DocsLoading />;
+    return <PageLoading />;
   }
 
   return (

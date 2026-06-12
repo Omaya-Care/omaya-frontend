@@ -10,7 +10,6 @@ export const useEscalations = () => {
   return useQuery<EscalationItem[]>({
     queryKey: ["escalations"],
     queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 400));
       // Real API: const response = await api.get("/alerts"); return response.data;
       return mockEscalations;
     },

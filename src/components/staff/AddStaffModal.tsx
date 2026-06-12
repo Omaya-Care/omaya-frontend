@@ -3,6 +3,7 @@ import { X, Loader2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { useAddStaff } from "../../hooks/useMutations";
+import { extractApiError } from "../../lib/api";
 
 type TabKey = "invite" | "create";
 type RoleOption = "Administrator" | "Physician" | "Midwife" | "Coordinator";
@@ -59,13 +60,15 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
       await addStaffMutation.mutateAsync({
         name,
         email,
-        role: ROLE_MAP[selectedRole] as any, // Cast to match generated enum
+        role: ROLE_MAP[selectedRole],
       });
       handleClose();
-    } catch (err: any) {
+    } catch (err) {
       setError(
-        err.response?.data?.message ||
+        extractApiError(
+          err,
           "Failed to add staff member. Email might be already taken.",
+        ).message,
       );
     }
   };

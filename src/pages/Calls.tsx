@@ -3,7 +3,7 @@ import { Search, ArrowLeft } from "lucide-react";
 import { useCalls } from "../hooks/useCalls";
 import { CallListItem, CallDetail } from "../components/calls";
 import { Input } from "../components/ui/Input";
-import DocsLoading from "../components/DocsLoading";
+import PageLoading from "../components/PageLoading";
 
 type FilterTab = "all" | "today" | "upcoming" | "completed";
 
@@ -34,7 +34,7 @@ const CallsPage = () => {
   };
 
   if (isLoading && calls.length === 0) {
-    return <DocsLoading />;
+    return <PageLoading />;
   }
 
   return (
