@@ -14,6 +14,18 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
     return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
   };
 
+  const getTimeStatusStyles = (totalMinutes: number) => {
+    if (totalMinutes < 30) {
+      return "text-rose-600 animate-soft-pulse";
+    }
+    if (totalMinutes <= 120) {
+      return "text-amber-600";
+    }
+    return "text-emerald-600";
+  };
+
+  const statusStyles = getTimeStatusStyles(item.timeLeftMinutes);
+
   return (
     <div className="flex items-center w-full border-b border-gray-100 py-4">
       {/* MOTHER COLUMN */}
@@ -32,11 +44,11 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
       </div>
 
       {/* TIME LEFT COLUMN */}
-      <div className="flex-1">
-        <div className="text-base font-semibold text-gray-800">
+      <div className={`flex-1 ${statusStyles}`}>
+        <div className="text-base font-semibold">
           {formatTimeLeft(item.timeLeftMinutes)}
         </div>
-        <div className="text-xs font-normal text-gray-400">left within SLA</div>
+        <div className="text-xs font-normal opacity-80">left within SLA</div>
       </div>
 
       {/* ACTION COLUMN */}
