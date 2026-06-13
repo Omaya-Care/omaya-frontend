@@ -58,6 +58,26 @@ One build-time variable:
 
 It is a Vite `VITE_`-prefixed var, so it is **inlined into the bundle at build time and is public** — never put secrets in it. The call-service OpenAPI spec is reached only through the backend's team-gated docs proxy, so there is intentionally no `VITE_CALL_SERVICE_URL`.
 
+### Sentry (error reporting)
+
+Runtime vars (`VITE_`-prefixed, public — set in the Vercel **Production** env):
+
+| Var | Purpose |
+|-----|---------|
+| `VITE_SENTRY_DSN` | The shared `omaya-frontend` project DSN. Empty → Sentry is a no-op. |
+| `VITE_SENTRY_ENVIRONMENT` | `production` (defaults to Vite `MODE` if unset). |
+| `VITE_SENTRY_TRACES_SAMPLE_RATE` | `0` (errors only). |
+
+Build-time secret for **source-map upload** (set in the Vercel env, **NOT** `VITE_`-prefixed — these must never reach the bundle):
+
+| Var | Purpose |
+|-----|---------|
+| `SENTRY_AUTH_TOKEN` | Project auth token (`project:releases` + `org:read`). Gates the upload — builds without it still succeed (no maps). |
+| `SENTRY_ORG` | Sentry org slug. |
+| `SENTRY_PROJECT` | `omaya-frontend`. |
+
+`vite.config.ts` computes the release as `portal@<VERCEL_GIT_COMMIT_SHA>` and `@sentry/vite-plugin` uploads then **deletes** the `dist/*.map` files, so source maps live only in Sentry and are never served publicly. Session Replay is deliberately OFF (PHI); breadcrumbs/events are scrubbed of UUID/long-digit ids and query strings in `src/lib/sentry.ts`. See architecture-decisions §17.
+
 ## Scripts
 
 ```bash
