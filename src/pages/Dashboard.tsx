@@ -66,7 +66,7 @@ const Dashboard = () => {
           label="Mothers in care"
           sublabel="Active right now"
           value={mothers.length}
-          background="#F7E8F0"
+          background="#F2DCEA"
           onViewAll={() => navigate("/mothers")}
         />
         <StatCard
@@ -83,25 +83,22 @@ const Dashboard = () => {
           background="#EDD5E4"
           footerText={`${escalations.length} waiting`}
           footerColor="#DC2626"
-          onViewAll={() => console.log("View all unacknowledged")}
         />
         <StatCard
           label="Avg. response time"
           sublabel="To L3 & L4 alerts"
           value="11m"
           background="#E8CCDC"
-          onViewAll={() => console.log("View response time details")}
         />
-      </div>
+        </div>
 
-      {/* BLOCK 3: TWO COLUMN ROW */}
-      <div className="flex flex-col lg:flex-row gap-4 mb-6">
+        {/* BLOCK 3: TWO COLUMN ROW */}
+        <div className="flex flex-col lg:flex-row gap-4 mb-6">
         {/* LEFT — "Needs attention now" panel */}
         <div className="flex-1 bg-white rounded-2xl p-5 shadow-sm">
           <SectionHeader
             title="Needs attention now"
             count={escalations.length}
-            onViewAll={() => navigate("/calls")}
           />
 
           <div className="overflow-x-auto">
