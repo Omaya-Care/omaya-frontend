@@ -1,4 +1,5 @@
 import { lazy, Suspense, type ReactNode } from "react";
+import * as Sentry from "@sentry/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import SignIn from "./pages/SignIn";
@@ -31,6 +32,22 @@ const queryClient = new QueryClient({
   },
 });
 
+// Sentry-instrumented <SentryRoutes> — parameterized route names on errors/breadcrumbs.
+const SentryRoutes = Sentry.withSentryReactRouterV7Routing(Routes);
+
+// ErrorBoundary fallback. Deliberately shows NO error detail in the DOM (this
+// is a PHI screen); the detail goes to Sentry, not the clinician.
+function ErrorFallback() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-2 p-8 text-center">
+      <h1 className="text-lg font-semibold">Something went wrong</h1>
+      <p className="text-sm text-muted-foreground">
+        The page hit an unexpected error. Please refresh, or sign in again.
+      </p>
+    </div>
+  );
+}
+
 /** Protected page: requires a session, rendered inside the app shell. */
 function Protected({ children }: { children: ReactNode }) {
   return (
@@ -56,18 +73,19 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <DrawerProvider>
+          <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
           {isDocsHost ? (
             // Docs host: only sign-in + the gated docs. Everything funnels
             // to /docs so the host never exposes the app surface.
-            <Routes>
+            <SentryRoutes>
               <Route path="/" element={<SignIn />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/change-password" element={<ChangePassword />} />
               <Route path="/docs" element={gatedDocs} />
               <Route path="*" element={<Navigate to="/docs" replace />} />
-            </Routes>
+            </SentryRoutes>
           ) : (
-            <Routes>
+            <SentryRoutes>
               {/* Public auth routes */}
               <Route path="/" element={<SignIn />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -120,8 +138,9 @@ export default function App() {
               {/* API docs — sign-in + server-side docs_access allowlist */}
               <Route path="/docs" element={gatedDocs} />
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            </SentryRoutes>
           )}
+          </Sentry.ErrorBoundary>
         </DrawerProvider>
         <ErrorToast />
       </BrowserRouter>
