@@ -5,6 +5,14 @@ export default {
     extend: {
       fontFamily: {
         sans: ["Public Sans", "sans-serif"],
+        serif: ["Cormorant Garamond", "serif"],
+      },
+      colors: {
+        brand: {
+          plum: "#4A2545",
+          navy: "#0F172A",
+          berry: "#93406B",
+        },
       },
     },
   },
