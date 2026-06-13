@@ -180,7 +180,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
       {/* Main content area */}
       <main
-        className="flex-1 overflow-hidden bg-[#F4F4F5] relative flex flex-col lg:rounded-tl-2xl"
+        className="flex-1 bg-[#F4F4F5] relative flex flex-col lg:rounded-tl-2xl overflow-y-auto"
       >
         {/* Mobile top bar */}
         <div className="lg:hidden flex items-center gap-3 px-4 py-3 flex-shrink-0">
@@ -196,7 +196,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </div>
 
         {/* Content with responsive padding */}
-        <div className="flex-1 overflow-hidden p-4 lg:p-8 flex flex-col min-h-0">
+        <div className="p-4 lg:p-8">
           {children}
         </div>
 

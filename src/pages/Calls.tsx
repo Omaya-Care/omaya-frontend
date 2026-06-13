@@ -38,7 +38,7 @@ const CallsPage = () => {
   }
 
   return (
-    <div className="h-full flex flex-row gap-4">
+    <div className="h-[calc(100vh-64px)] lg:h-[calc(100vh-64px)] flex flex-row gap-4">
       {/* LEFT PANEL */}
       <div
         className={`

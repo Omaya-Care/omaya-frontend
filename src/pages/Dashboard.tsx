@@ -56,7 +56,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
+    <div className="flex flex-col">
       {/* BLOCK 1: PAGE HEADER */}
       <PageHeader userName="Ama" onNewDischarge={handleNewDischarge} />
 
