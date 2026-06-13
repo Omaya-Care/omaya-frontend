@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, lazy, Suspense } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, Link } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -84,9 +84,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       >
         {/* Logo + mobile close button */}
         <div className="pt-6 pb-8 flex items-center justify-between px-2">
-          <div className="w-7 h-7 bg-[#93406B] rounded-full flex items-center justify-center">
+          <Link
+            to="/dashboard"
+            className="w-7 h-7 bg-[#93406B] rounded-full flex items-center justify-center hover:opacity-80 transition-opacity"
+            onClick={() => setMobileSidebarOpen(false)}
+          >
             <div className="w-2 h-2 bg-white rounded-full" />
-          </div>
+          </Link>
           <button
             className="lg:hidden text-gray-400 hover:text-gray-600 transition-colors"
             onClick={() => setMobileSidebarOpen(false)}
