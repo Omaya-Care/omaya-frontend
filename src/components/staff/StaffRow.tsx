@@ -1,5 +1,5 @@
 import { MoreHorizontal } from 'lucide-react';
-import { StaffMember, StaffStatus } from '../../data/staff';
+import { StaffMember, StaffStatus } from "../../types";
 
 interface StaffRowProps {
   member: StaffMember;

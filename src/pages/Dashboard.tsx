@@ -9,14 +9,21 @@ import {
   CallRow,
   EscalationModal,
 } from "../components/dashboard";
-import { mothers } from "../data/mothers";
-import { calls } from "../data/calls";
-import { escalations } from "../data/escalations";
+import { useMothers } from "../hooks/useMothers";
+import { useCalls } from "../hooks/useCalls";
+import { useEscalations } from "../hooks/useEscalations";
+import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
+import PageLoading from "../components/PageLoading";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { openDrawer } = useDrawer();
+  const { data: mothers = [], isLoading: mothersLoading } = useMothers();
+  const { data: calls = [], isLoading: callsLoading } = useCalls();
+  const { data: escalations = [], isLoading: escalationsLoading } = useEscalations();
+  const acknowledgeMutation = useAcknowledgeAlert();
+
   const [acknowledgeModal, setAcknowledgeModal] = useState<{
     open: boolean;
     item: EscalationItem | null;
@@ -33,11 +40,20 @@ const Dashboard = () => {
     setAcknowledgeModal({ open: true, item });
   };
 
-  const handleAcknowledgeConfirm = () => {
+  const handleAcknowledgeConfirm = async () => {
     if (acknowledgeModal.item) {
-      console.log("acknowledged", acknowledgeModal.item.id);
+      try {
+        await acknowledgeMutation.mutateAsync(acknowledgeModal.item.id);
+        setAcknowledgeModal({ open: false, item: null });
+      } catch (err) {
+        console.error("Failed to acknowledge alert", err);
+      }
     }
   };
+
+  if (mothersLoading || callsLoading || escalationsLoading) {
+    return <PageLoading />;
+  }
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col min-h-0">

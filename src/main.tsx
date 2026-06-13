@@ -1,21 +1,17 @@
-import { StrictMode, Suspense, lazy } from 'react'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import DocsLoading from './components/DocsLoading.tsx'
 
-// docs.omayacare.com (and docs.localhost in dev) serves the Scalar API
-// reference. Everything else gets the dashboard app. Lazy-loaded so the
-// heavy Scalar bundle (and its global CSS) never ships with the main app.
-// Mirrors the Vercel setup where docs.* is an alias of the same project.
-const Docs = lazy(() => import('./Docs'))
+// Both the app host and the docs.* host render <App/>; App routes the docs
+// host to the gated API reference internally. The docs host stays out of
+// StrictMode (matching the original setup) to avoid double-invoked effects
+// in the heavy Scalar embed.
 const isDocsHost = window.location.hostname.startsWith('docs.')
 
 createRoot(document.getElementById('root')!).render(
   isDocsHost ? (
-    <Suspense fallback={<DocsLoading />}>
-      <Docs />
-    </Suspense>
+    <App />
   ) : (
     <StrictMode>
       <App />

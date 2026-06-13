@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useDrawer } from "../../contexts/DrawerContext";
+import { getClinician, clearSession, initialsOf } from "../../lib/auth";
 
 const AddMother = lazy(() => import("../../pages/AddMother"));
 const NewDischarge = lazy(() => import("../../pages/NewDischarge"));
@@ -38,6 +39,15 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { drawerType, closeDrawer } = useDrawer();
+
+  const clinician = getClinician();
+  const displayName = clinician?.name ?? clinician?.email ?? "";
+  const roleLabel = clinician?.role ?? "";
+
+  const handleSignOut = () => {
+    clearSession();
+    navigate("/", { replace: true });
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -133,7 +143,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <div className="h-px bg-gray-100 my-1" />
               <div
                 className="flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 transition-colors"
-                onClick={() => navigate("/")}
+                onClick={handleSignOut}
               >
                 <LogOut size={16} />
                 <span>Sign out</span>
@@ -146,14 +156,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             className="flex items-center gap-2.5 px-2 py-2 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
           >
             <div className="w-8 h-8 bg-[#93406B] rounded-full flex-none flex items-center justify-center text-white text-xs font-semibold">
-              KB
+              {initialsOf(clinician)}
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-medium text-gray-700 truncate">
-                K. Boateng
+                {displayName}
               </span>
               <span className="text-xs font-normal text-gray-400 truncate">
-                Midwife
+                {roleLabel}
               </span>
             </div>
             <ChevronsUpDown

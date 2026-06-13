@@ -58,3 +58,17 @@ export interface EscalationItem {
   severity: Severity;
   timeLeftMinutes: number;
 }
+
+export type StaffRole = "Administrator" | "Physician" | "Midwife" | "Coordinator";
+export type StaffStatus = "active" | "invited" | "suspended";
+
+export interface StaffMember {
+  id: string;
+  initials: string;
+  name: string;
+  email: string;
+  role: StaffRole;
+  status: StaffStatus;
+  lastActive: string;
+  isCurrentUser?: boolean;
+}

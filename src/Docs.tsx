@@ -1,18 +1,31 @@
+import { useEffect, useState } from 'react'
+import type { AxiosError } from 'axios'
 import { ApiReferenceReact } from '@scalar/api-reference-react'
 import '@scalar/api-reference-react/style.css'
 import '@fontsource-variable/geist/index.css'
+import { api } from './lib/api'
+import { AuthCard } from './components/auth/AuthCard'
+import { Button } from './components/ui'
+import DocsLoading from './components/DocsLoading'
 
-// Falls back to the bundled snapshots in public/openapi/ so the docs
-// host renders before the backend + call-service are deployed.
-const PORTAL_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '')
-const CALL_BASE = import.meta.env.VITE_CALL_SERVICE_URL?.replace(/\/+$/, '')
+// The portal spec (/openapi.json) is team-gated — it's fetched WITH the
+// Bearer JWT and rendered client-side, so there's no public snapshot to
+// leak. Defaults to the local backend in dev (matches lib/api.ts).
+const PORTAL_BASE = (
+  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+).replace(/\/+$/, '')
 
-const PORTAL_OPENAPI_URL = PORTAL_BASE
-  ? `${PORTAL_BASE}/openapi.json`
-  : '/openapi/portal-backend.json'
-const CALL_SERVICE_OPENAPI_URL = CALL_BASE
-  ? `${CALL_BASE}/openapi.json`
-  : '/openapi/call-service.json'
+// Server picker (rendered above Authentication): which base URL "Test Request"
+// targets. Localhost for a locally-running service; the deployment domain
+// (EC2 / Dokploy) for production. Each service points at its own hosting.
+const PORTAL_SERVERS = [
+  { url: 'http://localhost:8000', description: 'Local dev' },
+  { url: 'https://backend-api.omayacare.com', description: 'Production' },
+]
+const CALL_SERVERS = [
+  { url: 'http://localhost:8081', description: 'Local dev' },
+  { url: 'https://call-service.omayacare.com', description: 'Production' },
+]
 
 const OMAYA_CUSTOM_CSS = `
 :root {
@@ -96,28 +109,117 @@ const OMAYA_CUSTOM_CSS = `
 }
 `
 
+type Phase = 'loading' | 'forbidden' | 'error' | 'ready'
+
 export default function Docs() {
-  return (
-    <ApiReferenceReact
-      configuration={{
-        sources: [
-          {
-            slug: 'omaya-portal-backend',
-            title: 'Omaya Portal Backend',
-            url: PORTAL_OPENAPI_URL,
-            default: true,
-            agent: { disabled: true },
-          },
+  const [phase, setPhase] = useState<Phase>('loading')
+  const [portalSpec, setPortalSpec] = useState<Record<string, unknown> | null>(
+    null,
+  )
+  const [callSpec, setCallSpec] = useState<Record<string, unknown> | null>(null)
+
+  useEffect(() => {
+    let active = true
+    async function load() {
+      try {
+        // Team-gated: the Bearer JWT rides via the api interceptor. A 403
+        // here means the signed-in email isn't on the docs_access allowlist.
+        const portal = await api.get(`${PORTAL_BASE}/openapi.json`)
+        if (!active) return
+        setPortalSpec(portal.data)
+        // Call-service spec via the backend's team-gated proxy (best-effort):
+        // the call-service gates its own /openapi.json behind the internal
+        // secret, so we fetch it through the backend, not directly.
+        try {
+          const call = await api.get(`${PORTAL_BASE}/call-service.openapi.json`)
+          if (active) setCallSpec(call.data)
+        } catch {
+          /* call-service unreachable — show the portal source only */
+        }
+        if (active) setPhase('ready')
+      } catch (err) {
+        if (!active) return
+        const status = (err as AxiosError).response?.status
+        setPhase(status === 403 ? 'forbidden' : 'error')
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  if (phase === 'loading') return <DocsLoading />
+
+  if (phase === 'forbidden') {
+    return (
+      <AuthCard
+        title="No access"
+        subtitle="Your account isn't on the API documentation allowlist. Ask an Omaya administrator to add you."
+      >
+        <Button
+          variant="secondary"
+          size="lg"
+          fullWidth
+          onClick={() => window.location.assign('/')}
+        >
+          Back to sign in
+        </Button>
+      </AuthCard>
+    )
+  }
+
+  if (phase === 'error') {
+    return (
+      <AuthCard
+        title="Couldn't load the docs"
+        subtitle="The API spec couldn't be loaded. Check that the backend is reachable and try again."
+      >
+        <Button
+          variant="secondary"
+          size="lg"
+          fullWidth
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </Button>
+      </AuthCard>
+    )
+  }
+
+  // Extracted to a const so the per-source `servers` + `content` aren't
+  // subject to TS's excess-property check against Scalar's
+  // `SourceConfiguration` type — both are consumed at runtime.
+  const sources = [
+    {
+      slug: 'omaya-portal-backend',
+      title: 'Omaya Portal Backend',
+      content: portalSpec,
+      servers: PORTAL_SERVERS,
+      default: true,
+      agent: { disabled: true },
+    },
+    ...(callSpec
+      ? [
           {
             slug: 'omaya-call-service',
             title: 'Omaya Call Service',
-            url: CALL_SERVICE_OPENAPI_URL,
+            content: callSpec,
+            servers: CALL_SERVERS,
             agent: { disabled: true },
           },
-        ],
+        ]
+      : []),
+  ]
+  return (
+    <ApiReferenceReact
+      configuration={{
+        sources,
         theme: 'default',
         layout: 'modern',
-        hideDarkModeToggle: false,
+        // Lock to light mode (default + no toggle).
+        forceDarkModeState: 'light',
+        hideDarkModeToggle: true,
         defaultOpenAllTags: false,
         customCss: OMAYA_CUSTOM_CSS,
         _integration: 'fastapi',
