@@ -74,7 +74,7 @@ Build-time secret for **source-map upload** (set in the Vercel env, **NOT** `VIT
 |-----|---------|
 | `SENTRY_AUTH_TOKEN` | Project auth token (`project:releases` + `org:read`). Gates the upload — builds without it still succeed (no maps). |
 | `SENTRY_ORG` | Sentry org slug. |
-| `SENTRY_PROJECT` | `omaya-frontend`. |
+| `SENTRY_PROJECT` | `omaya-frontend-react` (the project slug; shared by the portal + internal-dashboard). |
 
 `vite.config.ts` computes the release as `portal@<VERCEL_GIT_COMMIT_SHA>` and `@sentry/vite-plugin` uploads then **deletes** the `dist/*.map` files, so source maps live only in Sentry and are never served publicly. Session Replay is deliberately OFF (PHI); breadcrumbs/events are scrubbed of UUID/long-digit ids and query strings in `src/lib/sentry.ts`. See architecture-decisions §17.
 
