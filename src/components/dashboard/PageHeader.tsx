@@ -19,9 +19,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         </span>
         <Button
           variant="primary"
-          size="sm"
           onClick={onNewDischarge}
-          className="flex items-center gap-1.5"
+          className="flex items-center gap-1.5 h-[2.8rem] px-5"
         >
           <Plus size={16} />
           <span className="font-medium">New discharge</span>
