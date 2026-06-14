@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent } from '../components/ui';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { api, extractApiError } from '../lib/api';
@@ -241,13 +241,15 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               { icon: ShieldCheck, title: "Her data is private", body: "Only her care team can see her record. She controls her consent." },
               { icon: Clock, title: "You can stop anytime", body: "If she changes her mind, you can withdraw her from the program in one click." }
             ].map((card, idx) => (
-              <div key={idx} className="bg-gray-50 rounded-xl px-5 py-4 flex items-start gap-4">
-                <card.icon size={20} className="text-[#93406B] mt-0.5" />
-                <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">{card.title}</span>
-                  <span className="text-sm text-gray-500 font-normal mt-0.5">{card.body}</span>
-                </div>
-              </div>
+              <Card key={idx} className="border-gray-100 shadow-none">
+                <CardContent className="p-4 flex items-start gap-3">
+                  <card.icon size={20} className="text-[#93406B] mt-0.5 shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-gray-900">{card.title}</span>
+                    <span className="text-sm text-gray-500 font-normal mt-0.5">{card.body}</span>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
