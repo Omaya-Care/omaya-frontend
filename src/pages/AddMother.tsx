@@ -277,7 +277,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-gray-700">Phone number</label>
-                <div className="relative flex items-center">
+                <div className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${showError('phone') ? 'border-red-400' : 'border-gray-200'}`}>
                   <Select
                     value={countryCode}
                     onValueChange={(val) => {
@@ -286,7 +286,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                       updateField('phone', local ? `${val}${local}` : '');
                     }}
                   >
-                    <SelectTrigger className="absolute left-1 top-1/2 -translate-y-1/2 z-20 h-auto w-auto min-w-0 border-gray-200 bg-transparent px-1.5 py-2 text-sm font-medium text-gray-700 shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400">
+                    <SelectTrigger className="h-auto w-auto min-w-0 border-0 bg-transparent px-2 py-2 text-sm font-medium text-gray-700 shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="min-w-[100px]">
@@ -297,6 +297,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                       <SelectItem value="+221">🇸🇳 +221</SelectItem>
                     </SelectContent>
                   </Select>
+                  <div className="h-6 w-px bg-gray-200" />
                   <Input
                     type="tel"
                     placeholder="55 123 4567"
@@ -305,7 +306,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                       const raw = e.target.value.replace(/\D/g, '').replace(/^0+/, '');
                       updateField('phone', raw ? `${countryCode}${raw}` : '');
                     }}
-                    className={`pl-[92px] pr-3.5 bg-gray-50 text-gray-900 ${showError('phone') ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
+                    className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
                   />
                 </div>
                 {showError('phone') && !formData.phone && (
@@ -324,7 +325,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${showError('dob') ? 'border-red-400' : 'border-gray-200'}`}
+                      className={`justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${showError('dob') ? 'border-red-400' : ''}`}
                     >
                       <CalendarIcon size={16} className="text-gray-400 shrink-0" />
                       {formData.dob
@@ -350,7 +351,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${showError('edd') ? 'border-red-400' : 'border-gray-200'}`}
+                      className={`justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${showError('edd') ? 'border-red-400' : ''}`}
                     >
                       <CalendarIcon size={16} className="text-gray-400 shrink-0" />
                       {formData.edd

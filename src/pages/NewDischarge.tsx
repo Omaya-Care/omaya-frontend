@@ -271,14 +271,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
 
           <label className="text-sm font-medium text-gray-700 mt-6">Search for an existing patient</label>
 
-          <div className="mt-2">
+          <div className="relative mt-2">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <Input
               placeholder="Search by name or phone number"
-              leftIcon={<Search size={20} />}
-              className="py-3.5 text-base bg-gray-50"
+              className="border-gray-200 placeholder:text-gray-400 h-10 pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              fullWidth
             />
           </div>
 
@@ -430,7 +429,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     placeholder="e.g. Abena Frimpong"
                     value={formData.motherName}
                     onChange={(e) => updateField('motherName', e.target.value)}
-                    className={`${touched && !formData.motherName ? 'border-red-400' : ''} ${foundMother ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                    className={`${touched && !formData.motherName ? 'border-red-400' : ''} ${foundMother ? 'opacity-60' : ''}`}
                     fullWidth
                     readOnly={!!foundMother}
                     tabIndex={foundMother ? -1 : 0}
@@ -447,7 +446,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-gray-700">Phone number</label>
-                <div className="relative flex items-center">
+                <div className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${foundMother ? 'bg-gray-100 opacity-60' : ''} ${touched && (!formData.phoneNumber || !phoneValid) ? 'border-red-400' : 'border-gray-200'}`}>
                   <Select
                     value={countryCode}
                     onValueChange={(val) => {
@@ -457,7 +456,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     }}
                     disabled={!!foundMother}
                   >
-                    <SelectTrigger className={`absolute left-1 top-1/2 -translate-y-1/2 z-20 h-auto w-auto min-w-0 border-gray-200 bg-transparent px-1.5 py-2 text-sm font-medium shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 ${foundMother ? 'text-gray-400' : 'text-gray-700'}`}>
+                    <SelectTrigger className={`h-auto w-auto min-w-0 border-0 bg-transparent px-2 py-2 text-sm font-medium shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 ${foundMother ? 'text-gray-400' : 'text-gray-700'}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="min-w-[100px]">
@@ -468,6 +467,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                       <SelectItem value="+221">🇸🇳 +221</SelectItem>
                     </SelectContent>
                   </Select>
+                  <div className="h-6 w-px bg-gray-200" />
                   <Input
                     type="tel"
                     placeholder="55 123 4567"
@@ -478,10 +478,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     }}
                     readOnly={!!foundMother}
                     tabIndex={foundMother ? -1 : 0}
-                    className={`pl-[92px] pr-10 ${foundMother ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50 text-gray-900'} ${touched && (!formData.phoneNumber || !phoneValid) ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
+                    className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
                   />
                   {foundMother && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <div className="pr-3 text-gray-400 pointer-events-none">
                       <Lock size={14} />
                     </div>
                   )}
@@ -502,7 +502,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     <PopoverTrigger asChild>
                       <Button
                         variant="ghost"
-                        className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${touched && !formData.dateOfBirth ? 'border-red-400' : 'border-gray-200'}`}
+                        className={`justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.dateOfBirth ? 'border-red-400' : 'border-gray-200'}`}
                       >
                         <CalendarIcon size={16} className="text-gray-400 shrink-0" />
                         {formData.dateOfBirth
@@ -528,7 +528,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     <PopoverTrigger asChild>
                       <Button
                         variant="ghost"
-                        className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${touched && !formData.edd ? 'border-red-400' : 'border-gray-200'}`}
+                        className={`justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.edd ? 'border-red-400' : 'border-gray-200'}`}
                       >
                         <CalendarIcon size={16} className="text-gray-400 shrink-0" />
                         {formData.edd
@@ -558,7 +558,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${touched && !formData.deliveryDate ? 'border-red-400' : 'border-gray-200'}`}
+                      className={`justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.deliveryDate ? 'border-red-400' : 'border-gray-200'}`}
                     >
                       <CalendarIcon size={16} className="text-gray-400 shrink-0" />
                       {formData.deliveryDate
@@ -584,7 +584,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${touched && !formData.dischargeDate ? 'border-red-400' : 'border-gray-200'}`}
+                      className={`justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.dischargeDate ? 'border-red-400' : 'border-gray-200'}`}
                     >
                       <CalendarIcon size={16} className="text-gray-400 shrink-0" />
                       {formData.dischargeDate
