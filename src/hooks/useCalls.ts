@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { calls as mockCalls } from "../data/calls";
+import { api } from "../lib/api";
 import { Call } from "../types";
 // import { api } from "../lib/api";
 
