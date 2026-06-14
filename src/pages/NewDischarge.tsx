@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { format, parse, addDays } from 'date-fns';
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from '../components/ui';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { useDrawer } from '../contexts/DrawerContext';
@@ -329,8 +329,16 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               </div>
             )}
             {searching && (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 size={18} className="animate-spin text-gray-400" />
+              <div className="flex flex-col gap-2 mt-2">
+                {[1, 2].map((i) => (
+                  <div key={i} className="bg-white border border-gray-200 rounded-xl px-4 py-3.5 flex justify-between items-center">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+                    <Skeleton className="h-3 w-14" />
+                  </div>
+                ))}
               </div>
             )}
           </div>

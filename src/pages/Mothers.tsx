@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../components/ui/popover";
-import PageLoading from "../components/PageLoading";
+import { Skeleton } from "../components/ui/skeleton";
 
 const MothersPage = () => {
   const { openDrawer } = useDrawer();
@@ -69,7 +69,32 @@ const MothersPage = () => {
   };
 
   if (isLoading && mothers.length === 0) {
-    return <PageLoading />;
+    return (
+      <div className="flex flex-row gap-4 h-[calc(100vh-64px)]">
+        <div className="w-full lg:w-72 bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3">
+          <Skeleton className="h-6 w-24" />
+          <Skeleton className="h-9 w-full rounded-md" />
+          <Skeleton className="h-8 w-20 rounded-md" />
+          <div className="space-y-1 mt-1">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-[72px] w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 bg-white rounded-2xl shadow-sm p-6 hidden lg:block">
+          <Skeleton className="h-8 w-48 mb-3" />
+          <Skeleton className="h-5 w-32 mb-6" />
+          <div className="grid grid-cols-2 gap-x-16 gap-y-5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-5 w-32" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!mothers || mothers.length === 0) {
