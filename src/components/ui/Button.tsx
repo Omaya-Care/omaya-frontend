@@ -46,8 +46,8 @@ function interactionStyle(
   const base = { transition: "background-color 150ms ease, color 150ms ease" } as React.CSSProperties;
 
   if (variant === "default") {
-    if (pressed) return { ...base, backgroundColor: "#2e1629" };
-    if (hovered) return { ...base, backgroundColor: "#3a1c36" };
+    if (pressed) return { ...base, backgroundColor: "#61294a" };
+    if (hovered) return { ...base, backgroundColor: "#7a3459" };
     return {};
   }
 
@@ -56,8 +56,8 @@ function interactionStyle(
       return {
         ...base,
         backgroundColor: "#f9fafb",
-        borderColor: "#4A2545",
-        color: "#4A2545",
+        borderColor: "#93406B",
+        color: "#93406B",
       };
     }
     return {};
@@ -68,7 +68,7 @@ function interactionStyle(
       return {
         ...base,
         backgroundColor: "#f3f4f6",
-        color: "#4A2545",
+        color: "#93406B",
       };
     }
     return {};

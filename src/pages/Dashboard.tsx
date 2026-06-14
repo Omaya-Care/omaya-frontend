@@ -113,7 +113,7 @@ const Dashboard = () => {
             </div>
           ) : escalations.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
-              <CheckCircle2 size={32} className="text-[#4A2545]" />
+              <CheckCircle2 size={32} className="text-[#93406B]" />
               <span className="text-sm font-semibold text-gray-700 mt-1">No alerts right now</span>
               <span className="text-xs text-gray-400 font-normal text-center max-w-[220px]">
                 All mothers are within safe response times.
@@ -183,7 +183,7 @@ const Dashboard = () => {
           </div>
         ) : calls.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-12">
-            <Phone size={32} className="text-[#4A2545]" />
+            <Phone size={32} className="text-[#93406B]" />
             <span className="text-sm font-semibold text-gray-700 mt-1">No calls scheduled today</span>
             <span className="text-xs text-gray-400 font-normal text-center max-w-[260px]">
               Calls will appear here once mothers are enrolled and discharged.

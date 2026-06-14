@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useDrawer } from "../contexts/DrawerContext";
-import { Plus, Search, ChevronDown, ArrowLeft, UserRound } from "lucide-react";
+import { Plus, Search, ArrowLeft, UserRound } from "lucide-react";
 import { useMothers } from "../hooks/useMothers";
 import { useConfirmConsentAction } from "../hooks/useMutations";
 import {
@@ -12,6 +12,13 @@ import {
 } from "../components/mothers";
 import { Button } from "../components/ui/Button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import PageLoading from "../components/PageLoading";
 
 const MothersPage = () => {
@@ -21,6 +28,8 @@ const MothersPage = () => {
   const [selectedMotherId, setSelectedMotherId] = useState<string>("");
 
   console.log("[MothersPage] mothers from API:", mothers);
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [logVisitModalOpen, setLogVisitModalOpen] = useState(false);
@@ -30,6 +39,14 @@ const MothersPage = () => {
       setSelectedMotherId(mothers[0].id);
     }
   }, [mothers, selectedMotherId]);
+
+  const filteredMothers = useMemo(() => {
+    return mothers.filter((mother) => {
+      if (severityFilter !== "all" && mother.severity !== severityFilter) return false;
+      if (statusFilter !== "all" && mother.consentStatus !== statusFilter) return false;
+      return true;
+    });
+  }, [mothers, severityFilter, statusFilter]);
 
   const selectedMother = mothers.find((m) => m.id === selectedMotherId) || null;
 
@@ -60,7 +77,7 @@ const MothersPage = () => {
   if (!mothers || mothers.length === 0) {
     return (
       <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center gap-3">
-        <UserRound size={48} className="text-[#4A2545]" />
+        <UserRound size={48} className="text-[#93406B]" />
         <span className="text-sm font-semibold text-gray-700">No mothers enrolled yet</span>
         <span className="text-xs text-gray-400 font-normal">Discharged mothers will appear here.</span>
       </div>
@@ -102,19 +119,35 @@ const MothersPage = () => {
 
         {/* Filters */}
         <div className="px-4 pb-3 flex-shrink-0 flex gap-2">
-          <button className="flex-1 flex items-center justify-between text-xs text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors font-medium">
-            <span>All levels</span>
-            <ChevronDown size={14} className="text-gray-400" />
-          </button>
-          <button className="flex-1 flex items-center justify-between text-xs text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors font-medium">
-            <span>Most urgent</span>
-            <ChevronDown size={14} className="text-gray-400" />
-          </button>
+          <Select value={severityFilter} onValueChange={setSeverityFilter}>
+            <SelectTrigger className="flex-1 h-auto text-xs border-gray-200 bg-white py-1.5 px-2.5 font-medium">
+              <SelectValue placeholder="All levels" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All levels</SelectItem>
+              <SelectItem value="routine">Routine</SelectItem>
+              <SelectItem value="elevated">Elevated</SelectItem>
+              <SelectItem value="crisis">Crisis</SelectItem>
+              <SelectItem value="monitor">Monitor</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="flex-1 h-auto text-xs border-gray-200 bg-white py-1.5 px-2.5 font-medium">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="withdrawn">Withdrawn</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* List */}
         <div className="flex-1 overflow-y-auto border-t border-gray-50">
-          {mothers.map((mother) => (
+          {filteredMothers.map((mother) => (
             <MotherListItem
               key={mother.id}
               mother={mother}

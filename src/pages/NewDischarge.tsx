@@ -457,7 +457,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     }}
                     disabled={!!foundMother}
                   >
-                    <SelectTrigger className={`absolute left-1 top-1/2 -translate-y-1/2 z-20 h-auto w-auto min-w-0 border-none bg-transparent px-1.5 py-2 text-sm font-medium shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 ${foundMother ? 'text-gray-400' : 'text-gray-700'}`}>
+                    <SelectTrigger className={`absolute left-1 top-1/2 -translate-y-1/2 z-20 h-auto w-auto min-w-0 border-gray-200 bg-transparent px-1.5 py-2 text-sm font-medium shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 ${foundMother ? 'text-gray-400' : 'text-gray-700'}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="min-w-[100px]">

@@ -286,7 +286,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                       updateField('phone', local ? `${val}${local}` : '');
                     }}
                   >
-                    <SelectTrigger className="absolute left-1 top-1/2 -translate-y-1/2 z-20 h-auto w-auto min-w-0 border-none bg-transparent px-1.5 py-2 text-sm font-medium text-gray-700 shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400">
+                    <SelectTrigger className="absolute left-1 top-1/2 -translate-y-1/2 z-20 h-auto w-auto min-w-0 border-gray-200 bg-transparent px-1.5 py-2 text-sm font-medium text-gray-700 shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="min-w-[100px]">
