@@ -15,7 +15,7 @@ import { AppShell } from "./components/layout";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { DocsGate } from "./components/auth/DocsGate";
 import { DrawerProvider } from "./contexts/DrawerContext";
-import { ErrorToast } from "./components/ui";
+import { Toaster } from "./components/ui/sonner";
 import DocsLoading from "./components/DocsLoading";
 
 const Docs = lazy(() => import("./Docs"));
@@ -142,7 +142,7 @@ export default function App() {
           )}
           </Sentry.ErrorBoundary>
         </DrawerProvider>
-        <ErrorToast />
+        <Toaster />
       </BrowserRouter>
     </QueryClientProvider>
   );

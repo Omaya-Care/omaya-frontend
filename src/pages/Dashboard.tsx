@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Phone, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { useDrawer } from "../contexts/DrawerContext";
 import { PageHeader } from "../components/dashboard/PageHeader";
 import {
@@ -46,8 +47,10 @@ const Dashboard = () => {
     if (acknowledgeModal.item) {
       try {
         await acknowledgeMutation.mutateAsync(acknowledgeModal.item.id);
+        toast.success("Alert acknowledged.");
         setAcknowledgeModal({ open: false, item: null });
       } catch (err) {
+        toast.error("Could not acknowledge. Please try again.");
         console.error("Failed to acknowledge alert", err);
       }
     }

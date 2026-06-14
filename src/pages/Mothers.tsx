@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from "../components/ui/popover";
 import { Skeleton } from "../components/ui/skeleton";
+import { toast } from "sonner";
 
 const MothersPage = () => {
   const { openDrawer } = useDrawer();
@@ -57,8 +58,10 @@ const MothersPage = () => {
     if (selectedMother) {
       try {
         await withdrawMutation.mutateAsync(selectedMother.id);
+        toast.success("Mother withdrawn from program.");
         setWithdrawModalOpen(false);
       } catch (err) {
+        toast.error("Could not withdraw. Please try again.");
         console.error("Failed to confirm withdrawal", err);
       }
     }

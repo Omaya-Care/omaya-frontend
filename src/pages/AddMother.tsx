@@ -4,7 +4,6 @@ import {
   Phone,
   ShieldCheck,
   Clock,
-  CheckCircle2,
   Info,
   ArrowRight,
   ArrowLeft,
@@ -18,6 +17,7 @@ import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { api, extractApiError } from '../lib/api';
 import { useDrawer } from '../contexts/DrawerContext';
+import { toast } from 'sonner';
 
 interface AddMotherProps {
   onClose?: () => void;
@@ -28,9 +28,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const { openDrawer } = useDrawer();
   const handleClose = onClose ?? (() => navigate('/mothers'));
   const [currentStep, setCurrentStep] = useState(1);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
   const [touched, setTouched] = useState(false);
   const [countryCode, setCountryCode] = useState('+233');
 
@@ -99,19 +97,20 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
         consent_calls: formData.consentCalls,
         consent_recording: formData.consentRecording,
       });
-      setIsSuccess(true);
+      toast.success("Mother enrolled successfully.");
+      handleClose();
     } catch (err: unknown) {
       const e = extractApiError(err);
       if (e.status === 0 || e.error_code === 'network_error') {
-        setSubmitError('Could not connect. Please check your connection and try again.');
+        toast.error('Enrollment failed. Please check the form and try again.');
       } else if (e.status === 400) {
-        setSubmitError('Please check the form and try again.');
+        toast.error('Enrollment failed. Please check the form and try again.');
       } else if (e.status === 409) {
-        setSubmitError('A record already exists for this phone number.');
+        toast.error('Enrollment failed. Please check the form and try again.');
       } else if (e.status >= 500) {
-        setSubmitError('Something went wrong on our end. Please try again in a moment.');
+        toast.error('Enrollment failed. Please check the form and try again.');
       } else {
-        setSubmitError(e.message);
+        toast.error('Enrollment failed. Please check the form and try again.');
       }
     } finally {
       setSubmitting(false);
@@ -119,7 +118,6 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
   };
 
   const handleBack = () => {
-    setSubmitError('');
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
       setTouched(false);
@@ -146,49 +144,6 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
     if (!field) return false;
     return fieldIsEmpty(formData[key as keyof typeof formData]);
   };
-
-  if (isSuccess) {
-    return (
-      <OnboardingShell
-        onClose={handleClose}
-        currentStep={4}
-        totalSteps={4}
-        stepLabel="Enrollment complete"
-      >
-        <div className="flex flex-col items-center justify-center min-h-[400px] mt-6">
-          <CheckCircle2 size={52} className="text-[#93406B]" />
-          <h2 className="text-2xl font-bold text-gray-900 mt-4">She's enrolled</h2>
-          <p className="text-sm text-gray-500 mt-2 text-center max-w-sm font-normal">
-            {formData.fullName} has been added to Omaya Care. Her first check-in call will be scheduled after her delivery date.
-          </p>
-          <div className="mt-8 flex gap-3">
-            <Button variant="outline" onClick={() => { handleClose(); navigate('/mothers'); }}>
-              View her record
-            </Button>
-            <Button variant="default" onClick={() => {
-              setIsSuccess(false);
-              setCurrentStep(1);
-              setCountryCode('+233');
-              setFormData({
-                fullName: '',
-                phone: '',
-                dob: '',
-                edd: '',
-                gravida: '',
-                para: '',
-                language: [],
-                risks: [],
-                consentCalls: false,
-                consentRecording: false,
-              });
-            }}>
-              Enroll another
-            </Button>
-          </div>
-        </div>
-      </OnboardingShell>
-    );
-  }
 
   const stepLabels = [
     "Antenatal enrollment",
@@ -516,11 +471,6 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
           <p className="text-xs text-gray-400 font-normal mt-6">
             By tapping 'Enroll her', you confirm that you have explained this program to the mother and she has agreed to participate.
           </p>
-        </div>
-      )}
-      {submitError && (
-        <div className="mt-6 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-          <p className="text-sm text-red-700 font-normal">{submitError}</p>
         </div>
       )}
     </OnboardingShell>

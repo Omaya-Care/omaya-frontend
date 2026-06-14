@@ -21,6 +21,7 @@ import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { useDrawer } from '../contexts/DrawerContext';
 import { api } from '../lib/api';
+import { toast } from 'sonner';
 
 interface NewDischargeProps {
   onClose?: () => void;
@@ -40,7 +41,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const [searchPhase, setSearchPhase] = useState(true);
   const [foundMother, setFoundMother] = useState<MotherSearchResult | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [touched, setTouched] = useState(false);
   const [countryCode, setCountryCode] = useState('+233');
@@ -49,7 +49,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
 
   const [formData, setFormData] = useState({
     motherName: '',
@@ -84,7 +83,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       return;
     }
     setSubmitting(true);
-    setSubmitError('');
     try {
       const dischargePayload: Record<string, unknown> = {
         delivery_date: formData.deliveryDate,
@@ -118,9 +116,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         const newId: string = motherRes.data.id ?? motherRes.data._id;
         await api.post(`/mothers/${newId}/discharge`, dischargePayload);
       }
-      setIsSuccess(true);
+      toast.success("Discharge recorded. Her first call has been scheduled.");
+      handleClose();
     } catch {
-      setSubmitError('Discharge could not be saved. Please try again.');
+      toast.error("Could not save discharge. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -160,12 +159,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         if (Array.isArray(results)) {
           setSearchResults(results);
         } else {
-          console.log('Unexpected search response shape:', res.data);
           setSearchResults([]);
-          setSearchError('Could not load results. Please try again.');
+          toast.error('Could not load results. Please try again.');
+          setSearchError('');
         }
       } catch {
         setSearchResults([]);
+        toast.error('Search failed. Please check your connection.');
         setSearchError('');
       } finally {
         setSearching(false);
@@ -197,62 +197,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     };
     return labels[value] || value.replace(/_/g, ' ');
   };
-
-  if (isSuccess) {
-    return (
-      <OnboardingShell
-        onClose={handleClose}
-        currentStep={4}
-        totalSteps={4}
-        stepLabel="Discharge complete"
-      >
-        <div className="flex flex-col items-center justify-center min-h-[400px] mt-6">
-          <CheckCircle2 size={52} className="text-[#93406B]" />
-          <h2 className="text-2xl font-bold text-gray-900 mt-4">Discharge recorded</h2>
-          <p className="text-sm text-gray-500 mt-2 text-center max-w-sm font-normal">
-            {formData.outcome === 'well'
-              ? formData.callingWindow === 'inbound'
-                ? "The care line number will be sent to her."
-                : firstCallDate
-                  ? `Her first call is scheduled for ${firstCallDate}.`
-                  : 'The discharge has been recorded.'
-              : "The discharge has been recorded. A bereavement call schedule has been assigned."}
-          </p>
-          <div className="mt-8 flex gap-3">
-            <Button variant="outline" onClick={() => { handleClose(); navigate('/dashboard'); }}>
-              Back to dashboard
-            </Button>
-            <Button variant="default" onClick={() => {
-              setIsSuccess(false);
-              setSearchPhase(true);
-              setFoundMother(null);
-              setMotherId('');
-              setCurrentStep(1);
-              setCountryCode('+233');
-              setFormData({
-                motherName: '',
-                phoneNumber: '',
-                deliveryDate: '',
-                dischargeDate: new Date().toISOString().split('T')[0],
-                deliveryType: '',
-                outcome: '',
-                medications: [],
-                callingWindow: '',
-                language: '',
-                dateOfBirth: '',
-                edd: '',
-                gravida: '',
-                para: '',
-                risks: [],
-              });
-            }}>
-              New discharge
-            </Button>
-          </div>
-        </div>
-      </OnboardingShell>
-    );
-  }
 
   if (searchPhase) {
     return (
@@ -814,11 +758,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               </p>
             </div>
           )}
-        </div>
-      )}
-      {submitError && (
-        <div className="mt-6 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-          <p className="text-sm text-red-700 font-normal">{submitError}</p>
         </div>
       )}
     </OnboardingShell>
