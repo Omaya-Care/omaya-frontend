@@ -108,11 +108,11 @@ const CallDetail = ({ call }: CallDetailProps) => {
 
       {/* BOTTOM ACTIONS — pinned to card bottom */}
       <div className="mt-auto pt-4 border-t border-gray-100 flex justify-end items-center gap-2 sticky bottom-0 bg-white">
-        <Button variant="secondary" size="sm" className="flex items-center gap-1.5">
+        <Button variant="outline" size="sm" className="flex items-center gap-1.5">
           <PhoneCall size={16} />
           <span className="font-medium">View mother record</span>
         </Button>
-        <Button variant="primary" size="sm" className="flex items-center gap-1.5">
+        <Button variant="default" size="sm" className="flex items-center gap-1.5">
           <Phone size={16} />
           <span className="font-medium">Call now</span>
         </Button>

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, EyeOff, Leaf } from "lucide-react";
+import { Eye, EyeOff, Leaf, Loader2 } from "lucide-react";
 import { Input, Button } from "../components/ui";
 import { AuthError } from "../components/auth/AuthCard";
 import { signIn } from "../lib/auth-api";
@@ -83,7 +83,6 @@ const SignIn = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
-                fullWidth
                 required
                 className="bg-white border-gray-200 focus:ring-brand-plum py-3 text-base"
               />
@@ -95,7 +94,6 @@ const SignIn = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                fullWidth
                 required
                 className="bg-white border-gray-200 focus:ring-brand-plum py-3 text-base"
                 rightIcon={
@@ -119,10 +117,10 @@ const SignIn = () => {
               <Button
                 type="submit"
                 size="lg"
-                fullWidth
-                loading={submitting}
-                className="bg-brand-plum hover:bg-[#3D1A2E] text-white py-4 md:py-5 text-base md:text-lg font-bold transition-all shadow-xl shadow-brand-plum/20 active:scale-[0.98]"
+                disabled={submitting}
+                className="bg-brand-plum hover:bg-[#3D1A2E] text-white py-4 md:py-5 text-base md:text-lg font-bold transition-all shadow-xl shadow-brand-plum/20 active:scale-[0.98] w-full"
               >
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign In
               </Button>
             </div>

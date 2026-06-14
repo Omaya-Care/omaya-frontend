@@ -67,8 +67,8 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
 
         {/* Footer */}
         <div className="flex justify-end gap-3 mt-7">
-          <Button variant="secondary" onClick={handleClose}>Cancel</Button>
-          <Button variant="primary" disabled={!canSubmit}>Create role</Button>
+          <Button variant="outline" onClick={handleClose}>Cancel</Button>
+          <Button variant="default" disabled={!canSubmit}>Create role</Button>
         </div>
       </div>
     </div>

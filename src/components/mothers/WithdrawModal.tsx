@@ -26,12 +26,11 @@ const WithdrawModal = ({ isOpen, onClose, onConfirm, motherName }: WithdrawModal
           </div>
 
           <div className="mt-6 flex justify-end gap-3">
-            <Button variant="secondary" size="md" onClick={onClose}>
+            <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button
-              variant="danger"
-              size="md"
+              variant="destructive"
               onClick={() => {
                 onConfirm();
                 onClose();

@@ -104,10 +104,9 @@ const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationMod
 
         {/* ACKNOWLEDGE BUTTON */}
         <Button
-          variant="primary"
+          variant="default"
           size="lg"
-          fullWidth
-          className="mt-5 gap-2"
+          className="mt-5 gap-2 w-full"
           onClick={() => {
             onAcknowledge();
             onClose();

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 
 interface PaginationProps {
   currentPage: number;
@@ -56,24 +57,21 @@ export const Pagination: React.FC<PaginationProps> = ({
         {onPageSizeChange && (
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-gray-400">Rows per page:</span>
-            <div className="relative inline-flex items-center">
-              <select
-                value={pageSize}
-                onChange={(e) => onPageSizeChange(Number(e.target.value))}
-                className="appearance-none bg-transparent text-xs font-semibold text-gray-700 pr-4 focus:outline-none cursor-pointer hover:text-[#4A2545] transition-colors"
-              >
+            <Select
+              value={String(pageSize)}
+              onValueChange={(val) => onPageSizeChange(Number(val))}
+            >
+              <SelectTrigger className="h-auto border-0 bg-transparent p-0 text-xs font-semibold text-gray-700 hover:text-[#4A2545] focus:ring-0 shadow-none [&>svg]:text-gray-400 [&>svg]:h-3 [&>svg]:w-3">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
                 {[10, 25, 50].map((size) => (
-                  <option key={size} value={size}>
+                  <SelectItem key={size} value={String(size)}>
                     {size}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
-              <div className="absolute right-0 pointer-events-none">
-                <svg className="w-2.5 h-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
+              </SelectContent>
+            </Select>
           </div>
         )}
       </div>

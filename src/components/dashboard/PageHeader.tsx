@@ -34,7 +34,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           {formatDate()}
         </span>
         <Button
-          variant="primary"
+          variant="default"
           onClick={onNewDischarge}
           className="flex items-center gap-1.5 h-[2.4rem] md:h-[2.8rem] px-3 md:px-5"
         >

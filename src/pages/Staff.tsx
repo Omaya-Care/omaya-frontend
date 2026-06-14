@@ -61,7 +61,7 @@ const StaffPage = () => {
           </p>
         </div>
         <Button
-          variant="primary"
+          variant="default"
           className="flex items-center gap-1.5"
           onClick={() => setAddStaffOpen(true)}
         >

@@ -50,14 +50,14 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
             className="border-[#93406B] text-[#93406B] hover:bg-[#F7E8F0]"
             onClick={() => setIsEditing(e => !e)}
           >
             {isEditing ? 'Done' : 'Edit'}
           </Button>
-          <Button variant="primary" size="sm" onClick={onAddRole}>
+          <Button variant="default" size="sm" onClick={onAddRole}>
             + Add role
           </Button>
         </div>

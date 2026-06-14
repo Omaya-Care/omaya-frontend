@@ -39,11 +39,10 @@ const ForgotPassword = () => {
             If an account exists for that address, we've sent a link to reset your password. It expires in 1 hour.
           </p>
           <Button
-            variant="secondary"
+            variant="outline"
             size="lg"
-            fullWidth
+            className="border-gray-200 text-gray-700 hover:bg-gray-50 py-4 md:py-5 text-base md:text-lg font-bold shadow-sm w-full"
             onClick={() => navigate("/")}
-            className="border-gray-200 text-gray-700 hover:bg-gray-50 py-4 md:py-5 text-base md:text-lg font-bold shadow-sm"
           >
             Back to log in
           </Button>
@@ -73,7 +72,6 @@ const ForgotPassword = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
-            fullWidth
             required
             className="bg-white border-gray-200 focus:ring-brand-plum py-3 text-base"
           />
@@ -82,10 +80,10 @@ const ForgotPassword = () => {
             <Button
               type="submit"
               size="lg"
-              fullWidth
-              loading={submitting}
-              className="bg-brand-plum hover:bg-[#3D1A2E] text-white py-4 md:py-5 text-base md:text-lg font-bold transition-all shadow-xl shadow-brand-plum/20 active:scale-[0.98]"
+              disabled={submitting}
+              className="bg-brand-plum hover:bg-[#3D1A2E] text-white py-4 md:py-5 text-base md:text-lg font-bold transition-all shadow-xl shadow-brand-plum/20 active:scale-[0.98] w-full"
             >
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Send reset link
             </Button>
           </div>

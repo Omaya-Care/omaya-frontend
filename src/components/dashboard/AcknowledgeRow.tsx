@@ -54,7 +54,7 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
       {/* ACTION COLUMN */}
       <div className="w-36 flex justify-end">
         <Button
-          variant="secondary"
+          variant="outline"
           size="sm"
           onClick={() => onAcknowledge(item.id)}
         >

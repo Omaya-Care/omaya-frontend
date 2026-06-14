@@ -223,7 +223,7 @@ const MotherDetail = ({
         </div>
         <div className="flex gap-2">
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
             className="flex items-center gap-1.5"
             onClick={onLogVisitClick}
@@ -232,7 +232,7 @@ const MotherDetail = ({
             <span className="font-medium">Log visit</span>
           </Button>
           <Button
-            variant="primary"
+            variant="default"
             size="sm"
             className="flex items-center gap-1.5"
           >

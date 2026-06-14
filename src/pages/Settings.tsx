@@ -156,7 +156,7 @@ const SettingsPage = () => {
             {/* Change password — aligns to bottom of the Role cell */}
             <div className="flex flex-col justify-end">
               <Button
-                variant="secondary"
+                variant="outline"
                 className="border-gray-300 text-gray-700 w-full"
               >
                 Change password
@@ -248,7 +248,7 @@ const SettingsPage = () => {
               Changes saved
             </span>
           )}
-          <Button variant="primary" onClick={handleSave} className="px-6 py-2.5">
+          <Button variant="default" onClick={handleSave} className="px-6 py-2.5">
             Save changes
           </Button>
         </div>

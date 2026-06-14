@@ -179,14 +179,14 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
         {/* Footer */}
         <div className="flex justify-end gap-3 mt-7">
           <Button
-            variant="secondary"
+            variant="outline"
             onClick={handleClose}
             disabled={addStaffMutation.isPending}
           >
             Cancel
           </Button>
           <Button
-            variant="primary"
+            variant="default"
             disabled={!canSubmit}
             onClick={handleSubmit}
             className="flex items-center gap-2"

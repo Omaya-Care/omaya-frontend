@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { format, parse, addDays } from 'date-fns';
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
-import { Button, Input } from '../components/ui';
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { useDrawer } from '../contexts/DrawerContext';
@@ -219,10 +219,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               : "The discharge has been recorded. A bereavement call schedule has been assigned."}
           </p>
           <div className="mt-8 flex gap-3">
-            <Button variant="secondary" onClick={() => { handleClose(); navigate('/dashboard'); }}>
+            <Button variant="outline" onClick={() => { handleClose(); navigate('/dashboard'); }}>
               Back to dashboard
             </Button>
-            <Button variant="primary" onClick={() => {
+            <Button variant="default" onClick={() => {
               setIsSuccess(false);
               setSearchPhase(true);
               setFoundMother(null);
@@ -395,7 +395,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       }
       rightAction={
         <Button
-          variant="primary"
+          variant="default"
           onClick={handleNext}
           className="gap-2"
           disabled={submitting}
@@ -448,28 +448,26 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-gray-700">Phone number</label>
                 <div className="relative flex items-center">
-                  <select
+                  <Select
                     value={countryCode}
-                    onChange={(e) => {
-                      const newCode = e.target.value;
-                      setCountryCode(newCode);
+                    onValueChange={(val) => {
+                      setCountryCode(val);
                       const local = formData.phoneNumber.replace(countryCode, '');
-                      updateField('phoneNumber', local ? `${newCode}${local}` : '');
+                      updateField('phoneNumber', local ? `${val}${local}` : '');
                     }}
                     disabled={!!foundMother}
-                    className={`absolute left-1 top-1/2 -translate-y-1/2 z-10 border-none text-sm font-medium pl-2 pr-5 py-2 appearance-none focus:outline-none ${foundMother ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-gray-700 cursor-pointer bg-transparent'}`}
                   >
-                    <option value="+233">🇬🇭 +233</option>
-                    <option value="+234">🇳🇬 +234</option>
-                    <option value="+225">🇨🇮 +225</option>
-                    <option value="+228">🇹🇬 +228</option>
-                    <option value="+221">🇸🇳 +221</option>
-                  </select>
-                  {!foundMother && (
-                    <svg className="absolute left-[72px] top-1/2 -translate-y-1/2 z-10 pointer-events-none" width="8" height="4" viewBox="0 0 8 4" fill="none">
-                      <path d="M1 0.5L4 3.5L7 0.5" stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
+                    <SelectTrigger className={`absolute left-1 top-1/2 -translate-y-1/2 z-20 h-auto w-auto min-w-0 border-none bg-transparent px-1.5 py-2 text-sm font-medium shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 ${foundMother ? 'text-gray-400' : 'text-gray-700'}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="min-w-[100px]">
+                      <SelectItem value="+233">🇬🇭 +233</SelectItem>
+                      <SelectItem value="+234">🇳🇬 +234</SelectItem>
+                      <SelectItem value="+225">🇨🇮 +225</SelectItem>
+                      <SelectItem value="+228">🇹🇬 +228</SelectItem>
+                      <SelectItem value="+221">🇸🇳 +221</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Input
                     type="tel"
                     placeholder="55 123 4567"

@@ -81,7 +81,7 @@ const MothersPage = () => {
         <div className="px-4 pt-5 pb-3 flex justify-between items-center flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">Mothers</h2>
           <Button
-            variant="primary"
+            variant="default"
             size="sm"
             className="flex items-center gap-1.5 px-3"
             onClick={() => openDrawer("add-mother")}

@@ -1,71 +1,128 @@
-import React from 'react';
-import { Loader2 } from 'lucide-react';
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-  size?: 'sm' | 'md' | 'lg' | 'icon';
-  loading?: boolean;
-  fullWidth?: boolean;
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline: "border border-input bg-background",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+        icon: "h-10 w-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
 }
 
-function buttonVariants({
-  variant = 'primary',
-  size = 'md',
-  className = '',
-}: {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-  size?: 'sm' | 'md' | 'lg' | 'icon';
-  className?: string;
-} = {}) {
-  const baseStyles = 'inline-flex items-center justify-center rounded-lg font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2';
+function interactionStyle(
+  variant: string | null | undefined,
+  hovered: boolean,
+  pressed: boolean,
+): React.CSSProperties {
+  const base = { transition: "background-color 150ms ease, color 150ms ease" } as React.CSSProperties;
 
-  const variants = {
-    primary: 'bg-[#93406B] text-white hover:bg-[#7a3259] focus-visible:ring-[#93406B]',
-    secondary: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 focus-visible:ring-gray-200',
-    ghost: 'text-gray-600 hover:bg-gray-100 focus-visible:ring-gray-100',
-    danger: 'bg-[#DC2626] text-white hover:bg-[#b91c1c] focus-visible:ring-[#DC2626]',
-  };
+  if (variant === "default") {
+    if (pressed) return { ...base, backgroundColor: "#2e1629" };
+    if (hovered) return { ...base, backgroundColor: "#3a1c36" };
+    return {};
+  }
 
-  const sizes = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2.5 text-sm',
-    lg: 'px-5 py-3 text-base',
-    icon: 'size-9 p-0',
-  };
+  if (variant === "outline") {
+    if (hovered) {
+      return {
+        ...base,
+        backgroundColor: "#f9fafb",
+        borderColor: "#4A2545",
+        color: "#4A2545",
+      };
+    }
+    return {};
+  }
 
-  return `
-    ${baseStyles}
-    ${variants[variant]}
-    ${sizes[size]}
-    ${className}
-  `.trim().replace(/\s+/g, ' ');
+  if (variant === "ghost") {
+    if (hovered) {
+      return {
+        ...base,
+        backgroundColor: "#f3f4f6",
+        color: "#4A2545",
+      };
+    }
+    return {};
+  }
+
+  return {};
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className = '', variant = 'primary', size = 'md', loading, fullWidth, children, disabled, ...props }, ref) => {
-    const loadingStyles = loading ? 'pointer-events-none opacity-70' : '';
-    const widthStyles = fullWidth ? 'w-full' : '';
-
-    const combinedClassName = `
-      ${buttonVariants({ variant, size, className })}
-      ${loadingStyles}
-      ${widthStyles}
-    `.trim().replace(/\s+/g, ' ');
-
+  (
+    {
+      className,
+      variant,
+      size,
+      asChild = false,
+      style,
+      onMouseEnter,
+      onMouseLeave,
+      onMouseDown,
+      onMouseUp,
+      ...props
+    },
+    ref,
+  ) => {
+    const [hovered, setHovered] = React.useState(false);
+    const [pressed, setPressed] = React.useState(false);
+    const Comp = asChild ? Slot : "button";
     return (
-      <button
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
-        disabled={disabled || loading}
-        className={combinedClassName}
+        style={{ ...style, ...interactionStyle(variant, hovered, pressed) }}
+        onMouseEnter={(e) => {
+          setHovered(true);
+          onMouseEnter?.(e);
+        }}
+        onMouseLeave={(e) => {
+          setHovered(false);
+          setPressed(false);
+          onMouseLeave?.(e);
+        }}
+        onMouseDown={(e) => {
+          setPressed(true);
+          onMouseDown?.(e);
+        }}
+        onMouseUp={(e) => {
+          setPressed(false);
+          onMouseUp?.(e);
+        }}
         {...props}
-      >
-        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {children}
-      </button>
+      />
     );
-  }
+  },
 );
-
-Button.displayName = 'Button';
+Button.displayName = "Button";
 
 export { Button, buttonVariants };

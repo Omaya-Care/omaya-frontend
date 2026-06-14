@@ -92,12 +92,11 @@ const LogVisitModal = ({ isOpen, onClose, onSave, motherName, dayPostpartum }: L
 
         {/* BUTTONS */}
         <div className="mt-5 flex justify-end gap-3">
-          <Button variant="secondary" size="md" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            variant="primary"
-            size="md"
+            variant="default"
             className="gap-2"
             disabled={!isFormValid}
             onClick={handleSave}
