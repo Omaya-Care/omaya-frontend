@@ -24,12 +24,12 @@ export const CallsTable: React.FC<CallsTableProps> = ({ calls }) => {
   return (
     <div className="w-full">
       <div className="overflow-x-auto">
-        <div className="min-w-[480px]">
+        <div className="min-w-0 md:min-w-[480px]">
           {/* Column headers */}
-          <div className="grid grid-cols-[1fr_112px_1fr_160px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2">
+          <div className="grid grid-cols-[1fr_100px_160px] md:grid-cols-[1fr_112px_1fr_160px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2">
             <div>Mother</div>
             <div>Time</div>
-            <div>Call Type</div>
+            <div className="hidden md:block">Call Type</div>
             <div className="text-right">Status</div>
           </div>
 

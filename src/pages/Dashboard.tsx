@@ -15,6 +15,7 @@ import { useEscalations } from "../hooks/useEscalations";
 import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
 import PageLoading from "../components/PageLoading";
+import { getClinician } from "../lib/auth";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -51,6 +52,9 @@ const Dashboard = () => {
     }
   };
 
+  const clinician = getClinician();
+  const firstName = clinician?.name?.split(/\s+/)[0] ?? "User";
+
   if (mothersLoading || callsLoading || escalationsLoading) {
     return <PageLoading />;
   }
@@ -58,10 +62,10 @@ const Dashboard = () => {
   return (
     <div className="flex flex-col">
       {/* BLOCK 1: PAGE HEADER */}
-      <PageHeader userName="Ama" onNewDischarge={handleNewDischarge} />
+      <PageHeader userName={firstName} onNewDischarge={handleNewDischarge} />
 
       {/* BLOCK 2: STAT CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         <StatCard
           label="Mothers in care"
           sublabel="Active right now"
@@ -95,7 +99,7 @@ const Dashboard = () => {
       {/* BLOCK 3: TWO COLUMN ROW */}
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         {/* LEFT — "Needs attention now" panel */}
-        <div className="flex-1 bg-white rounded-2xl pt-5 px-5 pb-3 shadow-sm flex flex-col">
+        <div className="flex-1 bg-white rounded-2xl pt-4 md:pt-5 px-3 md:px-5 pb-3 shadow-sm flex flex-col">
           <SectionHeader
             title="Needs attention now"
             count={escalations.length}
@@ -107,12 +111,12 @@ const Dashboard = () => {
         </div>
 
         {/* RIGHT — "This week" summary panel */}
-        <div className="w-full lg:w-80 bg-white rounded-2xl p-5 shadow-sm self-start">
+        <div className="w-full lg:w-80 bg-white rounded-2xl p-3 md:p-5 shadow-sm self-start">
           <div className="mb-4 overflow-hidden">
             <span className="text-xs text-gray-400 float-right">
               Mon – today
             </span>
-            <h3 className="text-base font-semibold text-gray-900">This week</h3>
+            <h3 className="text-sm md:text-base font-semibold text-gray-900">This week</h3>
           </div>
 
           <div className="flex flex-col">
@@ -156,12 +160,12 @@ const Dashboard = () => {
       </div>
 
       {/* BLOCK 4: TODAY'S CALLS */}
-      <div className="bg-white rounded-2xl pt-5 px-5 pb-3 shadow-sm">
+      <div className="bg-white rounded-2xl pt-4 md:pt-5 px-3 md:px-5 pb-3 shadow-sm">
         <SectionHeader
           title="Today's calls"
           onViewAll={() => navigate("/calls")}
         />
-        <div className="text-sm font-normal text-gray-400 -mt-3 mb-4">
+        <div className="text-xs md:text-sm font-normal text-gray-400 -mt-3 mb-4">
           {calls.filter(c => c.status === 'completed').length} of {calls.length} completed
         </div>
         <CallsTable calls={calls} />

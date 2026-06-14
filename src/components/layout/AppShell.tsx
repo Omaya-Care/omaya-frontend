@@ -196,7 +196,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </div>
 
         {/* Content with responsive padding */}
-        <div className="p-4 lg:p-8">
+        <div className="p-3 md:p-4 lg:p-8">
           {children}
         </div>
       </main>

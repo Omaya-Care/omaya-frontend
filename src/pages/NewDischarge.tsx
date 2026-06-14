@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -10,13 +10,17 @@ import {
   Phone,
   ArrowRight,
   ArrowLeft,
-  CalendarIcon
+  CalendarIcon,
+  Loader2,
+  Lock
 } from 'lucide-react';
 import { format, parse, addDays } from 'date-fns';
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
 import { Button, Input } from '../components/ui';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { useDrawer } from '../contexts/DrawerContext';
+import { api } from '../lib/api';
 
 interface NewDischargeProps {
   onClose?: () => void;
@@ -25,11 +29,13 @@ interface NewDischargeProps {
 interface MotherSearchResult {
   id: string;
   name: string;
+  phone: string;
   edd: string;
 }
 
 const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const navigate = useNavigate();
+  const { openDrawer } = useDrawer();
   const handleClose = onClose ?? (() => navigate('/dashboard'));
   const [searchPhase, setSearchPhase] = useState(true);
   const [foundMother, setFoundMother] = useState<MotherSearchResult | null>(null);
@@ -38,6 +44,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [touched, setTouched] = useState(false);
   const [countryCode, setCountryCode] = useState('+233');
+  const [motherId, setMotherId] = useState('');
+  const [searchResults, setSearchResults] = useState<MotherSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const [formData, setFormData] = useState({
     motherName: '',
@@ -48,22 +60,69 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     outcome: '' as 'well' | 'loss' | '',
     medications: [] as string[],
     callingWindow: '' as 'morning' | 'afternoon' | 'evening' | 'inbound' | '',
+    language: '',
+    dateOfBirth: '',
+    edd: '',
+    gravida: '',
+    para: '',
+    risks: [] as string[],
   });
 
   const totalSteps = 4;
 
-  const handleNext = () => {
+  const handleNext = async () => {
     setTouched(true);
-    const step1Valid = formData.motherName && formData.phoneNumber && phoneValid && formData.deliveryDate && formData.dischargeDate && formData.deliveryType;
+    const newPatientFields = !foundMother
+      ? formData.dateOfBirth && formData.edd
+      : true;
+    const step1Valid = formData.motherName && formData.phoneNumber && phoneValid && formData.deliveryDate && formData.dischargeDate && formData.deliveryType && formData.language && newPatientFields;
     const step2Valid = formData.outcome;
     if ((currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid)) return;
     setTouched(false);
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
-    } else {
-      console.log('Recording discharge:', { foundMother, ...formData });
-      console.log(`Sending SMS to ${formData.phoneNumber}: Welcome to Omaya Care. Your postpartum care has been scheduled. Reply HELP for assistance.`);
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const dischargePayload: Record<string, unknown> = {
+        delivery_date: formData.deliveryDate,
+        discharge_date: formData.dischargeDate,
+        delivery_type: formData.deliveryType,
+        medications: formData.medications.filter(m => m !== 'none' && m !== 'not_sure'),
+        outcome: formData.outcome,
+        preferred_call_window: formData.callingWindow,
+        consent_calls: true,
+        consent_recording: true,
+      };
+      if (formData.phoneNumber) {
+        dischargePayload.phone = formData.phoneNumber;
+      }
+
+      if (foundMother && motherId) {
+        await api.post(`/mothers/${motherId}/discharge`, dischargePayload);
+      } else {
+        const motherRes = await api.post('/mothers', {
+          full_name: formData.motherName,
+          phone: formData.phoneNumber,
+          date_of_birth: formData.dateOfBirth,
+          edd: formData.edd,
+          gravida: 0,
+          para: 0,
+          language: formData.language,
+          risks: [],
+          consent_calls: true,
+          consent_recording: true,
+        });
+        const newId: string = motherRes.data.id ?? motherRes.data._id;
+        await api.post(`/mothers/${newId}/discharge`, dischargePayload);
+      }
       setIsSuccess(true);
+    } catch {
+      setSubmitError('Discharge could not be saved. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -83,14 +142,37 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const mockResults = [
-    { id: 'm1', name: 'Abena Frimpong', edd: '12 Jun 2026' },
-    { id: 'm2', name: 'Akosua Adjei', edd: '18 Jun 2026' },
-  ];
+  const filteredResults = searchResults;
 
-  const filteredResults = searchQuery.length >= 2
-    ? mockResults.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : [];
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    setSearchError('');
+    clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/mothers/search?q=${encodeURIComponent(searchQuery)}`);
+        const results = res.data?.results;
+        if (Array.isArray(results)) {
+          setSearchResults(results);
+        } else {
+          console.log('Unexpected search response shape:', res.data);
+          setSearchResults([]);
+          setSearchError('Could not load results. Please try again.');
+        }
+      } catch {
+        setSearchResults([]);
+        setSearchError('');
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(searchTimeout.current);
+  }, [searchQuery]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -102,8 +184,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       : format(addDays(new Date(), 1), 'dd/MM/yyyy')
     : '';
 
-  const localDigits = formData.phoneNumber.replace(countryCode, '');
-  const phoneValid = localDigits.length >= 9;
+  const phoneValid = /^\+233[25]\d{8}$/.test(formData.phoneNumber);
 
   const labelForMedication = (value: string) => {
     const labels: Record<string, string> = {
@@ -125,13 +206,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         totalSteps={4}
         stepLabel="Discharge complete"
       >
-        <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center justify-center min-h-[400px] mt-6">
           <CheckCircle2 size={52} className="text-[#93406B]" />
           <h2 className="text-2xl font-bold text-gray-900 mt-4">Discharge recorded</h2>
           <p className="text-sm text-gray-500 mt-2 text-center max-w-sm font-normal">
             {formData.outcome === 'well'
               ? formData.callingWindow === 'inbound'
-                ? "She will call in — share the care line number on the welcome SMS."
+                ? "The care line number will be sent to her."
                 : firstCallDate
                   ? `Her first call is scheduled for ${firstCallDate}.`
                   : 'The discharge has been recorded.'
@@ -145,6 +226,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               setIsSuccess(false);
               setSearchPhase(true);
               setFoundMother(null);
+              setMotherId('');
               setCurrentStep(1);
               setCountryCode('+233');
               setFormData({
@@ -156,6 +238,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 outcome: '',
                 medications: [],
                 callingWindow: '',
+                language: '',
+                dateOfBirth: '',
+                edd: '',
+                gravida: '',
+                para: '',
+                risks: [],
               });
             }}>
               New discharge
@@ -172,16 +260,18 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         onClose={handleClose}
         currentStep={0}
         totalSteps={4}
-        stepLabel="Find her record"
+        stepLabel="Discharge"
       >
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-lg mx-auto mt-6">
           <StepHeader
             step={1}
-            title="Is she already enrolled?"
-            description="Search for her antenatal record first. If she enrolled during a pregnancy visit, her details are already here."
+            title="Find her record"
+            description="She enrolled during a pregnancy visit"
           />
 
-          <div className="mt-6">
+          <label className="text-sm font-medium text-gray-700 mt-6">Search for an existing patient</label>
+
+          <div className="mt-2">
             <Input
               placeholder="Search by name or phone number"
               leftIcon={<Search size={20} />}
@@ -192,12 +282,18 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             />
           </div>
 
-          <div className="mt-4 flex flex-col gap-2">
-            {filteredResults.map((result) => (
+          <div className="mt-3 flex flex-col gap-2">
+            {filteredResults?.length > 0 && filteredResults.map((result) => (
               <div
                 key={result.id}
                 onClick={() => {
+                  setMotherId(result.id);
                   setFoundMother(result);
+                  setFormData(prev => ({
+                    ...prev,
+                    motherName: result.name,
+                    phoneNumber: result.phone,
+                  }));
                   setSearchPhase(false);
                   setCurrentStep(1);
                 }}
@@ -205,13 +301,39 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               >
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold text-gray-900">{result.name}</span>
-                  <span className="text-xs text-gray-400 font-normal mt-0.5">ANC enrolled · EDD {result.edd}</span>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <span className="text-xs text-gray-400 font-normal">{result.phone}</span>
+                    {result.edd && (
+                      <>
+                        <span className="text-xs text-gray-300">·</span>
+                        <span className="text-xs text-gray-400 font-normal">
+                          EDD {format(parse(result.edd, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <span className="text-xs text-[#93406B] font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
                   Select →
                 </span>
               </div>
             ))}
+            {searchError && (
+              <div className="bg-red-50 border border-red-100 rounded-xl px-5 py-6 flex flex-col items-center text-center">
+                <span className="text-sm font-medium text-red-700">{searchError}</span>
+              </div>
+            )}
+            {!searchError && searchQuery.length >= 2 && !searching && filteredResults?.length === 0 && (
+              <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-6 flex flex-col items-center text-center">
+                <span className="text-sm font-medium text-gray-700">No record found for '{searchQuery}'</span>
+                <span className="text-xs text-gray-400 font-normal mt-1.5">If she was not enrolled during pregnancy, use the new discharge option below.</span>
+              </div>
+            )}
+            {searching && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 size={18} className="animate-spin text-gray-400" />
+              </div>
+            )}
           </div>
 
           <div className="mt-8 flex items-center gap-4">
@@ -220,18 +342,34 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             <div className="h-px bg-gray-100 flex-1" />
           </div>
 
-          <div
-            onClick={() => {
-              setFoundMother(null);
-              setSearchPhase(false);
-              setCurrentStep(1);
-            }}
-            className="mt-8 bg-gray-50 border border-gray-100 rounded-xl px-5 py-4 cursor-pointer hover:bg-gray-100 transition-all flex items-start gap-4"
-          >
-            <UserPlus size={18} className="text-gray-400 mt-0.5" />
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-gray-700">She wasn't enrolled antenatally</span>
-              <span className="text-xs text-gray-400 font-normal mt-0.5">Start a full enrollment at discharge</span>
+          <div className="mt-8 grid grid-cols-2 gap-4">
+            <div
+              onClick={() => {
+                setFoundMother(null);
+                setSearchPhase(false);
+                setCurrentStep(1);
+              }}
+              className="bg-white border border-gray-200 rounded-xl px-5 py-6 cursor-pointer hover:border-[#93406B] hover:bg-[#F7E8F0]/30 transition-all flex flex-col items-center text-center gap-3 shadow-sm"
+            >
+              <div className="w-10 h-10 bg-[#F7E8F0] rounded-full flex items-center justify-center">
+                <UserPlus size={20} className="text-[#93406B]" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-900">Discharging a new mother</span>
+                <span className="text-xs text-gray-400 font-normal mt-1 leading-relaxed">She has no antenatal record with us</span>
+              </div>
+            </div>
+            <div
+              onClick={() => openDrawer('add-mother')}
+              className="bg-white border border-gray-200 rounded-xl px-5 py-6 cursor-pointer hover:border-[#93406B] hover:bg-[#F7E8F0]/30 transition-all flex flex-col items-center text-center gap-3 shadow-sm"
+            >
+              <div className="w-10 h-10 bg-[#F7E8F0] rounded-full flex items-center justify-center">
+                <Baby size={20} className="text-[#93406B]" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-900">Enrolling during pregnancy</span>
+                <span className="text-xs text-gray-400 font-normal mt-1 leading-relaxed">She is still pregnant, not yet delivered</span>
+              </div>
             </div>
           </div>
         </div>
@@ -244,7 +382,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       onClose={handleClose}
       currentStep={currentStep}
       totalSteps={totalSteps}
-      stepLabel="Discharge details"
+      stepLabel={
+        foundMother
+          ? 'Discharge - existing patient'
+          : 'Discharge - new patient'
+      }
       leftAction={
         <Button variant="ghost" onClick={handleBack} className="gap-2">
           <ArrowLeft size={18} />
@@ -256,14 +398,16 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           variant="primary"
           onClick={handleNext}
           className="gap-2"
+          disabled={submitting}
         >
+          {submitting && <Loader2 size={18} className="animate-spin" />}
           <span>{currentStep === 4 ? 'Confirm discharge' : 'Continue'}</span>
-          <ArrowRight size={18} />
+          {!submitting && <ArrowRight size={18} />}
         </Button>
       }
     >
       {currentStep === 1 && (
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-6">
           {foundMother && (
             <div className="bg-[#F7E8F0] rounded-xl px-4 py-3 flex items-center gap-3 mb-6">
               <CheckCircle2 size={16} className="text-[#93406B]" />
@@ -281,13 +425,22 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-gray-700">Mother's name</label>
-                <Input
-                  placeholder="e.g. Abena Frimpong"
-                  value={formData.motherName}
-                  onChange={(e) => updateField('motherName', e.target.value)}
-                  className={`${touched && !formData.motherName ? 'border-red-400' : ''}`}
-                  fullWidth
-                />
+                <div className="relative">
+                  <Input
+                    placeholder="e.g. Abena Frimpong"
+                    value={formData.motherName}
+                    onChange={(e) => updateField('motherName', e.target.value)}
+                    className={`${touched && !formData.motherName ? 'border-red-400' : ''} ${foundMother ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                    fullWidth
+                    readOnly={!!foundMother}
+                    tabIndex={foundMother ? -1 : 0}
+                  />
+                  {foundMother && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                      <Lock size={14} />
+                    </div>
+                  )}
+                </div>
                 {touched && !formData.motherName && (
                   <span className="text-xs text-red-500">Please enter the mother's name</span>
                 )}
@@ -303,7 +456,8 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                       const local = formData.phoneNumber.replace(countryCode, '');
                       updateField('phoneNumber', local ? `${newCode}${local}` : '');
                     }}
-                    className="absolute left-1 top-1/2 -translate-y-1/2 z-10 bg-transparent border-none text-sm text-gray-700 font-medium cursor-pointer pl-2 pr-5 py-2 appearance-none focus:outline-none"
+                    disabled={!!foundMother}
+                    className={`absolute left-1 top-1/2 -translate-y-1/2 z-10 border-none text-sm font-medium pl-2 pr-5 py-2 appearance-none focus:outline-none ${foundMother ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-gray-700 cursor-pointer bg-transparent'}`}
                   >
                     <option value="+233">🇬🇭 +233</option>
                     <option value="+234">🇳🇬 +234</option>
@@ -311,9 +465,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     <option value="+228">🇹🇬 +228</option>
                     <option value="+221">🇸🇳 +221</option>
                   </select>
-                  <svg className="absolute left-[72px] top-1/2 -translate-y-1/2 z-10 pointer-events-none" width="8" height="4" viewBox="0 0 8 4" fill="none">
-                    <path d="M1 0.5L4 3.5L7 0.5" stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  {!foundMother && (
+                    <svg className="absolute left-[72px] top-1/2 -translate-y-1/2 z-10 pointer-events-none" width="8" height="4" viewBox="0 0 8 4" fill="none">
+                      <path d="M1 0.5L4 3.5L7 0.5" stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
                   <input
                     type="tel"
                     placeholder="55 123 4567"
@@ -322,17 +478,81 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                       const raw = e.target.value.replace(/\D/g, '').replace(/^0+/, '');
                       updateField('phoneNumber', raw ? `${countryCode}${raw}` : '');
                     }}
-                    className={`w-full bg-gray-50 border rounded-lg pl-[92px] pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#93406B] focus:border-transparent ${touched && (!formData.phoneNumber || !phoneValid) ? 'border-red-400' : 'border-gray-200'}`}
+                    readOnly={!!foundMother}
+                    tabIndex={foundMother ? -1 : 0}
+                    className={`w-full border rounded-lg pl-[92px] pr-10 py-2.5 text-sm placeholder:text-gray-400 ${foundMother ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-[#93406B] focus:border-transparent ${touched && (!formData.phoneNumber || !phoneValid) ? 'border-red-400' : 'border-gray-200'}`}
                   />
+                  {foundMother && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                      <Lock size={14} />
+                    </div>
+                  )}
                 </div>
                 {touched && !formData.phoneNumber && (
                   <span className="text-xs text-red-500">Please enter a phone number</span>
                 )}
                 {touched && formData.phoneNumber && !phoneValid && (
-                  <span className="text-xs text-red-500">Please enter a valid phone number</span>
+                  <span className="text-xs text-red-500">Please enter a valid Ghana phone number</span>
                 )}
               </div>
             </div>
+            {!foundMother && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">Date of birth</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${touched && !formData.dateOfBirth ? 'border-red-400' : 'border-gray-200'}`}
+                      >
+                        <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+                        {formData.dateOfBirth
+                          ? format(parse(formData.dateOfBirth, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')
+                          : <span className="text-gray-400">Select date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.dateOfBirth ? parse(formData.dateOfBirth, 'yyyy-MM-dd', new Date()) : undefined}
+                        onSelect={(date) => updateField('dateOfBirth', date ? format(date, 'yyyy-MM-dd') : '')}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {touched && !formData.dateOfBirth && (
+                    <span className="text-xs text-red-500">Please select her date of birth</span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">Date of delivery</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${touched && !formData.edd ? 'border-red-400' : 'border-gray-200'}`}
+                      >
+                        <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+                        {formData.edd
+                          ? format(parse(formData.edd, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')
+                          : <span className="text-gray-400">Select date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.edd ? parse(formData.edd, 'yyyy-MM-dd', new Date()) : undefined}
+                        onSelect={(date) => updateField('edd', date ? format(date, 'yyyy-MM-dd') : '')}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {touched && !formData.edd && (
+                    <span className="text-xs text-red-500">Please select the date of delivery</span>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-gray-700">Delivery date</label>
@@ -417,13 +637,30 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
 
             <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-700 mb-3">Preferred language for calls</label>
+              <ChipSelect
+                options={[
+                  { value: "english", label: "English" },
+                  { value: "twi", label: "Twi" },
+                  { value: "ewe", label: "Ewe" },
+                ]}
+                selected={formData.language ? [formData.language] : []}
+                onChange={(val) => updateField('language', val.length > 0 ? val[0] : '')}
+                max={1}
+              />
+              {touched && !formData.language && (
+                <span className="text-xs text-red-500">Please select a preferred language</span>
+              )}
+            </div>
+
+            <div className="flex flex-col">
               <label className="text-sm font-semibold text-gray-700 mb-3">Preferred calling window</label>
               <ChipSelect
                 options={[
                   { value: "morning", label: "Morning (8am-11am)" },
                   { value: "afternoon", label: "Afternoon (12pm-3pm)" },
                   { value: "evening", label: "Evening (4pm-6pm)" },
-                  { value: "inbound", label: "She will call in" },
+                  { value: "inbound", label: "The care line number will be sent to her." },
                 ]}
                 selected={formData.callingWindow ? [formData.callingWindow] : []}
                 onChange={(val) => updateField('callingWindow', val.length > 0 ? val[0] as 'morning' | 'afternoon' | 'evening' | 'inbound' : '')}
@@ -445,7 +682,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       )}
 
       {currentStep === 2 && (
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-6">
           <StepHeader
             step={2}
             title="How is the baby?"
@@ -495,7 +732,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       )}
 
       {currentStep === 3 && (
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-6">
           <StepHeader
             step={3}
             title="What is she going home with?"
@@ -506,7 +743,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             options={[
               { value: "pain_relief", label: "Pain relief" },
               { value: "antibiotics", label: "Antibiotics" },
-              { value: "iron_folic", label: "Iron & folic acid" },
+              { value: "iron_folic_acid", label: "Iron & folic acid" },
               ...(formData.deliveryType === 'caesarean' ? [{ value: "wound_care", label: "Wound-care supplies" }] : []),
               { value: "none", label: "None sent home" },
               { value: "not_sure", label: "Not sure" },
@@ -530,13 +767,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       )}
 
       {currentStep === 4 && (
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-6">
           <StepHeader
             step={4}
             title="Ready to go"
-            description={`Here's a summary of what you've recorded.${formData.outcome === 'well' ? formData.callingWindow === 'inbound' ? ' She will call in — share the care line number on the welcome SMS.' : firstCallDate ? ` Her first check-in call is scheduled for ${firstCallDate}.` : '' : ''}`}
+            description={`Here's a summary of what you've recorded.${formData.outcome === 'well' ? formData.callingWindow === 'inbound' ? ' The care line number will be sent to her.' : firstCallDate ? ` Her first check-in call is scheduled for ${firstCallDate}.` : '' : ''}`}
           />
-          <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5 flex flex-col gap-4 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
             {[
               { label: 'Mother', value: formData.motherName || foundMother?.name || 'New mother' },
               { label: 'Phone', value: formData.phoneNumber || '—' },
@@ -548,13 +785,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 label: 'First call',
                 value: formData.outcome === 'well'
                   ? formData.callingWindow === 'inbound'
-                    ? 'She will call in — share the care line number on the welcome SMS'
+                    ? 'The care line number will be sent to her.'
                     : firstCallDate || 'Pending dates'
                   : 'No automated calls scheduled',
                 highlight: formData.outcome === 'well'
               }
             ].map((row, idx) => (
-              <div key={idx} className={`flex justify-between items-center ${idx !== 6 ? 'border-b border-gray-100 pb-3' : ''}`}>
+              <div key={idx} className={`flex justify-between items-center px-6 py-3 ${idx % 2 === 1 ? 'bg-gray-50' : ''}`}>
                 <span className="text-sm text-gray-500 font-normal">{row.label}</span>
                 <span className={`text-sm font-semibold ${row.highlight ? 'text-[#93406B]' : 'text-gray-900'}`}>{row.value}</span>
               </div>
@@ -566,11 +803,16 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               <Phone size={16} className="text-[#93406B] mt-0.5 flex-shrink-0" />
               <p className="text-sm text-[#93406B] font-normal leading-relaxed">
                 {formData.callingWindow === 'inbound'
-                  ? `She will call in — share the care line number on the welcome SMS.`
+                  ? `The care line number will be sent to her.`
                   : `Her first check-in call is scheduled for ${firstCallDate}.`}
               </p>
             </div>
           )}
+        </div>
+      )}
+      {submitError && (
+        <div className="mt-6 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <p className="text-sm text-red-700 font-normal">{submitError}</p>
         </div>
       )}
     </OnboardingShell>

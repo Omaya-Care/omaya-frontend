@@ -7,10 +7,17 @@ import {
   CheckCircle2,
   Info,
   ArrowRight,
-  ArrowLeft
+  ArrowLeft,
+  Loader2,
+  CalendarIcon
 } from 'lucide-react';
+import { format, parse } from 'date-fns';
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
 import { Button, Input } from '../components/ui';
+import { Calendar } from '../components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { api, extractApiError } from '../lib/api';
+import { useDrawer } from '../contexts/DrawerContext';
 
 interface AddMotherProps {
   onClose?: () => void;
@@ -18,9 +25,15 @@ interface AddMotherProps {
 
 const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const navigate = useNavigate();
+  const { openDrawer } = useDrawer();
   const handleClose = onClose ?? (() => navigate('/mothers'));
   const [currentStep, setCurrentStep] = useState(1);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [touched, setTouched] = useState(false);
+  const [countryCode, setCountryCode] = useState('+233');
+
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
@@ -36,18 +49,80 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
 
   const totalSteps = 4;
 
-  const handleNext = () => {
+  const fieldIsEmpty = (val: string | unknown[]) =>
+    typeof val === 'string' ? val.trim() === '' : val.length === 0;
+
+  const step2Required = [
+    { key: 'fullName', label: 'full name' },
+    { key: 'phone', label: 'phone number' },
+    { key: 'dob', label: 'date of birth' },
+    { key: 'edd', label: 'expected delivery date' },
+    { key: 'gravida', label: 'gravida' },
+    { key: 'para', label: 'para' },
+    { key: 'language', label: 'preferred language' },
+  ] as const;
+
+  const step2Valid = step2Required.every(
+    (f) => !fieldIsEmpty(formData[f.key as keyof typeof formData])
+  );
+
+  const phoneLocal = formData.phone.replace(countryCode, '');
+  const phoneDigits = phoneLocal.replace(/\D/g, '');
+  const phoneValid = phoneDigits.length >= 9;
+
+  const handleNext = async () => {
+    if (currentStep === 2) {
+      setTouched(true);
+      if (!step2Valid || !phoneValid) return;
+    }
+    if (currentStep === 4 && !formData.consentCalls) {
+      setTouched(true);
+      return;
+    }
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
-    } else {
-      console.log('Enrolling mother:', formData);
+      setTouched(false);
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      await api.post('/mothers', {
+        full_name: formData.fullName,
+        phone: formData.phone,
+        date_of_birth: formData.dob,
+        edd: formData.edd,
+        language: formData.language[0] || '',
+        gravida: Number(formData.gravida) || 0,
+        para: Number(formData.para) || 0,
+        risks: formData.risks,
+        consent_calls: formData.consentCalls,
+        consent_recording: formData.consentRecording,
+      });
       setIsSuccess(true);
+    } catch (err: unknown) {
+      const e = extractApiError(err);
+      if (e.status === 0 || e.error_code === 'network_error') {
+        setSubmitError('Could not connect. Please check your connection and try again.');
+      } else if (e.status === 400) {
+        setSubmitError('Please check the form and try again.');
+      } else if (e.status === 409) {
+        setSubmitError('A record already exists for this phone number.');
+      } else if (e.status >= 500) {
+        setSubmitError('Something went wrong on our end. Please try again in a moment.');
+      } else {
+        setSubmitError(e.message);
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleBack = () => {
+    setSubmitError('');
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
+      setTouched(false);
     }
   };
 
@@ -56,6 +131,20 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
     value: (typeof formData)[K],
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    if (touched) {
+      const fields = [...step2Required.map((f) => f.key), 'consentCalls' as const];
+      if (fields.includes(field as never)) {
+        setTouched(field !== 'consentCalls' || value === true);
+      }
+    }
+  };
+
+  const showError = (key: string) => {
+    if (!touched) return false;
+    if (key === 'phone') return fieldIsEmpty(formData.phone) || !phoneValid;
+    const field = step2Required.find((f) => f.key === key);
+    if (!field) return false;
+    return fieldIsEmpty(formData[key as keyof typeof formData]);
   };
 
   if (isSuccess) {
@@ -66,7 +155,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
         totalSteps={4}
         stepLabel="Enrollment complete"
       >
-        <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center justify-center min-h-[400px] mt-6">
           <CheckCircle2 size={52} className="text-[#93406B]" />
           <h2 className="text-2xl font-bold text-gray-900 mt-4">She's enrolled</h2>
           <p className="text-sm text-gray-500 mt-2 text-center max-w-sm font-normal">
@@ -79,6 +168,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
             <Button variant="primary" onClick={() => {
               setIsSuccess(false);
               setCurrentStep(1);
+              setCountryCode('+233');
               setFormData({
                 fullName: '',
                 phone: '',
@@ -107,6 +197,10 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
     "Consent"
   ];
 
+  const btnDisabled = submitting ||
+    (currentStep === 2 && (!formData.phone || !phoneValid)) ||
+    (currentStep === 4 && !formData.consentCalls);
+
   return (
     <OnboardingShell
       onClose={handleClose}
@@ -114,36 +208,32 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
       totalSteps={totalSteps}
       stepLabel={stepLabels[currentStep - 1]}
       leftAction={
-        currentStep > 1 && (
-          <Button variant="ghost" onClick={handleBack} className="gap-2">
-            <ArrowLeft size={18} />
-            <span>Back</span>
-          </Button>
-        )
+        <Button variant="ghost" onClick={currentStep === 1 ? () => openDrawer('discharge') : handleBack} className="gap-2">
+          <ArrowLeft size={18} />
+          <span>Back</span>
+        </Button>
       }
       rightAction={
         <Button
           variant="primary"
           onClick={handleNext}
           className="gap-2"
-          disabled={
-            (currentStep === 2 && (!formData.fullName || !formData.phone)) ||
-            (currentStep === 4 && !formData.consentCalls)
-          }
+          disabled={btnDisabled}
         >
+          {submitting && <Loader2 size={18} className="animate-spin" />}
           <span>
             {currentStep === 1 ? 'Start enrollment' : currentStep === 4 ? 'Enroll her' : 'Continue'}
           </span>
-          <ArrowRight size={18} />
+          {!submitting && <ArrowRight size={18} />}
         </Button>
       }
     >
       {currentStep === 1 && (
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-6">
           <StepHeader
             step={1}
             title="Before we start"
-            description="This takes about 3 minutes. You're enrolling her in Omaya's follow-up care program — she'll receive check-in calls after delivery to make sure she and her baby are doing well."
+            description="This takes about 3 minutes. You're enrolling her in Omaya's follow-up care program. She'll receive check-in calls after delivery to make sure she and her baby are doing well."
           />
           <div className="flex flex-col gap-3">
             {[
@@ -164,72 +254,156 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
       )}
 
       {currentStep === 2 && (
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-6">
           <StepHeader
             step={2}
             title="Her details"
-            description="Pre-fill from her ANC record where possible. Double-check the phone number — this is how Omaya reaches her."
+            description="Pre-fill from her ANC record where possible. Double-check the phone number. This is how Omaya reaches her."
           />
           <div className="flex flex-col gap-5">
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Full name"
-                placeholder="e.g. Ama Mensah"
-                value={formData.fullName}
-                onChange={(e) => updateField('fullName', e.target.value)}
-                fullWidth
-              />
               <div className="flex flex-col gap-1.5">
                 <Input
-                  label="Phone number"
-                  placeholder="+233 XX XXX XXXX"
-                  value={formData.phone}
-                  onChange={(e) => updateField('phone', e.target.value)}
+                  label="Full name"
+                  placeholder="e.g. Ama Mensah"
+                  value={formData.fullName}
+                  onChange={(e) => updateField('fullName', e.target.value)}
+                  className={showError('fullName') ? 'border-red-400' : ''}
                   fullWidth
                 />
-                <span className="text-xs text-gray-400 font-normal">
-                  We'll use this number for all calls. Make sure it's active.
-                </span>
+                {showError('fullName') && (
+                  <span className="text-xs text-red-500">Please enter her full name</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Phone number</label>
+                <div className="relative flex items-center">
+                  <select
+                    value={countryCode}
+                    onChange={(e) => {
+                      const newCode = e.target.value;
+                      setCountryCode(newCode);
+                      const local = formData.phone.replace(countryCode, '');
+                      updateField('phone', local ? `${newCode}${local}` : '');
+                    }}
+                    className="absolute left-1 top-1/2 -translate-y-1/2 z-10 bg-transparent border-none text-sm text-gray-700 font-medium cursor-pointer pl-2 pr-5 py-2 appearance-none focus:outline-none"
+                  >
+                    <option value="+233">🇬🇭 +233</option>
+                    <option value="+234">🇳🇬 +234</option>
+                    <option value="+225">🇨🇮 +225</option>
+                    <option value="+228">🇹🇬 +228</option>
+                    <option value="+221">🇸🇳 +221</option>
+                  </select>
+                  <svg className="absolute left-[72px] top-1/2 -translate-y-1/2 z-10 pointer-events-none" width="8" height="4" viewBox="0 0 8 4" fill="none">
+                    <path d="M1 0.5L4 3.5L7 0.5" stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <input
+                    type="tel"
+                    placeholder="55 123 4567"
+                    value={formData.phone.replace(countryCode, '')}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '').replace(/^0+/, '');
+                      updateField('phone', raw ? `${countryCode}${raw}` : '');
+                    }}
+                    className={`w-full bg-gray-50 border rounded-lg pl-[92px] pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#93406B] focus:border-transparent ${showError('phone') ? 'border-red-400' : 'border-gray-200'}`}
+                  />
+                </div>
+                {showError('phone') && !formData.phone && (
+                  <span className="text-xs text-red-500">Please enter a phone number</span>
+                )}
+                {showError('phone') && formData.phone && !phoneValid && (
+                  <span className="text-xs text-red-500">Please enter a valid phone number</span>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Date of birth"
-                type="date"
-                value={formData.dob}
-                onChange={(e) => updateField('dob', e.target.value)}
-                fullWidth
-              />
-              <Input
-                label="Expected delivery date"
-                type="date"
-                value={formData.edd}
-                onChange={(e) => updateField('edd', e.target.value)}
-                fullWidth
-              />
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Date of birth</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${showError('dob') ? 'border-red-400' : 'border-gray-200'}`}
+                    >
+                      <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+                      {formData.dob
+                        ? format(parse(formData.dob, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')
+                        : <span className="text-gray-400">Select date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.dob ? parse(formData.dob, 'yyyy-MM-dd', new Date()) : undefined}
+                      onSelect={(date) => updateField('dob', date ? format(date, 'yyyy-MM-dd') : '')}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {showError('dob') && (
+                  <span className="text-xs text-red-500">Please select her date of birth</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Expected delivery date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${showError('edd') ? 'border-red-400' : 'border-gray-200'}`}
+                    >
+                      <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+                      {formData.edd
+                        ? format(parse(formData.edd, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')
+                        : <span className="text-gray-400">Select date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.edd ? parse(formData.edd, 'yyyy-MM-dd', new Date()) : undefined}
+                      onSelect={(date) => updateField('edd', date ? format(date, 'yyyy-MM-dd') : '')}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {showError('edd') && (
+                  <span className="text-xs text-red-500">Please select the expected delivery date</span>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Gravida"
-                type="number"
-                placeholder="Number of pregnancies"
-                value={formData.gravida}
-                onChange={(e) => updateField('gravida', e.target.value)}
-                fullWidth
-              />
-              <Input
-                label="Para"
-                type="number"
-                placeholder="Number of births"
-                value={formData.para}
-                onChange={(e) => updateField('para', e.target.value)}
-                fullWidth
-              />
+              <div className="flex flex-col gap-1.5">
+                <Input
+                  label="Gravida"
+                  type="number"
+                  placeholder="Number of pregnancies"
+                  value={formData.gravida}
+                  onChange={(e) => updateField('gravida', e.target.value)}
+                  className={showError('gravida') ? 'border-red-400' : ''}
+                  fullWidth
+                />
+                {showError('gravida') && (
+                  <span className="text-xs text-red-500">Please enter number of pregnancies</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Input
+                  label="Para"
+                  type="number"
+                  placeholder="Number of births"
+                  value={formData.para}
+                  onChange={(e) => updateField('para', e.target.value)}
+                  className={showError('para') ? 'border-red-400' : ''}
+                  fullWidth
+                />
+                {showError('para') && (
+                  <span className="text-xs text-red-500">Please enter number of births</span>
+                )}
+              </div>
             </div>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700">Preferred language for calls</label>
               <ChipSelect
                 max={1}
@@ -238,18 +412,20 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   { value: 'twi', label: 'Twi' },
                   { value: 'ga', label: 'Ga' },
                   { value: 'ewe', label: 'Ewe' },
-                  { value: 'dagbani', label: 'Dagbani' },
                 ]}
                 selected={formData.language}
                 onChange={(val) => updateField('language', val)}
               />
+              {showError('language') && (
+                <span className="text-xs text-red-500">Please select a preferred language</span>
+              )}
             </div>
           </div>
         </div>
       )}
 
       {currentStep === 3 && (
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-6">
           <StepHeader
             step={3}
             title="Clinical background"
@@ -279,7 +455,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
       )}
 
       {currentStep === 4 && (
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-6">
           <StepHeader
             step={4}
             title="Her consent"
@@ -291,6 +467,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               className={`
                 border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all
                 ${formData.consentCalls ? 'border-[#93406B] bg-[#F7E8F0]' : 'border-gray-200 bg-white'}
+                ${touched && !formData.consentCalls ? 'border-red-400' : ''}
               `}
             >
               <div className={`
@@ -307,6 +484,9 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 <span className="text-xs text-[#93406B] font-semibold mt-2 uppercase tracking-wide">REQUIRED TO ENROLL</span>
               </div>
             </div>
+            {touched && !formData.consentCalls && (
+              <span className="text-xs text-red-500 -mt-3">You must obtain consent to check-in calls before enrolling</span>
+            )}
 
             <div
               onClick={() => updateField('consentRecording', !formData.consentRecording)}
@@ -333,6 +513,11 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
           <p className="text-xs text-gray-400 font-normal mt-6">
             By tapping 'Enroll her', you confirm that you have explained this program to the mother and she has agreed to participate.
           </p>
+        </div>
+      )}
+      {submitError && (
+        <div className="mt-6 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <p className="text-sm text-red-700 font-normal">{submitError}</p>
         </div>
       )}
     </OnboardingShell>
