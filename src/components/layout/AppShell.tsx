@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useDrawer } from "../../contexts/DrawerContext";
 import { getClinician, clearSession, initialsOf } from "../../lib/auth";
+import { Sheet, SheetContent } from "../../components/ui";
 
 const AddMother = lazy(() => import("../../pages/AddMother"));
 const NewDischarge = lazy(() => import("../../pages/NewDischarge"));
@@ -201,27 +202,40 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </div>
       </main>
 
-      {/* Global Drawer Overlay */}
-      <div
-        className={`fixed inset-0 bg-black/40 z-[40] transition-opacity duration-200 ${
-          drawerType ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={closeDrawer}
-      />
-
-      {/* Onboarding drawer — renders on top of everything */}
-      {drawerType && (
-        <div className="fixed inset-y-0 right-0 z-[50] w-full sm:w-auto shadow-2xl transition-transform duration-300 transform translate-x-0">
-          <Suspense fallback={null}>
-            {drawerType === "add-mother" && (
-              <AddMother onClose={closeDrawer} />
-            )}
-            {drawerType === "discharge" && (
-              <NewDischarge onClose={closeDrawer} />
-            )}
+      {/* Onboarding drawer using shadcn Sheet */}
+      <Sheet open={!!drawerType} onOpenChange={(open) => !open && closeDrawer()}>
+        <SheetContent
+          side="right"
+          className="w-full sm:w-[580px] p-0 gap-0 sm:max-w-none [&>button]:hidden"
+          overlayClassName="bg-black/40"
+        >
+          <Suspense fallback={
+            <div className="w-full sm:w-[580px] h-full bg-white flex flex-col">
+              <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex-shrink-0">
+                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+                <div className="h-5 w-5 bg-gray-200 rounded-lg animate-pulse" />
+              </div>
+              <div className="w-full h-0.5 bg-gray-100 flex-shrink-0">
+                <div className="h-full w-1/4 bg-gray-200 rounded animate-pulse" />
+              </div>
+              <div className="flex-1 px-4 sm:px-8 py-6 sm:py-10 space-y-4">
+                <div className="h-5 w-48 bg-gray-200 rounded animate-pulse" />
+                <div className="h-3 w-64 bg-gray-100 rounded animate-pulse" />
+                <div className="h-20 bg-gray-50 rounded-xl" />
+                <div className="h-20 bg-gray-50 rounded-xl" />
+                <div className="h-20 bg-gray-50 rounded-xl" />
+              </div>
+              <div className="border-t border-gray-100 px-4 sm:px-6 py-3 sm:py-4 flex justify-between flex-shrink-0">
+                <div className="h-9 w-20 bg-gray-200 rounded-md animate-pulse" />
+                <div className="h-9 w-32 bg-gray-200 rounded-md animate-pulse" />
+              </div>
+            </div>
+          }>
+            {drawerType === "add-mother" && <AddMother onClose={closeDrawer} />}
+            {drawerType === "discharge" && <NewDischarge onClose={closeDrawer} />}
           </Suspense>
-        </div>
-      )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

@@ -23,7 +23,7 @@ const OnboardingShell = ({
   const progressPercent = (currentStep / totalSteps) * 100;
 
   return (
-    <div className="w-full sm:w-[580px] h-full bg-white border-l border-gray-200 shadow-xl flex flex-col">
+    <div className="w-full sm:w-[580px] h-full bg-white flex flex-col">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex-shrink-0">
         <span className="text-sm font-medium text-gray-700">{stepLabel}</span>
@@ -38,7 +38,7 @@ const OnboardingShell = ({
       {/* Progress bar */}
       <div className="w-full h-0.5 bg-gray-100 flex-shrink-0">
         <div
-          className="h-full bg-[#93406B] transition-all duration-300 ease-out"
+          className="h-full bg-[#93406B]"
           style={{ width: `${progressPercent}%` }}
         />
       </div>
