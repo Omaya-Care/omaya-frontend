@@ -297,7 +297,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   <svg className="absolute left-[72px] top-1/2 -translate-y-1/2 z-10 pointer-events-none" width="8" height="4" viewBox="0 0 8 4" fill="none">
                     <path d="M1 0.5L4 3.5L7 0.5" stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <input
+                  <Input
                     type="tel"
                     placeholder="55 123 4567"
                     value={formData.phone.replace(countryCode, '')}
@@ -305,7 +305,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                       const raw = e.target.value.replace(/\D/g, '').replace(/^0+/, '');
                       updateField('phone', raw ? `${countryCode}${raw}` : '');
                     }}
-                    className={`w-full bg-gray-50 border rounded-lg pl-[92px] pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#93406B] focus:border-transparent ${showError('phone') ? 'border-red-400' : 'border-gray-200'}`}
+                    className={`pl-[92px] pr-3.5 bg-gray-50 text-gray-900 ${showError('phone') ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                   />
                 </div>
                 {showError('phone') && !formData.phone && (

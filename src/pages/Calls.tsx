@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Search, ArrowLeft } from "lucide-react";
 import { useCalls } from "../hooks/useCalls";
 import { CallListItem, CallDetail } from "../components/calls";
-import { Input } from "../components/ui/Input";
+import { Input } from "@/components/ui/input";
 import PageLoading from "../components/PageLoading";
 
 type FilterTab = "all" | "today" | "upcoming" | "completed";

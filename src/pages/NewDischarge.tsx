@@ -470,7 +470,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                       <path d="M1 0.5L4 3.5L7 0.5" stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
-                  <input
+                  <Input
                     type="tel"
                     placeholder="55 123 4567"
                     value={formData.phoneNumber.replace(countryCode, '')}
@@ -480,7 +480,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     }}
                     readOnly={!!foundMother}
                     tabIndex={foundMother ? -1 : 0}
-                    className={`w-full border rounded-lg pl-[92px] pr-10 py-2.5 text-sm placeholder:text-gray-400 ${foundMother ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-[#93406B] focus:border-transparent ${touched && (!formData.phoneNumber || !phoneValid) ? 'border-red-400' : 'border-gray-200'}`}
+                    className={`pl-[92px] pr-10 ${foundMother ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50 text-gray-900'} ${touched && (!formData.phoneNumber || !phoneValid) ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                   />
                   {foundMother && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">

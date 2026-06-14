@@ -1,5 +1,5 @@
 export * from "./Button";
-export * from "./Input";
+export * from "./input";
 export * from "./Badge";
 export * from "./Modal";
 export * from "./ErrorToast";
