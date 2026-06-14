@@ -199,9 +199,19 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         <div className="p-4 lg:p-8">
           {children}
         </div>
+      </main>
 
-        {/* Onboarding drawer — renders on top of current page content */}
-        {drawerType && (
+      {/* Global Drawer Overlay */}
+      <div
+        className={`fixed inset-0 bg-black/40 z-[40] transition-opacity duration-200 ${
+          drawerType ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={closeDrawer}
+      />
+
+      {/* Onboarding drawer — renders on top of everything */}
+      {drawerType && (
+        <div className="fixed inset-y-0 right-0 z-[50] w-full sm:w-auto shadow-2xl transition-transform duration-300 transform translate-x-0">
           <Suspense fallback={null}>
             {drawerType === "add-mother" && (
               <AddMother onClose={closeDrawer} />
@@ -210,8 +220,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <NewDischarge onClose={closeDrawer} />
             )}
           </Suspense>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 };

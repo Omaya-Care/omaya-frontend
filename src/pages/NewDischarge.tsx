@@ -9,10 +9,14 @@ import {
   Heart,
   Phone,
   ArrowRight,
-  ArrowLeft
+  ArrowLeft,
+  CalendarIcon
 } from 'lucide-react';
+import { format, parse, addDays } from 'date-fns';
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
 import { Button, Input } from '../components/ui';
+import { Calendar } from '../components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 
 interface NewDischargeProps {
   onClose?: () => void;
@@ -32,27 +36,39 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSuccess, setIsSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [touched, setTouched] = useState(false);
+  const [countryCode, setCountryCode] = useState('+233');
 
   const [formData, setFormData] = useState({
+    motherName: '',
+    phoneNumber: '',
     deliveryDate: '',
     dischargeDate: new Date().toISOString().split('T')[0],
     deliveryType: '' as 'vaginal' | 'caesarean' | '',
     outcome: '' as 'well' | 'loss' | '',
     medications: [] as string[],
+    callingWindow: '' as 'morning' | 'afternoon' | 'evening' | 'inbound' | '',
   });
 
   const totalSteps = 4;
 
   const handleNext = () => {
+    setTouched(true);
+    const step1Valid = formData.motherName && formData.phoneNumber && phoneValid && formData.deliveryDate && formData.dischargeDate && formData.deliveryType;
+    const step2Valid = formData.outcome;
+    if ((currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid)) return;
+    setTouched(false);
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     } else {
       console.log('Recording discharge:', { foundMother, ...formData });
+      console.log(`Sending SMS to ${formData.phoneNumber}: Welcome to Omaya Care. Your postpartum care has been scheduled. Reply HELP for assistance.`);
       setIsSuccess(true);
     }
   };
 
   const handleBack = () => {
+    setTouched(false);
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     } else {
@@ -76,6 +92,31 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     ? mockResults.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const deliveryDate = formData.deliveryDate ? parse(formData.deliveryDate, 'yyyy-MM-dd', new Date()) : null;
+  const dischargeDate = formData.dischargeDate ? parse(formData.dischargeDate, 'yyyy-MM-dd', new Date()) : null;
+  const firstCallDate = deliveryDate && dischargeDate
+    ? deliveryDate >= today
+      ? format(addDays(dischargeDate, 3), 'dd/MM/yyyy')
+      : format(addDays(new Date(), 1), 'dd/MM/yyyy')
+    : '';
+
+  const localDigits = formData.phoneNumber.replace(countryCode, '');
+  const phoneValid = localDigits.length >= 9;
+
+  const labelForMedication = (value: string) => {
+    const labels: Record<string, string> = {
+      pain_relief: 'Pain relief',
+      antibiotics: 'Antibiotics',
+      iron_folic: 'Iron & folic acid',
+      wound_care: 'Wound-care supplies',
+      none: 'None',
+      not_sure: 'Not sure',
+    };
+    return labels[value] || value.replace(/_/g, ' ');
+  };
+
   if (isSuccess) {
     return (
       <OnboardingShell
@@ -89,8 +130,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           <h2 className="text-2xl font-bold text-gray-900 mt-4">Discharge recorded</h2>
           <p className="text-sm text-gray-500 mt-2 text-center max-w-sm font-normal">
             {formData.outcome === 'well'
-              ? "Her first call is scheduled for tomorrow morning. You'll be notified if she needs attention."
-              : "The discharge has been recorded. No automated calls will be made."}
+              ? formData.callingWindow === 'inbound'
+                ? "She will call in — share the care line number on the welcome SMS."
+                : firstCallDate
+                  ? `Her first call is scheduled for ${firstCallDate}.`
+                  : 'The discharge has been recorded.'
+              : "The discharge has been recorded. A bereavement call schedule has been assigned."}
           </p>
           <div className="mt-8 flex gap-3">
             <Button variant="secondary" onClick={() => { handleClose(); navigate('/dashboard'); }}>
@@ -101,12 +146,16 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               setSearchPhase(true);
               setFoundMother(null);
               setCurrentStep(1);
+              setCountryCode('+233');
               setFormData({
+                motherName: '',
+                phoneNumber: '',
                 deliveryDate: '',
                 dischargeDate: new Date().toISOString().split('T')[0],
                 deliveryType: '',
                 outcome: '',
                 medications: [],
+                callingWindow: '',
               });
             }}>
               New discharge
@@ -192,7 +241,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
 
   return (
     <OnboardingShell
-      onClose={() => navigate('/dashboard')}
+      onClose={handleClose}
       currentStep={currentStep}
       totalSteps={totalSteps}
       stepLabel="Discharge details"
@@ -207,10 +256,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           variant="primary"
           onClick={handleNext}
           className="gap-2"
-          disabled={
-            (currentStep === 1 && (!formData.deliveryDate || !formData.deliveryType)) ||
-            (currentStep === 2 && !formData.outcome)
-          }
         >
           <span>{currentStep === 4 ? 'Confirm discharge' : 'Continue'}</span>
           <ArrowRight size={18} />
@@ -234,25 +279,118 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           />
           <div className="flex flex-col gap-5">
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Delivery date"
-                type="date"
-                value={formData.deliveryDate}
-                onChange={(e) => updateField('deliveryDate', e.target.value)}
-                fullWidth
-              />
-              <Input
-                label="Discharge date"
-                type="date"
-                value={formData.dischargeDate}
-                onChange={(e) => updateField('dischargeDate', e.target.value)}
-                fullWidth
-              />
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Mother's name</label>
+                <Input
+                  placeholder="e.g. Abena Frimpong"
+                  value={formData.motherName}
+                  onChange={(e) => updateField('motherName', e.target.value)}
+                  className={`${touched && !formData.motherName ? 'border-red-400' : ''}`}
+                  fullWidth
+                />
+                {touched && !formData.motherName && (
+                  <span className="text-xs text-red-500">Please enter the mother's name</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Phone number</label>
+                <div className="relative flex items-center">
+                  <select
+                    value={countryCode}
+                    onChange={(e) => {
+                      const newCode = e.target.value;
+                      setCountryCode(newCode);
+                      const local = formData.phoneNumber.replace(countryCode, '');
+                      updateField('phoneNumber', local ? `${newCode}${local}` : '');
+                    }}
+                    className="absolute left-1 top-1/2 -translate-y-1/2 z-10 bg-transparent border-none text-sm text-gray-700 font-medium cursor-pointer pl-2 pr-5 py-2 appearance-none focus:outline-none"
+                  >
+                    <option value="+233">🇬🇭 +233</option>
+                    <option value="+234">🇳🇬 +234</option>
+                    <option value="+225">🇨🇮 +225</option>
+                    <option value="+228">🇹🇬 +228</option>
+                    <option value="+221">🇸🇳 +221</option>
+                  </select>
+                  <svg className="absolute left-[72px] top-1/2 -translate-y-1/2 z-10 pointer-events-none" width="8" height="4" viewBox="0 0 8 4" fill="none">
+                    <path d="M1 0.5L4 3.5L7 0.5" stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <input
+                    type="tel"
+                    placeholder="55 123 4567"
+                    value={formData.phoneNumber.replace(countryCode, '')}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '').replace(/^0+/, '');
+                      updateField('phoneNumber', raw ? `${countryCode}${raw}` : '');
+                    }}
+                    className={`w-full bg-gray-50 border rounded-lg pl-[92px] pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#93406B] focus:border-transparent ${touched && (!formData.phoneNumber || !phoneValid) ? 'border-red-400' : 'border-gray-200'}`}
+                  />
+                </div>
+                {touched && !formData.phoneNumber && (
+                  <span className="text-xs text-red-500">Please enter a phone number</span>
+                )}
+                {touched && formData.phoneNumber && !phoneValid && (
+                  <span className="text-xs text-red-500">Please enter a valid phone number</span>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Delivery date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${touched && !formData.deliveryDate ? 'border-red-400' : 'border-gray-200'}`}
+                    >
+                      <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+                      {formData.deliveryDate
+                        ? format(parse(formData.deliveryDate, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')
+                        : <span className="text-gray-400">Select date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.deliveryDate ? parse(formData.deliveryDate, 'yyyy-MM-dd', new Date()) : undefined}
+                      onSelect={(date) => updateField('deliveryDate', date ? format(date, 'yyyy-MM-dd') : '')}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {touched && !formData.deliveryDate && (
+                  <span className="text-xs text-red-500">Please select a delivery date</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Discharge date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className={`justify-start gap-2 bg-gray-50 border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 font-normal w-full hover:bg-gray-100 ${touched && !formData.dischargeDate ? 'border-red-400' : 'border-gray-200'}`}
+                    >
+                      <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+                      {formData.dischargeDate
+                        ? format(parse(formData.dischargeDate, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')
+                        : <span className="text-gray-400">Select date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.dischargeDate ? parse(formData.dischargeDate, 'yyyy-MM-dd', new Date()) : undefined}
+                      onSelect={(date) => updateField('dischargeDate', date ? format(date, 'yyyy-MM-dd') : '')}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {touched && !formData.dischargeDate && (
+                  <span className="text-xs text-red-500">Please select a discharge date</span>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col">
               <label className="text-sm font-semibold text-gray-700 mb-3">How was the baby delivered?</label>
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? '[&>div]:border-red-400' : ''}`}>
                 {([
                   { id: 'vaginal', icon: Baby, title: 'Vaginal delivery', sub: 'Natural birth' },
                   { id: 'caesarean', icon: Scissors, title: 'C-section', sub: 'Surgical delivery' }
@@ -273,7 +411,35 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   </div>
                 ))}
               </div>
+              {touched && !formData.deliveryType && (
+                <span className="text-xs text-red-500 mt-2">Please select a delivery method</span>
+              )}
             </div>
+
+            <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-700 mb-3">Preferred calling window</label>
+              <ChipSelect
+                options={[
+                  { value: "morning", label: "Morning (8am-11am)" },
+                  { value: "afternoon", label: "Afternoon (12pm-3pm)" },
+                  { value: "evening", label: "Evening (4pm-6pm)" },
+                  { value: "inbound", label: "She will call in" },
+                ]}
+                selected={formData.callingWindow ? [formData.callingWindow] : []}
+                onChange={(val) => updateField('callingWindow', val.length > 0 ? val[0] as 'morning' | 'afternoon' | 'evening' | 'inbound' : '')}
+                max={1}
+              />
+              <span className="text-xs text-gray-400 mt-1">We will share the care line number with her on the welcome SMS.</span>
+            </div>
+
+            {firstCallDate && formData.callingWindow !== 'inbound' && (
+              <div className="bg-[#F7E8F0] rounded-lg px-4 py-2.5 flex items-center gap-2.5">
+                <Phone size={14} className="text-[#93406B] shrink-0" />
+                <span className="text-xs text-[#93406B] font-medium">
+                  First postpartum call scheduled for <strong>{firstCallDate}</strong>
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -283,9 +449,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           <StepHeader
             step={2}
             title="How is the baby?"
-            description="This determines what happens next. Take a moment — it's okay to pause here."
+            description="Select the outcome at discharge. This sets the follow-up call schedule."
           />
-          <div className="flex flex-col gap-4">
+          <div className={`flex flex-col gap-4 ${touched && !formData.outcome ? '[&>div]:border-red-400' : ''}`}>
             <div
               onClick={() => updateField('outcome', 'well')}
               className={`
@@ -297,7 +463,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               <div className="flex flex-col">
                 <span className="text-base font-semibold text-gray-900">Mother and baby are well</span>
                 <span className="text-sm text-gray-500 font-normal mt-1 leading-relaxed">
-                  Postpartum calls will begin the morning after discharge.
+                  {formData.callingWindow === 'inbound'
+                    ? 'She prefers to call in.'
+                    : firstCallDate
+                      ? `Her first check-in call is scheduled for ${firstCallDate}.`
+                      : 'Select a delivery and discharge date to see the first call schedule.'}
                 </span>
               </div>
             </div>
@@ -313,19 +483,14 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               <div className="flex flex-col">
                 <span className="text-base font-semibold text-gray-700">There was a loss</span>
                 <span className="text-sm text-gray-500 font-normal mt-1 leading-relaxed">
-                  Automated calls will not be scheduled. A member of the care team will follow up directly.
+                  A bereavement call schedule will be assigned. The care team will follow up with sensitivity.
                 </span>
               </div>
             </div>
-
-            {formData.outcome === 'loss' && (
-              <div className="bg-gray-50 rounded-xl px-4 py-3 mt-4">
-                <p className="text-sm text-gray-500 font-normal leading-relaxed">
-                  Please make sure the care team is aware. No automated calls will be made to this mother.
-                </p>
-              </div>
-            )}
           </div>
+          {touched && !formData.outcome && (
+            <span className="text-xs text-red-500">Please select a baby outcome</span>
+          )}
         </div>
       )}
 
@@ -344,18 +509,22 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               { value: "iron_folic", label: "Iron & folic acid" },
               ...(formData.deliveryType === 'caesarean' ? [{ value: "wound_care", label: "Wound-care supplies" }] : []),
               { value: "none", label: "None sent home" },
+              { value: "not_sure", label: "Not sure" },
             ]}
             selected={formData.medications}
             onChange={(val) => {
-              if (val.includes('none') && !formData.medications.includes('none')) {
-                updateField('medications', ['none']);
+              const exclusive = ['none', 'not_sure'];
+              const pickedExclusive = val.filter(v => exclusive.includes(v));
+              const alreadyHadExclusive = formData.medications.some(v => exclusive.includes(v));
+              if (pickedExclusive.length > 0 && !alreadyHadExclusive) {
+                updateField('medications', pickedExclusive);
               } else {
-                updateField('medications', val.filter(v => v !== 'none'));
+                updateField('medications', val.filter(v => !exclusive.includes(v)));
               }
             }}
           />
           <p className="mt-6 text-xs text-gray-400 font-normal">
-            Not sure? It's okay to leave this blank — Omaya will ask her directly on the first call.
+            Not sure? Select that above. Omaya will ask her directly on the first call.
           </p>
         </div>
       )}
@@ -365,22 +534,27 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           <StepHeader
             step={4}
             title="Ready to go"
-            description="Here's a summary of what you've recorded. Her first check-in call is scheduled for tomorrow morning."
+            description={`Here's a summary of what you've recorded.${formData.outcome === 'well' ? formData.callingWindow === 'inbound' ? ' She will call in — share the care line number on the welcome SMS.' : firstCallDate ? ` Her first check-in call is scheduled for ${firstCallDate}.` : '' : ''}`}
           />
           <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5 flex flex-col gap-4 shadow-sm">
             {[
-              { label: 'Mother', value: foundMother?.name || 'New mother' },
-              { label: 'Delivery', value: formData.deliveryType === 'vaginal' ? 'Vaginal delivery' : 'C-section' },
-              { label: 'Discharge date', value: formData.dischargeDate },
-              { label: 'Outcome', value: formData.outcome === 'well' ? 'Live birth' : 'Adverse outcome' },
-              { label: 'Medications', value: formData.medications.includes('none') ? 'None' : (formData.medications.length > 0 ? formData.medications.join(', ') : 'None recorded') },
+              { label: 'Mother', value: formData.motherName || foundMother?.name || 'New mother' },
+              { label: 'Phone', value: formData.phoneNumber || '—' },
+              { label: 'Delivery date', value: formData.deliveryDate ? format(parse(formData.deliveryDate, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy') : '—' },
+              { label: 'Delivery type', value: formData.deliveryType === 'vaginal' ? 'Vaginal delivery' : 'C-section' },
+              { label: 'Baby outcome', value: formData.outcome === 'well' ? 'Live birth' : 'Pregnancy loss' },
+              { label: 'Medications', value: formData.medications.includes('none') ? 'None' : (formData.medications.length > 0 ? formData.medications.map(labelForMedication).join(', ') : 'None recorded') },
               {
                 label: 'First call',
-                value: formData.outcome === 'well' ? 'Tomorrow morning' : 'No automated calls scheduled',
+                value: formData.outcome === 'well'
+                  ? formData.callingWindow === 'inbound'
+                    ? 'She will call in — share the care line number on the welcome SMS'
+                    : firstCallDate || 'Pending dates'
+                  : 'No automated calls scheduled',
                 highlight: formData.outcome === 'well'
               }
             ].map((row, idx) => (
-              <div key={idx} className={`flex justify-between items-center ${idx !== 5 ? 'border-b border-gray-100 pb-3' : ''}`}>
+              <div key={idx} className={`flex justify-between items-center ${idx !== 6 ? 'border-b border-gray-100 pb-3' : ''}`}>
                 <span className="text-sm text-gray-500 font-normal">{row.label}</span>
                 <span className={`text-sm font-semibold ${row.highlight ? 'text-[#93406B]' : 'text-gray-900'}`}>{row.value}</span>
               </div>
@@ -391,7 +565,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             <div className="bg-[#F7E8F0] rounded-xl px-4 py-3 mt-4 flex items-start gap-3">
               <Phone size={16} className="text-[#93406B] mt-0.5 flex-shrink-0" />
               <p className="text-sm text-[#93406B] font-normal leading-relaxed">
-                Her first check-in call will go out tomorrow morning. You'll be notified if she flags anything.
+                {formData.callingWindow === 'inbound'
+                  ? `She will call in — share the care line number on the welcome SMS.`
+                  : `Her first check-in call is scheduled for ${firstCallDate}.`}
               </p>
             </div>
           )}
