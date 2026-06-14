@@ -1,5 +1,6 @@
 import { MoreHorizontal } from 'lucide-react';
 import { StaffMember, StaffStatus } from "../../types";
+import { Badge } from "../ui/Badge";
 
 interface StaffRowProps {
   member: StaffMember;
@@ -40,9 +41,10 @@ const StaffRow = ({ member }: StaffRowProps) => {
       </div>
 
       {/* STATUS */}
-      <div className="flex items-center gap-2">
-        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
-        <span className={`text-sm ${text}`}>{label}</span>
+      <div>
+        <Badge variant="outline" className={`border-gray-100 ${text}`} size="sm" dot>
+          {label}
+        </Badge>
       </div>
 
       {/* LAST ACTIVE + MENU */}

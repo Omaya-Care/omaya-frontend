@@ -1,17 +1,18 @@
 import { PhoneCall, Clock, Heart, Calendar, Mic, Phone } from 'lucide-react';
 import { Call, CallStatus } from '../../types';
 import { Badge } from '../ui/Badge';
+import { getSeverityBadgeClass, getStatusBadgeClass } from '../../lib/badge-helpers';
 import { Button } from '../ui/Button';
 
 interface CallDetailProps {
   call: Call | null;
 }
 
-const statusVariant: Record<CallStatus, { variant: 'routine' | 'monitor' | 'inactive' | 'crisis'; label: string }> = {
-  completed:   { variant: 'routine',   label: 'Completed' },
-  in_progress: { variant: 'monitor',   label: 'In progress' },
-  upcoming:    { variant: 'inactive',  label: 'Upcoming' },
-  missed:      { variant: 'crisis',    label: 'Missed' },
+const statusLabel: Record<CallStatus, string> = {
+  completed:   'Completed',
+  in_progress: 'In progress',
+  upcoming:    'Upcoming',
+  missed:      'Missed',
 };
 
 const CallDetail = ({ call }: CallDetailProps) => {
@@ -24,7 +25,7 @@ const CallDetail = ({ call }: CallDetailProps) => {
     );
   }
 
-  const { variant, label } = statusVariant[call.status];
+  const label = statusLabel[call.status];
 
   return (
     <div className="flex flex-col min-h-full">
@@ -32,7 +33,7 @@ const CallDetail = ({ call }: CallDetailProps) => {
       <div className="pb-5 border-b border-gray-100">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-gray-900">{call.motherName}</h2>
-          <Badge variant={variant} dot>{label}</Badge>
+          <Badge variant="outline" className={getStatusBadgeClass(call.status)} dot>{label}</Badge>
         </div>
         <p className="text-sm text-gray-500 font-normal mt-1">{call.callType}</p>
       </div>
@@ -96,7 +97,7 @@ const CallDetail = ({ call }: CallDetailProps) => {
           <div className="flex justify-between items-center py-2">
             <span className="text-sm text-gray-500 font-normal">Severity</span>
             {call.severity ? (
-              <Badge variant={call.severity} size="sm" dot>
+              <Badge variant="outline" className={getSeverityBadgeClass(call.severity)} size="sm" dot>
                 {call.severity.charAt(0).toUpperCase() + call.severity.slice(1)}
               </Badge>
             ) : (

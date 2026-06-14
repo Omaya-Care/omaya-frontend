@@ -1,6 +1,7 @@
 import { AlertTriangle, Clock, Check } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
+import { getSeverityBadgeClass } from '../../lib/badge-helpers';
 import { Button } from '../ui/Button';
 import { EscalationItem } from '../../types';
 
@@ -42,7 +43,7 @@ const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationMod
             <h3 className="text-base font-semibold text-gray-900">{item.motherName}</h3>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-xs text-gray-400 font-normal">L3 ·</span>
-              <Badge variant={item.severity} size="sm" dot>
+              <Badge variant="outline" className={getSeverityBadgeClass(item.severity)} size="sm" dot>
                 {item.severity.charAt(0).toUpperCase() + item.severity.slice(1)}
               </Badge>
             </div>

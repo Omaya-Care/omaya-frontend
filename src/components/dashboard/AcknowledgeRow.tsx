@@ -1,5 +1,6 @@
 import { EscalationItem } from "../../types";
 import { Badge } from "../ui/Badge";
+import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
 
 interface AcknowledgeRowProps {
@@ -38,7 +39,7 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
 
       {/* SEVERITY COLUMN */}
       <div className="w-48">
-        <Badge variant={item.severity} dot>
+        <Badge variant="outline" className={getSeverityBadgeClass(item.severity)} dot>
           {item.severity.charAt(0).toUpperCase() + item.severity.slice(1)}
         </Badge>
       </div>

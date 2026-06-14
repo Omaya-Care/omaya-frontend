@@ -1,5 +1,6 @@
 import { Call, CallStatus } from '../../types';
 import { Badge } from '../ui/Badge';
+import { getStatusBadgeClass } from '../../lib/badge-helpers';
 
 interface CallListItemProps {
   call: Call;
@@ -7,15 +8,15 @@ interface CallListItemProps {
   onClick: () => void;
 }
 
-const statusVariant: Record<CallStatus, { variant: 'routine' | 'monitor' | 'inactive' | 'crisis'; label: string }> = {
-  completed:   { variant: 'routine',   label: 'Completed' },
-  in_progress: { variant: 'monitor',   label: 'In progress' },
-  upcoming:    { variant: 'inactive',  label: 'Upcoming' },
-  missed:      { variant: 'crisis',    label: 'Missed' },
+const statusLabel: Record<CallStatus, string> = {
+  completed:   'Completed',
+  in_progress: 'In progress',
+  upcoming:    'Upcoming',
+  missed:      'Missed',
 };
 
 const CallListItem = ({ call, isSelected, onClick }: CallListItemProps) => {
-  const { variant, label } = statusVariant[call.status];
+  const label = statusLabel[call.status];
 
   return (
     <div
@@ -27,7 +28,7 @@ const CallListItem = ({ call, isSelected, onClick }: CallListItemProps) => {
     >
       <div className="flex justify-between items-start">
         <span className="text-sm font-semibold text-gray-900">{call.motherName}</span>
-        <Badge variant={variant} size="sm">{label}</Badge>
+        <Badge variant="outline" className={getStatusBadgeClass(call.status)} size="sm">{label}</Badge>
       </div>
       <div className="text-xs text-gray-400 mt-0.5 font-normal">
         {call.callType} · {call.time}

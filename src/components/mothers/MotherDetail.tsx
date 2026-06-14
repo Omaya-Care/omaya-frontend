@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Mother } from "../../types";
 import { Badge } from "../ui/Badge";
+import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
 import { formatDate } from "../../lib/format";
 
@@ -53,7 +54,7 @@ const MotherDetail = ({
       <div className="pb-5 border-b border-gray-100">
         <div className="flex items-center">
           <h2 className="text-2xl font-bold text-gray-900">{mother.name}</h2>
-          <Badge variant={mother.severity} dot className="ml-3">
+          <Badge variant="outline" className={`${getSeverityBadgeClass(mother.severity)} ml-3`} dot>
             {mother.severity.charAt(0).toUpperCase() + mother.severity.slice(1)}
           </Badge>
         </div>
@@ -173,7 +174,7 @@ const MotherDetail = ({
             <span className="text-sm text-gray-500 font-normal">
               Current severity
             </span>
-            <Badge variant={mother.severity} size="sm" dot>
+            <Badge variant="outline" className={getSeverityBadgeClass(mother.severity)} size="sm" dot>
               {mother.severity.charAt(0).toUpperCase() +
                 mother.severity.slice(1)}
             </Badge>

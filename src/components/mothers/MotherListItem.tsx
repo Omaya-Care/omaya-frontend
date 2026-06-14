@@ -1,5 +1,6 @@
 import { Mother } from "../../types";
 import { Badge } from "../ui/Badge";
+import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 
 interface MotherListItemProps {
   mother: Mother;
@@ -29,7 +30,7 @@ const MotherListItem = ({
         >
           {mother.name}
         </span>
-        <Badge variant={mother.severity} size="sm" dot>
+        <Badge variant="outline" className={getSeverityBadgeClass(mother.severity)} size="sm" dot>
           {mother.severity.charAt(0).toUpperCase() + mother.severity.slice(1)}
         </Badge>
       </div>

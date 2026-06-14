@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, MessageSquare, Check } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 
 export interface LogVisitData {
@@ -43,9 +44,9 @@ const LogVisitModal = ({ isOpen, onClose, onSave, motherName, dayPostpartum }: L
           <h3 className="text-lg font-semibold text-gray-900">Log visit</h3>
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-400 font-normal">{motherName}</span>
-            <span className="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full font-medium">
+            <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-100" size="sm">
               Day {dayPostpartum}
-            </span>
+            </Badge>
           </div>
         </div>
 
