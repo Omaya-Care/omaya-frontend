@@ -107,13 +107,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               key={item.route}
               to={item.route}
               onClick={() => setMobileSidebarOpen(false)}
-              className={({ isActive }) => `
-                flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors group
+               className={({ isActive }) => `
+                flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm group
                 ${
                   isActive
-                    ? "bg-[#93406B] text-white font-medium"
+                    ? "bg-[#F7E8F0] text-[#93406B] font-medium"
                     : "text-gray-500 hover:bg-gray-100 hover:text-gray-700 font-normal"
                 }
+                focus-visible:ring-0 focus-visible:outline-none
               `}
             >
               {({ isActive }) => (
@@ -122,7 +123,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     size={18}
                     className={
                       isActive
-                        ? "text-white"
+                        ? "text-[#93406B]"
                         : "text-gray-400 group-hover:text-gray-500"
                     }
                   />
@@ -197,7 +198,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </div>
 
         {/* Content with responsive padding */}
-        <div className="p-3 md:p-4 lg:p-8">
+        <div className="p-4">
           {children}
         </div>
       </main>

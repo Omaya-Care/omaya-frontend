@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useDrawer } from "../contexts/DrawerContext";
-import { Plus, Search, ArrowLeft, UserRound } from "lucide-react";
+import { Plus, Search, ArrowLeft, UserRound, SlidersHorizontal } from "lucide-react";
 import { useMothers } from "../hooks/useMothers";
 import { useConfirmConsentAction } from "../hooks/useMutations";
 import {
@@ -13,12 +13,10 @@ import {
 import { Button } from "../components/ui/Button";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../components/ui/popover";
 import PageLoading from "../components/PageLoading";
 
 const MothersPage = () => {
@@ -117,36 +115,65 @@ const MothersPage = () => {
           />
         </div>
 
-        {/* Filters */}
-        <div className="px-4 pb-3 flex-shrink-0 flex gap-2">
-          <Select value={severityFilter} onValueChange={setSeverityFilter}>
-            <SelectTrigger className="flex-1 h-auto text-xs border-gray-200 bg-white py-1.5 px-2.5 font-medium">
-              <SelectValue placeholder="All levels" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All levels</SelectItem>
-              <SelectItem value="routine">Routine</SelectItem>
-              <SelectItem value="elevated">Elevated</SelectItem>
-              <SelectItem value="crisis">Crisis</SelectItem>
-              <SelectItem value="monitor">Monitor</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="flex-1 h-auto text-xs border-gray-200 bg-white py-1.5 px-2.5 font-medium">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="withdrawn">Withdrawn</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Combined filter */}
+        <div className="px-4 pb-3 flex-shrink-0">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-1.5 text-xs border border-gray-200 bg-white rounded-md py-1.5 px-2.5 font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                <SlidersHorizontal size={14} />
+                <span>Filter</span>
+                {(severityFilter !== "all" || statusFilter !== "all") && (
+                  <span className="ml-1 w-5 h-5 rounded-full bg-[#93406B] text-white text-[10px] font-bold flex items-center justify-center">
+                    {(severityFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0)}
+                  </span>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-56 p-3">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Severity</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["all", "routine", "elevated", "crisis", "monitor", "inactive"].map((val) => (
+                      <button
+                        key={val}
+                        onClick={() => setSeverityFilter(val)}
+                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                          severityFilter === val
+                            ? "border-[#93406B] bg-[#F7E8F0] text-[#93406B] font-medium"
+                            : "border-gray-200 text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        {val === "all" ? "All" : val.charAt(0).toUpperCase() + val.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["all", "active", "withdrawn", "pending"].map((val) => (
+                      <button
+                        key={val}
+                        onClick={() => setStatusFilter(val)}
+                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                          statusFilter === val
+                            ? "border-[#93406B] bg-[#F7E8F0] text-[#93406B] font-medium"
+                            : "border-gray-200 text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        {val === "all" ? "All" : val.charAt(0).toUpperCase() + val.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto border-t border-gray-50">
+        <div className="flex-1 overflow-y-auto border-t border-gray-200">
           {filteredMothers.map((mother) => (
             <MotherListItem
               key={mother.id}

@@ -11,6 +11,7 @@ export interface CheckIn {
   day: number;           // day postpartum
   summary: string;       // one sentence summary
   severity: Severity;
+  transcript?: string;   // transcript text if available
 }
 
 export interface Mother {
