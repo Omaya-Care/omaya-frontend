@@ -27,7 +27,7 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
   const statusStyles = getTimeStatusStyles(item.timeLeftMinutes);
 
   return (
-    <div className="flex items-center w-full border-b border-gray-100 py-4">
+    <div className="flex items-center w-full border-b border-gray-50 last:border-0 py-3">
       {/* MOTHER COLUMN */}
       <div className="flex-1">
         <div className="font-medium text-gray-900">{item.motherName}</div>

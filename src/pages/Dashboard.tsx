@@ -5,8 +5,8 @@ import { PageHeader } from "../components/dashboard/PageHeader";
 import {
   StatCard,
   SectionHeader,
-  AcknowledgeRow,
-  CallRow,
+  AlertsTable,
+  CallsTable,
   EscalationModal,
 } from "../components/dashboard";
 import { useMothers } from "../hooks/useMothers";
@@ -80,7 +80,7 @@ const Dashboard = () => {
           label="Need attention"
           sublabel="L3 & L4 unacknowledged"
           value={escalations.length}
-          background="#EDD5E4"
+          background="#F2DCEA"
           footerText={`${escalations.length} waiting`}
           footerColor="#DC2626"
         />
@@ -88,44 +88,26 @@ const Dashboard = () => {
           label="Avg. response time"
           sublabel="To L3 & L4 alerts"
           value="11m"
-          background="#E8CCDC"
+          background="#F2DCEA"
         />
-        </div>
+      </div>
 
-        {/* BLOCK 3: TWO COLUMN ROW */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-6">
+      {/* BLOCK 3: TWO COLUMN ROW */}
+      <div className="flex flex-col lg:flex-row gap-4 mb-6">
         {/* LEFT — "Needs attention now" panel */}
-        <div className="flex-1 bg-white rounded-2xl p-5 shadow-sm">
+        <div className="flex-1 bg-white rounded-2xl pt-5 px-5 pb-3 shadow-sm flex flex-col">
           <SectionHeader
             title="Needs attention now"
             count={escalations.length}
           />
-
-          <div className="overflow-x-auto">
-            <div className="min-w-[480px]">
-              {/* Column headers row */}
-              <div className="grid grid-cols-[1fr_192px_1fr_144px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2 mb-1">
-                <div>Mother</div>
-                <div>Severity</div>
-                <div>Time Left</div>
-                <div className="text-right">Action</div>
-              </div>
-
-              <div className="flex flex-col">
-                {escalations.map((item) => (
-                  <AcknowledgeRow
-                    key={item.id}
-                    item={item}
-                    onAcknowledge={() => handleAcknowledgeClick(item)}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+          <AlertsTable
+            escalations={escalations}
+            onAcknowledgeClick={handleAcknowledgeClick}
+          />
         </div>
 
         {/* RIGHT — "This week" summary panel */}
-        <div className="w-full lg:w-80 bg-white rounded-2xl p-5 shadow-sm">
+        <div className="w-full lg:w-80 bg-white rounded-2xl p-5 shadow-sm self-start">
           <div className="mb-4 overflow-hidden">
             <span className="text-xs text-gray-400 float-right">
               Mon – today
@@ -174,32 +156,15 @@ const Dashboard = () => {
       </div>
 
       {/* BLOCK 4: TODAY'S CALLS */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm">
+      <div className="bg-white rounded-2xl pt-5 px-5 pb-3 shadow-sm">
         <SectionHeader
           title="Today's calls"
           onViewAll={() => navigate("/calls")}
         />
         <div className="text-sm font-normal text-gray-400 -mt-3 mb-4">
-          1 of 6 completed
+          {calls.filter(c => c.status === 'completed').length} of {calls.length} completed
         </div>
-
-        <div className="overflow-x-auto">
-          <div className="min-w-[480px]">
-            {/* Column headers */}
-            <div className="grid grid-cols-[1fr_112px_1fr_160px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2 mb-1">
-              <div>Mother</div>
-              <div>Time</div>
-              <div>Call Type</div>
-              <div className="text-right">Status</div>
-            </div>
-
-            <div className="flex flex-col">
-              {calls.map((call) => (
-                <CallRow key={call.id} call={call} />
-              ))}
-            </div>
-          </div>
-        </div>
+        <CallsTable calls={calls} />
       </div>
 
       <EscalationModal
