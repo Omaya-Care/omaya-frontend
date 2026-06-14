@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useDrawer } from "../contexts/DrawerContext";
-import { Plus, Search, ChevronDown, ArrowLeft } from "lucide-react";
+import { Plus, Search, ChevronDown, ArrowLeft, UserRound } from "lucide-react";
 import { useMothers } from "../hooks/useMothers";
 import { useConfirmConsentAction } from "../hooks/useMutations";
 import {
@@ -19,6 +19,8 @@ const MothersPage = () => {
   const { data: mothers = [], isLoading } = useMothers();
   const withdrawMutation = useConfirmConsentAction("withdrawal");
   const [selectedMotherId, setSelectedMotherId] = useState<string>("");
+
+  console.log("[MothersPage] mothers from API:", mothers);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [logVisitModalOpen, setLogVisitModalOpen] = useState(false);
@@ -53,6 +55,16 @@ const MothersPage = () => {
 
   if (isLoading && mothers.length === 0) {
     return <PageLoading />;
+  }
+
+  if (!mothers || mothers.length === 0) {
+    return (
+      <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center gap-3">
+        <UserRound size={48} className="text-[#4A2545]" />
+        <span className="text-sm font-semibold text-gray-700">No mothers enrolled yet</span>
+        <span className="text-xs text-gray-400 font-normal">Discharged mothers will appear here.</span>
+      </div>
+    );
   }
 
   return (
