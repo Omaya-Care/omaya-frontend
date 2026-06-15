@@ -5,6 +5,7 @@ import {
   ShieldCheck,
   Clock,
   Info,
+  AlertCircle,
   ArrowRight,
   ArrowLeft,
   Loader2,
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent } from '../components/ui';
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent, Alert, AlertTitle, AlertDescription } from '../components/ui';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { api, extractApiError } from '../lib/api';
@@ -29,6 +30,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const handleClose = onClose ?? (() => navigate('/mothers'));
   const [currentStep, setCurrentStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [touched, setTouched] = useState(false);
   const [countryCode, setCountryCode] = useState('+233');
 
@@ -102,15 +104,15 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
     } catch (err: unknown) {
       const e = extractApiError(err);
       if (e.status === 0 || e.error_code === 'network_error') {
-        toast.error('Enrollment failed. Please check the form and try again.');
+        setSubmitError('Enrollment failed. Please check the form and try again.');
       } else if (e.status === 400) {
-        toast.error('Enrollment failed. Please check the form and try again.');
+        setSubmitError('Enrollment failed. Please check the form and try again.');
       } else if (e.status === 409) {
-        toast.error('Enrollment failed. Please check the form and try again.');
+        setSubmitError('Enrollment failed. Please check the form and try again.');
       } else if (e.status >= 500) {
-        toast.error('Enrollment failed. Please check the form and try again.');
+        setSubmitError('Enrollment failed. Please check the form and try again.');
       } else {
-        toast.error('Enrollment failed. Please check the form and try again.');
+        setSubmitError('Enrollment failed. Please check the form and try again.');
       }
     } finally {
       setSubmitting(false);
@@ -471,6 +473,16 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
           <p className="text-xs text-gray-400 font-normal mt-6">
             By tapping 'Enroll her', you confirm that you have explained this program to the mother and she has agreed to participate.
           </p>
+        </div>
+      )}
+
+      {submitError && (
+        <div className="mt-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
         </div>
       )}
     </OnboardingShell>

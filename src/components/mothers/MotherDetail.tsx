@@ -15,6 +15,7 @@ import { Badge } from "../ui/Badge";
 import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
+import { Alert, AlertDescription } from "../ui/alert";
 import { formatDate } from "../../lib/format";
 
 interface MotherDetailProps {
@@ -183,12 +184,12 @@ const MotherDetail = ({
       </div>
 
       {/* AUDIT NOTE */}
-      <div className="pt-5 flex items-start gap-1.5">
-        <ShieldCheck size={14} className="text-gray-300 mt-0.5 flex-shrink-0" />
-        <p className="text-xs text-gray-400 font-normal">
+      <Alert className="border-gray-200 bg-gray-50 text-gray-500 mt-5">
+        <ShieldCheck className="h-4 w-4 text-gray-400" />
+        <AlertDescription>
           Records and severity labels are system-set and read-only for audit integrity.
-        </p>
-      </div>
+        </AlertDescription>
+      </Alert>
 
       {/* BOTTOM ACTIONS */}
       <div className="mt-auto pt-4 border-t border-gray-200 flex justify-between items-center sticky bottom-0 bg-white">

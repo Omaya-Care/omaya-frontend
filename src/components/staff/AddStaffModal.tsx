@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "@/components/ui/input";
 import { useAddStaff } from "../../hooks/useMutations";
 import { extractApiError } from "../../lib/api";
+import { Alert, AlertTitle, AlertDescription } from "../ui/alert";
 
 type TabKey = "invite" | "create";
 type RoleOption = "Administrator" | "Physician" | "Midwife" | "Coordinator";
@@ -99,8 +100,12 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
         </p>
 
         {error && (
-          <div className="mt-4 bg-red-50 text-red-600 text-sm p-3 rounded-lg">
-            {error}
+          <div className="mt-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           </div>
         )}
 

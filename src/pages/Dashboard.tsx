@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Phone, RefreshCw } from "lucide-react";
+import { CheckCircle2, Phone, RefreshCw, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useDrawer } from "../contexts/DrawerContext";
 import { PageHeader } from "../components/dashboard/PageHeader";
@@ -17,7 +17,7 @@ import { useEscalations } from "../hooks/useEscalations";
 import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
 import { getClinician } from "../lib/auth";
-import { Card, CardContent, CardHeader, Separator, Skeleton } from "../components/ui";
+import { Card, CardContent, CardHeader, Separator, Skeleton, Alert, AlertTitle, AlertDescription } from "../components/ui";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -134,9 +134,13 @@ const Dashboard = () => {
                 ))}
               </div>
             ) : escalationsError ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-2">
-                <span className="text-xs text-gray-400">Could not load alerts.</span>
-                <button onClick={() => refetchEscalations()} className="text-xs text-[#93406B] hover:underline flex items-center gap-1">
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <Alert variant="destructive" className="max-w-xs">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>Could not load alerts.</AlertDescription>
+                </Alert>
+                <button onClick={() => refetchEscalations()} className="mt-3 text-xs text-[#93406B] hover:underline flex items-center gap-1">
                   <RefreshCw size={12} /> Try again
                 </button>
               </div>
@@ -217,7 +221,11 @@ const Dashboard = () => {
             </div>
           ) : callsError ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8">
-              <span className="text-xs text-gray-400">Could not load calls.</span>
+              <Alert variant="destructive" className="max-w-xs">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>Could not load calls.</AlertDescription>
+              </Alert>
               <button onClick={() => refetchCalls()} className="text-xs text-[#93406B] hover:underline flex items-center gap-1">
                 <RefreshCw size={12} /> Try again
               </button>

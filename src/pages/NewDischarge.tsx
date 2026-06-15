@@ -12,11 +12,12 @@ import {
   ArrowLeft,
   CalendarIcon,
   Loader2,
-  Lock
+  Lock,
+  AlertCircle,
 } from 'lucide-react';
 import { format, parse, addDays } from 'date-fns';
 import { OnboardingShell, StepHeader, ChipSelect } from '../components/onboarding';
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from '../components/ui';
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Alert, AlertTitle, AlertDescription } from '../components/ui';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { useDrawer } from '../contexts/DrawerContext';
@@ -49,6 +50,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const [formData, setFormData] = useState({
     motherName: '',
@@ -83,6 +85,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       return;
     }
     setSubmitting(true);
+    setSubmitError('');
     try {
       const dischargePayload: Record<string, unknown> = {
         delivery_date: formData.deliveryDate,
@@ -119,7 +122,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       toast.success("Discharge recorded. Her first call has been scheduled.");
       handleClose();
     } catch {
-      toast.error("Could not save discharge. Please try again.");
+      setSubmitError('Could not save discharge. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -262,15 +265,20 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               </div>
             ))}
             {searchError && (
-              <div className="bg-red-50 border border-red-100 rounded-xl px-5 py-6 flex flex-col items-center text-center">
-                <span className="text-sm font-medium text-red-700">{searchError}</span>
-              </div>
+              <Alert variant="destructive" className="mt-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{searchError}</AlertDescription>
+              </Alert>
             )}
             {!searchError && searchQuery.length >= 2 && !searching && filteredResults?.length === 0 && (
-              <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-6 flex flex-col items-center text-center">
-                <span className="text-sm font-medium text-gray-700">No record found for '{searchQuery}'</span>
-                <span className="text-xs text-gray-400 font-normal mt-1.5">If she was not enrolled during pregnancy, use the new discharge option below.</span>
-              </div>
+              <Alert className="border-gray-200 bg-gray-50 text-gray-500 mt-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Not found</AlertTitle>
+                <AlertDescription>
+                  No record found for '{searchQuery}'. If she was not enrolled during pregnancy, use the new discharge option below.
+                </AlertDescription>
+              </Alert>
             )}
             {searching && (
               <div className="flex flex-col gap-2 mt-2">
@@ -758,6 +766,16 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {submitError && (
+        <div className="mt-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
         </div>
       )}
     </OnboardingShell>
