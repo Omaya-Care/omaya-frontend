@@ -152,7 +152,6 @@ const SetupPassword = () => {
           autoComplete="new-password"
           fullWidth
           required
-          hint="At least 10 characters, with a letter and a digit."
           rightIcon={
             <button
               type="button"

@@ -8,10 +8,6 @@ interface MotherListItemProps {
   mother: Mother;
   isSelected: boolean;
   onClick: () => void;
-  onViewDetails?: () => void;
-  onLogVisit?: () => void;
-  onCallNow?: () => void;
-  onWithdraw?: () => void;
 }
 
 const severityBorderColors: Record<string, string> = {
@@ -26,10 +22,6 @@ const MotherListItem = ({
   mother,
   isSelected,
   onClick,
-  onViewDetails,
-  onLogVisit,
-  onCallNow,
-  onWithdraw,
 }: MotherListItemProps) => {
   // Top level guard for incomplete data
   if (!mother || !mother.name) {

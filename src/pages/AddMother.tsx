@@ -92,7 +92,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
   ] as const;
 
   const step2Valid = step2Required.every(
-    (f) => !fieldIsEmpty(formData[f.key as keyof typeof formData]),
+    (f) => !fieldIsEmpty(formData[f.key as keyof typeof formData] as string | unknown[]),
   );
 
   const phoneLocal = formData.phone.replace(countryCode, "");
@@ -135,7 +135,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
       toast.success("Mother enrolled successfully.");
       handleClose();
     } catch (err: unknown) {
-      const e = extractApiError(err);
+      extractApiError(err);
       setSubmitError("Enrollment failed. Please check the form and try again.");
     } finally {
       setSubmitting(false);
@@ -170,7 +170,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
     if (key === "phone") return fieldIsEmpty(formData.phone) || !phoneValid;
     const field = step2Required.find((f) => f.key === key);
     if (!field) return false;
-    return fieldIsEmpty(formData[key as keyof typeof formData]);
+    return fieldIsEmpty(formData[key as keyof typeof formData] as string | unknown[]);
   };
 
   const getLanguageLabel = (val: string) => {

@@ -89,7 +89,6 @@ const ChangePassword = () => {
           autoComplete="new-password"
           fullWidth
           required
-          hint="At least 10 characters, with a letter and a digit."
         />
 
         <Input

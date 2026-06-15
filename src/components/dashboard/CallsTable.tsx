@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CallItem } from "../../types";
+import { Call } from "../../types";
 import { CallRow } from "./CallRow";
 import { Pagination } from "../ui/Pagination";
 import {
@@ -12,7 +12,7 @@ import {
 } from "../ui/table";
 
 interface CallsTableProps {
-  calls: CallItem[];
+  calls: Call[];
 }
 
 export const CallsTable: React.FC<CallsTableProps> = ({ calls }) => {

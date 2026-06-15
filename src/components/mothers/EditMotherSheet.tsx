@@ -3,7 +3,7 @@ import { Loader2, CalendarIcon, AlertCircle } from "lucide-react";
 import { format, parse } from "date-fns";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
+import { Input } from "../ui/input";
 import { Alert, AlertDescription } from "../ui/alert";
 import { ChipSelect } from "../onboarding";
 import { Calendar } from "../ui/calendar";

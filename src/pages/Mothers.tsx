@@ -211,10 +211,6 @@ const MothersPage = () => {
               mother={mother}
               isSelected={selectedMotherId === mother.id}
               onClick={() => handleSelectMother(mother.id)}
-              onViewDetails={() => handleSelectMother(mother.id)}
-              onLogVisit={() => { handleSelectMother(mother.id); setLogVisitModalOpen(true); }}
-              onCallNow={() => handleSelectMother(mother.id)}
-              onWithdraw={() => { handleSelectMother(mother.id); setWithdrawModalOpen(true); }}
             />
           ))}
         </div>

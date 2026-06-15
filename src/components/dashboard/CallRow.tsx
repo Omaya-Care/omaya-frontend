@@ -17,9 +17,6 @@ function formatCallTime(raw: string): string {
 
 interface CallRowProps {
   call: Call;
-  onViewDetails?: () => void;
-  onMarkCompleted?: () => void;
-  onReschedule?: () => void;
 }
 
 const statusLabel: Record<string, string> = {
@@ -31,9 +28,6 @@ const statusLabel: Record<string, string> = {
 
 const CallRow = ({
   call,
-  onViewDetails,
-  onMarkCompleted,
-  onReschedule,
 }: CallRowProps) => {
   const label = statusLabel[call.status] ?? call.status;
 

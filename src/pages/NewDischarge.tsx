@@ -12,7 +12,6 @@ import {
   ArrowLeft,
   CalendarIcon,
   Loader2,
-  Lock,
   AlertCircle,
   ShieldCheck,
   Clock,
@@ -99,7 +98,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
 
   const totalSteps = foundMother ? 4 : 5;
 
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     if (searchQuery.length < 2) {
       setSearchResults([]);
@@ -925,13 +924,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               },
               {
                 label: "Calling window",
-                value:
-                  {
+                value: ({
                     morning: "Morning 8am–11am",
                     afternoon: "Afternoon 12pm–3pm",
                     evening: "Evening 4pm–6pm",
                     inbound: "She will call in",
-                  }[formData.callingWindow] || "",
+                  } as Record<string, string>)[formData.callingWindow] || "",
               },
               {
                 label: "First call",

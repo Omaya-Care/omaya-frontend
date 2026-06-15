@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   XCircle,
   ClipboardList,
-  Phone,
   Pencil,
   Loader2,
   PhoneCall,
