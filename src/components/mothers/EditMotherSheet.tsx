@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Loader2, CalendarIcon } from "lucide-react";
+import { Loader2, CalendarIcon, AlertCircle } from "lucide-react";
 import { format, parse } from "date-fns";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import { Button } from "../ui/Button";
-import { Input } from "../ui/input";
+import { Input } from "../ui/Input";
+import { Alert, AlertDescription } from "../ui/alert";
 import { ChipSelect } from "../onboarding";
 import { Calendar } from "../ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -21,6 +22,7 @@ const LANGUAGE_OPTIONS = [
   { value: "english", label: "English" },
   { value: "twi", label: "Twi" },
   { value: "ga", label: "Ga" },
+  { value: "ewe", label: "Ewe" },
 ];
 
 const CALLING_WINDOW_OPTIONS = [
@@ -49,6 +51,8 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
     deliveryDate: mother.deliveryDate ?? "",
   });
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     if (isOpen) {
       setForm({
@@ -61,14 +65,17 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
         deliveryType: mother.deliveryType ?? "",
         deliveryDate: mother.deliveryDate ?? "",
       });
+      setError(null);
     }
   }, [isOpen, mother]);
 
   const updateField = (field: keyof typeof form, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (field === "phone") setError(null);
   };
 
   const handleSave = async () => {
+    setError(null);
     try {
       await updateMutation.mutateAsync({
         motherId: mother.id,
@@ -85,8 +92,16 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
       });
       toast.success("Details updated.");
       onClose();
-    } catch {
-      toast.error("Could not update details. Please try again.");
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number; data?: { error?: string } } })?.response?.status;
+      const code = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      if (status === 409 || code === "phone_already_enrolled") {
+        setError("This phone number is already enrolled with another mother.");
+      } else if (status === 404 || code === "mother_not_found") {
+        setError("This mother's record was not found. Please reload and try again.");
+      } else {
+        toast.error("Could not update details. Please try again.");
+      }
     }
   };
 
@@ -130,6 +145,13 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           <p className="text-xs text-gray-400 uppercase tracking-wide font-medium -mb-1">Contact</p>
 
           <Input

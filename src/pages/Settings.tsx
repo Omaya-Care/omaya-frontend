@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
-import { Info } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import React, { useState, useEffect, useRef } from 'react';
+import { Loader2, Lock, Eye, EyeOff, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Skeleton } from '../components/ui/skeleton';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { useMe } from '../hooks/useMe';
+import { useUpdateMe, useChangePassword } from '../hooks/useMutations';
+import { toast } from 'sonner';
 
 /* ─── Toggle ─────────────────────────────────────────────────── */
 interface ToggleProps {
@@ -77,131 +82,316 @@ const NotifRow = ({
   </div>
 );
 
+/* ─── Profile skeleton ────────────────────────────────────────── */
+const ProfileSkeleton = () => (
+  <>
+    <div className="flex items-center gap-4 mb-6">
+      <Skeleton className="w-14 h-14 rounded-full flex-shrink-0" />
+      <div className="space-y-1.5">
+        <Skeleton className="h-4 w-36" />
+        <Skeleton className="h-3.5 w-52" />
+      </div>
+    </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="flex flex-col gap-1.5">
+          <Skeleton className="h-3.5 w-20" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+        </div>
+      ))}
+    </div>
+  </>
+);
+
+/* ─── Initials helper ─────────────────────────────────────────── */
+function initials(nameOrEmail: string): string {
+  const parts = nameOrEmail.trim().split(/\s+/);
+  if (parts.length === 1) return (parts[0][0] ?? '?').toUpperCase();
+  return ((parts[0][0] ?? '') + (parts[parts.length - 1][0] ?? '')).toUpperCase();
+}
+
+/* ─── Password field (show/hide toggle via rightIcon) ─────────── */
+const PasswordField = ({
+  label,
+  value,
+  onChange,
+  error,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  placeholder?: string;
+}) => {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="flex flex-col">
+      <Input
+        label={label}
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        fullWidth
+        rightIcon={
+          <button
+            type="button"
+            onClick={() => setShow((v) => !v)}
+            className="text-gray-400 hover:text-gray-500 transition-colors"
+            tabIndex={-1}
+          >
+            {show ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        }
+      />
+      {error && (
+        <p className="text-xs text-red-500 mt-1 ml-0.5">{error}</p>
+      )}
+    </div>
+  );
+};
+
+/* ─── Password validation ──────────────────────────────────────── */
+function passwordMeetsPolicy(p: string): boolean {
+  return p.length >= 10 && /[a-zA-Z]/.test(p) && /[0-9]/.test(p);
+}
+
+/* ─── Change password section ─────────────────────────────────── */
+const ChangePasswordSection = () => {
+  const changePassword = useChangePassword();
+
+  const [current, setCurrent] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [attempted, setAttempted] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  const currentError = attempted && !current ? 'Enter your current password.' : undefined;
+  const newError = attempted && !newPass
+    ? 'Enter a new password.'
+    : attempted && !passwordMeetsPolicy(newPass)
+      ? 'At least 10 characters, one letter, and one digit.'
+      : undefined;
+  const confirmError = attempted && newPass && confirm !== newPass
+    ? "Passwords don't match."
+    : undefined;
+
+  const handleSubmit = async () => {
+    setAttempted(true);
+    setApiError(null);
+    if (!current || !newPass || !passwordMeetsPolicy(newPass) || newPass !== confirm) return;
+
+    try {
+      await changePassword.mutateAsync({ currentPassword: current, newPassword: newPass });
+      toast.success('Password updated successfully.');
+      setCurrent('');
+      setNewPass('');
+      setConfirm('');
+      setAttempted(false);
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number; data?: { error?: string } } })?.response?.status;
+      const code = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      if (status === 400 || code === 'incorrect_current_password') {
+        setApiError('Your current password is incorrect.');
+      } else if (status === 403) {
+        setApiError("You don't have permission to change your password.");
+      } else {
+        toast.error('Something went wrong. Please try again.');
+      }
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {apiError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{apiError}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <PasswordField
+          label="Current password"
+          value={current}
+          onChange={(v) => { setCurrent(v); setApiError(null); }}
+          error={currentError}
+        />
+
+        {/* Empty cell to keep new password below current on the left column */}
+        <span className="hidden sm:block" />
+
+        <PasswordField
+          label="New password"
+          value={newPass}
+          onChange={setNewPass}
+          error={newError}
+          placeholder="Min. 10 chars, one letter, one digit"
+        />
+
+        <PasswordField
+          label="Confirm new password"
+          value={confirm}
+          onChange={setConfirm}
+          error={confirmError}
+        />
+      </div>
+
+      <div className="flex justify-end mt-2">
+        <Button
+          variant="default"
+          onClick={handleSubmit}
+          disabled={changePassword.isPending}
+          className="flex items-center gap-2"
+        >
+          {changePassword.isPending && <Loader2 size={16} className="animate-spin" />}
+          {changePassword.isPending ? 'Updating...' : 'Update password'}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 /* ─── Page ────────────────────────────────────────────────────── */
 const SettingsPage = () => {
-  /* Profile */
-  const [profileName, setProfileName] = useState('Kwame Boateng');
-  const [profileEmail, setProfileEmail] = useState('k.boateng@korlebu.gov.gh');
+  const { data: me, isLoading } = useMe();
+  const updateMe = useUpdateMe();
+  const passwordSectionRef = useRef<HTMLDivElement>(null);
 
-  /* Clinic */
-  const [clinicName, setClinicName] = useState('Korle Bu Teaching Hospital');
-  const [clinicUnit, setClinicUnit] = useState('Maternity');
-  const [clinicCity, setClinicCity] = useState('Accra, Ghana');
-  const [supportPhone, setSupportPhone] = useState('0302 674 002');
+  const [name, setName] = useState('');
 
-  /* Notifications */
+  useEffect(() => {
+    if (me) setName(me.name ?? '');
+  }, [me]);
+
+  /* Notifications — static for now (no API) */
   const [elevatedAlerts, setElevatedAlerts] = useState(true);
   const [missedCheckIns, setMissedCheckIns] = useState(true);
   const [dailySummary, setDailySummary] = useState(false);
   const [weeklyReport, setWeeklyReport] = useState(true);
 
-  /* Save feedback */
-  const [saved, setSaved] = useState(false);
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const nameChanged = name.trim() !== (me?.name ?? '').trim() && name.trim() !== '';
+  const canSave = nameChanged && !updateMe.isPending && !isLoading;
+
+  const handleSave = async () => {
+    if (!nameChanged) return;
+    try {
+      await updateMe.mutateAsync(name.trim());
+      toast.success('Profile updated.');
+    } catch {
+      toast.error('Failed to save changes. Please try again.');
+    }
   };
 
   return (
-    /* Outer scroll container — fills AppShell's flex-1 main area */
     <div className="h-full overflow-y-auto">
       <div className="w-full flex flex-col gap-10 pb-10">
 
-        {/* Page title */}
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+
+        {/* ── Must-change-password banner ──────────────────────── */}
+        {!isLoading && me?.mustChangePassword && (
+          <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3.5 -mt-4">
+            <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-900">Password change required</p>
+              <p className="text-sm text-amber-700 mt-0.5">
+                Your account requires a new password before you can continue using Omaya Care.
+              </p>
+            </div>
+            <button
+              onClick={() =>
+                passwordSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+              className="text-sm font-medium text-amber-800 hover:text-amber-900 underline underline-offset-2 flex-shrink-0 whitespace-nowrap"
+            >
+              Change now
+            </button>
+          </div>
+        )}
 
         {/* ── Section 1: Your profile ─────────────────────────── */}
         <Section
           heading="Your profile"
           subtitle="Your account details and how you sign in."
         >
-          {/* Avatar row */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 rounded-full bg-[#93406B] text-white font-bold text-lg flex items-center justify-center flex-shrink-0">
-              KB
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900">Kwame Boateng</p>
-              <p className="text-sm text-gray-400">Administrator · Korle Bu Maternity</p>
-            </div>
-          </div>
+          {isLoading ? (
+            <ProfileSkeleton />
+          ) : (
+            <>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-14 h-14 rounded-full bg-[#93406B] text-white font-bold text-lg flex items-center justify-center flex-shrink-0 select-none">
+                  {initials(me?.name || me?.email || '?')}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{me?.name || me?.email}</p>
+                  <p className="text-sm text-gray-400">
+                    {me?.role} · {me?.hospitalName}
+                  </p>
+                </div>
+              </div>
 
-          {/* Form grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Full name"
-              value={profileName}
-              onChange={e => setProfileName(e.target.value)}
-              fullWidth
-            />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  fullWidth
+                />
 
-            <Input
-              label="Work email"
-              type="email"
-              value={profileEmail}
-              onChange={e => setProfileEmail(e.target.value)}
-              rightIcon={<Info size={15} />}
-              fullWidth
-            />
+                <Input
+                  label="Work email"
+                  type="email"
+                  value={me?.email ?? ''}
+                  disabled
+                  rightIcon={<Lock size={14} className="text-gray-300" />}
+                  fullWidth
+                />
 
-            {/* Role — read-only */}
-            <Input
-              label="Role"
-              value="Administrator"
-              disabled
-              className="cursor-not-allowed"
-              fullWidth
-            />
+                <Input
+                  label="Role"
+                  value={me?.role ?? ''}
+                  disabled
+                  fullWidth
+                />
 
-            {/* Change password — aligns to bottom of the Role cell */}
-            <div className="flex flex-col justify-end">
-              <Button
-                variant="outline"
-                className="border-gray-300 text-gray-700 w-full"
-              >
-                Change password
-              </Button>
-            </div>
+                <Input
+                  label="Hospital"
+                  value={me?.hospitalName ?? ''}
+                  disabled
+                  fullWidth
+                />
 
-            {/* Helper spans both columns */}
-            <p className="col-span-2 text-xs text-gray-400">
-              Roles are set by an administrator in Staff & roles.
-            </p>
-          </div>
+                <p className="col-span-2 text-xs text-gray-400 -mt-1">
+                  Roles and hospital are managed by your administrator.
+                </p>
+              </div>
+
+              <div className="flex justify-end mt-5">
+                <Button
+                  variant="default"
+                  onClick={handleSave}
+                  disabled={!canSave}
+                  className="flex items-center gap-2"
+                >
+                  {updateMe.isPending && <Loader2 size={16} className="animate-spin" />}
+                  {updateMe.isPending ? 'Saving...' : 'Save changes'}
+                </Button>
+              </div>
+            </>
+          )}
         </Section>
 
-        {/* ── Section 2: Clinic profile ───────────────────────── */}
-        <Section
-          heading="Clinic profile"
-          subtitle="Details for Korle Bu Maternity. These appear on exports and in messages to mothers."
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Clinic name"
-              value={clinicName}
-              onChange={e => setClinicName(e.target.value)}
-              fullWidth
-            />
-            <Input
-              label="Unit"
-              value={clinicUnit}
-              onChange={e => setClinicUnit(e.target.value)}
-              fullWidth
-            />
-            <Input
-              label="City"
-              value={clinicCity}
-              onChange={e => setClinicCity(e.target.value)}
-              fullWidth
-            />
-            <Input
-              label="Support phone"
-              value={supportPhone}
-              onChange={e => setSupportPhone(e.target.value)}
-              fullWidth
-            />
-          </div>
-        </Section>
+        {/* ── Section 2: Change password ───────────────────────── */}
+        <div ref={passwordSectionRef}>
+          <Section
+            heading="Change password"
+            subtitle="Choose a strong password. It must be at least 10 characters with one letter and one digit."
+          >
+            <ChangePasswordSection />
+          </Section>
+        </div>
 
         {/* ── Section 3: Notifications ────────────────────────── */}
         <Section
@@ -218,40 +408,30 @@ const SettingsPage = () => {
             label="Elevated alerts (L3)"
             description="When a mother's check-in is flagged as elevated."
             enabled={elevatedAlerts}
-            onToggle={() => setElevatedAlerts(v => !v)}
+            onToggle={() => setElevatedAlerts((v) => !v)}
           />
           <NotifRow
             label="Missed check-ins"
             description="When a scheduled call goes unanswered."
             enabled={missedCheckIns}
-            onToggle={() => setMissedCheckIns(v => !v)}
+            onToggle={() => setMissedCheckIns((v) => !v)}
           />
           <NotifRow
             label="Daily summary email"
             description="A morning digest of your cohort."
             enabled={dailySummary}
-            onToggle={() => setDailySummary(v => !v)}
+            onToggle={() => setDailySummary((v) => !v)}
           />
           <NotifRow
             label="Weekly report"
             description="Cohort trends and resolved escalations, every Monday."
             enabled={weeklyReport}
-            onToggle={() => setWeeklyReport(v => !v)}
+            onToggle={() => setWeeklyReport((v) => !v)}
             last
           />
         </Section>
 
-        {/* ── Save button ─────────────────────────────────────── */}
-        <div className="flex items-center justify-end gap-3 -mt-4">
-          {saved && (
-            <span className="text-sm text-green-600 font-medium transition-opacity">
-              Changes saved
-            </span>
-          )}
-          <Button variant="default" onClick={handleSave} className="px-6 py-2.5">
-            Save changes
-          </Button>
-        </div>
+
 
       </div>
     </div>

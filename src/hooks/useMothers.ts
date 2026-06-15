@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Mother, CheckIn } from "../types";
 
-function toCamelCase(raw: Record<string, unknown>): Mother {
+export function toMother(raw: Record<string, unknown>): Mother {
   return {
     id: raw.id as string,
     name: raw.name as string,
@@ -44,7 +44,7 @@ export const useMothers = () => {
     queryFn: async () => {
       const response = await api.get("/mothers");
       const raw = response.data.mothers as Record<string, unknown>[];
-      return (raw ?? []).map(toCamelCase);
+      return (raw ?? []).map(toMother);
     },
   });
 };
@@ -55,7 +55,7 @@ export const useMother = (id: string) => {
     queryFn: async () => {
       const response = await api.get(`/mothers/${id}`);
       const raw = response.data as Record<string, unknown>;
-      return raw ? toCamelCase(raw) : null;
+      return raw ? toMother(raw) : null;
     },
     enabled: !!id,
   });

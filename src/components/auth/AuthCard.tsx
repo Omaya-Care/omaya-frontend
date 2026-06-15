@@ -14,8 +14,8 @@ export function AuthCard({ title, subtitle, children }: AuthCardProps) {
   return (
     <div className="min-h-screen bg-[#F4F4F5] flex flex-col items-center justify-center p-4">
       <div className="max-w-[380px] w-full mx-auto flex flex-col items-center">
-        <div className="w-11 h-11 bg-[#93406B] rounded-full flex items-center justify-center mb-3">
-          <div className="w-3 h-3 bg-white rounded-full" />
+        <div className="mb-3">
+          <img src="/logo.svg" className="h-16 w-auto object-contain" alt="Omaya Care" />
         </div>
         <h1 className="text-2xl font-semibold text-gray-900 mb-3">{title}</h1>
         <p className="text-sm text-gray-500 mb-8 text-center max-w-[320px]">

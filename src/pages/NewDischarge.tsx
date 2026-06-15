@@ -226,9 +226,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         dischargePayload.phone = formData.phoneNumber;
       }
 
+      let dischargeRes;
       if (motherId) {
         // existing patient OR new patient whose record was already created on a prior failed attempt
-        await api.post(`/mothers/${motherId}/discharge`, dischargePayload);
+        dischargeRes = await api.post(`/mothers/${motherId}/discharge`, dischargePayload);
       } else {
         const motherRes = await api.post("/mothers", {
           full_name: formData.motherName,
@@ -244,12 +245,28 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         });
         const newId: string = motherRes.data.mother_id ?? motherRes.data.id;
         setMotherId(newId);
-        await api.post(`/mothers/${newId}/discharge`, dischargePayload);
+        dischargeRes = await api.post(`/mothers/${newId}/discharge`, dischargePayload);
       }
-      toast.success("Discharge recorded. Her first call has been scheduled.");
+
+      const firstCallAt: string | null = dischargeRes.data?.first_call_scheduled_at ?? null;
+      const successMsg =
+        formData.outcome === "loss"
+          ? "Discharge recorded. Bereavement support flow activated."
+          : firstCallAt
+            ? `Discharge recorded. First call scheduled for ${format(new Date(firstCallAt), "d MMM 'at' h:mm a")}.`
+            : "Discharge recorded. Her first call has been scheduled.";
+      toast.success(successMsg);
       handleClose();
-    } catch {
-      setSubmitError("Could not save discharge. Please try again.");
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number; data?: { error?: string } } })?.response?.status;
+      const code = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      if (status === 409 || code === "already_discharged") {
+        setSubmitError("This mother has already been discharged. Search for her record to view or update it.");
+      } else if (status === 403 || code === "insufficient_role") {
+        setSubmitError("You don't have permission to record discharges. Contact your administrator.");
+      } else {
+        setSubmitError("Could not save discharge. Please try again.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1252,6 +1269,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   { value: "english", label: "English" },
                   { value: "twi", label: "Twi" },
                   { value: "ga", label: "Ga" },
+                  { value: "ewe", label: "Ewe" },
                 ]}
                 selected={formData.language ? [formData.language] : []}
                 onChange={(val) =>

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, MailCheck, Leaf } from "lucide-react";
+import { ArrowLeft, MailCheck, Loader2 } from "lucide-react";
 import { Input, Button } from "../components/ui";
 import { AuthError } from "../components/auth/AuthCard";
 import { forgotPassword } from "../lib/auth-api";
@@ -54,9 +54,7 @@ const ForgotPassword = () => {
       <>
         <div className="mb-8 md:mb-12 text-center md:text-left">
           <div className="flex items-center justify-center md:justify-start mb-6 md:mb-10">
-            <div className="w-12 h-12 md:w-14 md:h-14 bg-brand-plum/10 rounded-2xl flex items-center justify-center shadow-sm">
-              <Leaf className="w-7 h-7 md:w-8 md:h-8 text-brand-plum" />
-            </div>
+            <img src="/logo.svg" className="h-16 md:h-20 w-auto object-contain" alt="Omaya Care" />
           </div>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-sans font-bold text-brand-navy mb-3 tracking-tight">Forgot password?</h1>
           <p className="text-gray-500 font-sans text-base md:text-lg font-normal">Enter your email and we'll send you a link to reset it.</p>
@@ -106,10 +104,9 @@ const ForgotPassword = () => {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#F9FAFB]">
       {/* Left Column: Image Panel */}
-      <div className="relative h-48 md:h-auto md:w-1/2 bg-brand-plum overflow-hidden">
-        <div className="absolute inset-0 bg-[#3D1A2E] opacity-40" />
+      <div className="relative h-48 md:h-auto md:w-1/2 overflow-hidden" style={{ backgroundColor: "#C08AA8" }}>
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-60 mix-blend-overlay animate-ken-burns"
+          className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay animate-ken-burns"
           style={{
             backgroundImage: "url('/login-bg.png')",
             filter: "grayscale(10%) contrast(105%)"
@@ -117,10 +114,14 @@ const ForgotPassword = () => {
         />
         <div className="relative z-10 flex flex-col items-center justify-center h-full w-full p-8 md:p-12 text-white">
           <div className="max-w-md text-center">
-             <Leaf className="w-10 h-10 md:w-16 md:h-16 mb-4 md:mb-8 mx-auto opacity-90 drop-shadow-lg" />
-             <h2 className="text-xl md:text-4xl lg:text-5xl font-sans font-semibold leading-tight tracking-tight drop-shadow-md">
-               Care that follows you home.
-             </h2>
+            <img
+              src="/logo.svg"
+              className="h-40 md:h-56 w-auto object-contain mx-auto mb-4 md:mb-8"
+              alt="Omaya Care"
+            />
+            <h2 className="text-xl md:text-4xl lg:text-5xl font-sans font-semibold leading-tight tracking-tight drop-shadow-md">
+              Care that follows you home.
+            </h2>
           </div>
         </div>
       </div>

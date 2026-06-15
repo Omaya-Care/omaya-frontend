@@ -70,16 +70,49 @@ export interface EscalationItem {
   timeLeftMinutes: number;
 }
 
-export type StaffRole = "Administrator" | "Physician" | "Midwife" | "Coordinator";
+export type StaffRole =
+  | "Administrator"
+  | "Physician"
+  | "Midwife"
+  | "Coordinator"
+  | "Paediatrician"
+  | "Psychologist";
+
 export type StaffStatus = "active" | "invited" | "suspended";
 
 export interface StaffMember {
   id: string;
-  initials: string;
   name: string;
   email: string;
   role: StaffRole;
   status: StaffStatus;
-  lastActive: string;
+  lastActiveAt: string | null;
   isCurrentUser?: boolean;
+}
+
+export interface Me {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  hospitalId: string;
+  hospitalName: string;
+  mustChangePassword: boolean;
+  permissions: RolePermissions;
+}
+
+export interface RolePermissions {
+  view_mothers: boolean;
+  message_mothers: boolean;
+  escalate: boolean;
+  create_discharges: boolean;
+  manage_staff: boolean;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  permissions: RolePermissions;
 }

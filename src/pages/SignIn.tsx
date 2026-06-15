@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, EyeOff, Leaf, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Input, Button } from "../components/ui";
 import { AuthError } from "../components/auth/AuthCard";
 import { signIn } from "../lib/auth-api";
@@ -40,16 +40,20 @@ const SignIn = () => {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#F9FAFB]">
       {/* Left Column: Brand Panel */}
-      <div className="relative h-64 md:h-auto md:w-1/2 overflow-hidden" style={{ backgroundColor: "#93406B" }}>
+      <div className="relative h-64 md:h-auto md:w-1/2 overflow-hidden" style={{ backgroundColor: "#C08AA8" }}>
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-overlay animate-ken-burns"
+          className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay animate-ken-burns"
           style={{
             backgroundImage: "url('/login-bg.png')",
             filter: "grayscale(10%) contrast(105%)"
           }}
         />
-        <div className="relative z-10 flex flex-col items-center justify-center h-full w-full p-8 md:p-12 text-white">
-          <Leaf className="w-12 h-12 md:w-16 md:h-16 opacity-80 drop-shadow-lg" />
+        <div className="relative z-10 flex flex-col items-center justify-center h-full w-full p-8 md:p-12">
+          <img
+            src="/logo.svg"
+            className="h-40 md:h-56 w-auto object-contain"
+            alt="Omaya Care"
+          />
         </div>
       </div>
 
@@ -58,9 +62,7 @@ const SignIn = () => {
         <div className="max-w-md w-full">
           <div className="mb-8 md:mb-12 text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start mb-6 md:mb-10">
-              <div className="w-12 h-12 md:w-14 md:h-14 bg-brand-plum/10 rounded-2xl flex items-center justify-center shadow-sm">
-                <Leaf className="w-7 h-7 md:w-8 md:h-8 text-brand-plum" />
-              </div>
+              <img src="/logo.svg" className="h-16 md:h-20 w-auto object-contain" alt="Omaya Care" />
             </div>
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-sans font-bold text-brand-navy mb-3 tracking-tight">Log in</h1>
             <p className="text-gray-500 font-sans text-base md:text-lg font-normal">Welcome back.</p>

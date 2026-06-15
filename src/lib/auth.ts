@@ -63,6 +63,12 @@ export function clearMustChange(): void {
   localStorage.setItem(MUST_CHANGE_KEY, "");
 }
 
+/** Replaces the stored JWT (e.g. after a password change) and clears the must-change flag. */
+export function updateToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+  clearMustChange();
+}
+
 export function clearSession(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(CLINICIAN_KEY);
