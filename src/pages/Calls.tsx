@@ -4,6 +4,13 @@ import { useCalls } from "../hooks/useCalls";
 import { CallListItem, CallDetail } from "../components/calls";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "../components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
 
 type FilterTab = "all" | "today" | "upcoming" | "completed";
 
@@ -109,14 +116,24 @@ const CallsPage = () => {
 
         {/* List — only this scrolls */}
         <div className="flex-1 overflow-y-auto border-t border-gray-50">
-          {calls.map((call) => (
-            <CallListItem
-              key={call.id}
-              call={call}
-              isSelected={selectedCallId === call.id}
-              onClick={() => handleSelectCall(call.id)}
-            />
-          ))}
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-gray-100">
+                <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide">Mother</TableHead>
+                <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide text-right">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {calls.map((call) => (
+                <CallListItem
+                  key={call.id}
+                  call={call}
+                  isSelected={selectedCallId === call.id}
+                  onClick={() => handleSelectCall(call.id)}
+                />
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </div>
 

@@ -2,6 +2,14 @@ import React, { useState } from "react";
 import { EscalationItem } from "../../types";
 import { AcknowledgeRow } from "./AcknowledgeRow";
 import { Pagination } from "../ui/Pagination";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "../ui/table";
 
 interface AlertsTableProps {
   escalations: EscalationItem[];
@@ -28,30 +36,33 @@ export const AlertsTable: React.FC<AlertsTableProps> = ({
   return (
     <div className="w-full flex-1 flex flex-col">
       <div className="flex-1 overflow-x-auto">
-        <div className="min-w-[480px]">
-          {/* Column headers row */}
-          <div className="grid grid-cols-[1fr_192px_1fr_144px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2">
-            <div>Mother</div>
-            <div>Severity</div>
-            <div>Time Left</div>
-            <div className="text-right">Action</div>
-          </div>
-
-          <div className="flex flex-col">
-            {paginatedData.map((item) => (
-              <AcknowledgeRow
-                key={item.id}
-                item={item}
-                onAcknowledge={() => onAcknowledgeClick(item)}
-              />
-            ))}
-            {paginatedData.length === 0 && (
-              <div className="flex items-center justify-center text-gray-400 text-sm py-12">
-                No urgent alerts at this time.
-              </div>
+        <Table>
+          <TableHeader>
+            <TableRow className="border-b border-gray-100">
+              <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide">Mother</TableHead>
+              <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide">Severity</TableHead>
+              <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide">Time Left</TableHead>
+              <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedData.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-gray-400 text-sm py-12">
+                  No urgent alerts at this time.
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedData.map((item) => (
+                <AcknowledgeRow
+                  key={item.id}
+                  item={item}
+                  onAcknowledge={() => onAcknowledgeClick(item)}
+                />
+              ))
             )}
-          </div>
-        </div>
+          </TableBody>
+        </Table>
       </div>
 
       <Pagination

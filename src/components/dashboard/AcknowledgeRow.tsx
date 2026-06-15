@@ -3,6 +3,7 @@ import { Badge } from "../ui/Badge";
 import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
+import { TableRow, TableCell } from "../ui/table";
 
 interface AcknowledgeRowProps {
   item: EscalationItem;
@@ -29,32 +30,25 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
   const statusStyles = getTimeStatusStyles(item.timeLeftMinutes);
 
   return (
-    <div className="flex items-center w-full border-b border-gray-50 last:border-0 py-3">
-      {/* MOTHER COLUMN */}
-      <div className="flex-1">
+    <TableRow className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <TableCell className="py-3">
         <div className="font-medium text-gray-900">{item.motherName}</div>
         <div className="text-sm font-normal text-gray-400">
           Day {item.dayPostpartum}
         </div>
-      </div>
-
-      {/* SEVERITY COLUMN */}
-      <div className="w-48">
+      </TableCell>
+      <TableCell className="py-3">
         <Badge variant="outline" className={getSeverityBadgeClass(item.severity)} dot>
           {item.severity.charAt(0).toUpperCase() + item.severity.slice(1)}
         </Badge>
-      </div>
-
-      {/* TIME LEFT COLUMN */}
-      <div className={`flex-1 ${statusStyles}`}>
+      </TableCell>
+      <TableCell className={`py-3 ${statusStyles}`}>
         <div className="text-base font-semibold">
           {formatTimeLeft(item.timeLeftMinutes)}
         </div>
         <div className="text-xs font-normal opacity-80">left within SLA</div>
-      </div>
-
-      {/* ACTION COLUMN */}
-      <div className="w-36 flex justify-end">
+      </TableCell>
+      <TableCell className="py-3 text-right">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -69,8 +63,8 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
             <p>Acknowledge this alert</p>
           </TooltipContent>
         </Tooltip>
-      </div>
-    </div>
+      </TableCell>
+    </TableRow>
   );
 };
 

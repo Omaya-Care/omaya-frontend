@@ -2,6 +2,14 @@ import React, { useState } from "react";
 import { CallItem } from "../../types";
 import { CallRow } from "./CallRow";
 import { Pagination } from "../ui/Pagination";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "../ui/table";
 
 interface CallsTableProps {
   calls: CallItem[];
@@ -24,26 +32,29 @@ export const CallsTable: React.FC<CallsTableProps> = ({ calls }) => {
   return (
     <div className="w-full">
       <div className="overflow-x-auto">
-        <div className="min-w-0 md:min-w-[480px]">
-          {/* Column headers */}
-          <div className="grid grid-cols-[1fr_100px_160px] md:grid-cols-[1fr_112px_1fr_160px] text-xs font-medium text-gray-400 tracking-wide uppercase border-b border-gray-100 pb-2">
-            <div>Mother</div>
-            <div>Time</div>
-            <div className="hidden md:block">Call Type</div>
-            <div className="text-right">Status</div>
-          </div>
-
-          <div className="flex flex-col">
-            {paginatedData.map((call) => (
-              <CallRow key={call.id} call={call} />
-            ))}
-            {paginatedData.length === 0 && (
-              <div className="flex items-center justify-center text-gray-400 text-sm py-12">
-                No calls scheduled for today.
-              </div>
+        <Table>
+          <TableHeader>
+            <TableRow className="border-b border-gray-100">
+              <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide">Mother</TableHead>
+              <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide">Time</TableHead>
+              <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide hidden md:table-cell">Call Type</TableHead>
+              <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide text-right">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedData.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-gray-400 text-sm py-12">
+                  No calls scheduled for today.
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedData.map((call) => (
+                <CallRow key={call.id} call={call} />
+              ))
             )}
-          </div>
-        </div>
+          </TableBody>
+        </Table>
       </div>
 
       <Pagination

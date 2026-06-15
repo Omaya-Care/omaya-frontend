@@ -1,6 +1,7 @@
 import { Call, CallStatus } from '../../types';
 import { Badge } from '../ui/Badge';
 import { getStatusBadgeClass } from '../../lib/badge-helpers';
+import { TableRow, TableCell } from '../ui/table';
 
 interface CallListItemProps {
   call: Call;
@@ -19,21 +20,27 @@ const CallListItem = ({ call, isSelected, onClick }: CallListItemProps) => {
   const label = statusLabel[call.status];
 
   return (
-    <div
+    <TableRow
       onClick={onClick}
       className={`
-        w-full cursor-pointer px-4 py-3.5 transition-colors border-l-2
-        ${isSelected ? 'border-[#93406B] bg-[#F7E8F0]' : 'border-transparent hover:bg-gray-50'}
+        cursor-pointer transition-colors
+        ${isSelected ? 'bg-[#F7E8F0]' : 'hover:bg-gray-50'}
       `}
     >
-      <div className="flex justify-between items-start">
-        <span className="text-sm font-semibold text-gray-900">{call.motherName}</span>
-        <Badge variant="outline" className={getStatusBadgeClass(call.status)} size="sm">{label}</Badge>
-      </div>
-      <div className="text-xs text-gray-400 mt-0.5 font-normal">
-        {call.callType} · {call.time}
-      </div>
-    </div>
+      <TableCell className={`py-3.5 pl-4 border-l-2 ${isSelected ? 'border-[#93406B]' : 'border-transparent'}`}>
+        <div className="flex flex-col">
+          <span className="text-sm font-semibold text-gray-900">{call.motherName}</span>
+          <span className="text-xs text-gray-400 mt-0.5 font-normal">
+            {call.callType} · {call.time}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell className="py-3.5 pr-4">
+        <div className="flex justify-end">
+          <Badge variant="outline" className={getStatusBadgeClass(call.status)} size="sm">{label}</Badge>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 };
 
