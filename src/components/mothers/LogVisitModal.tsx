@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { ChevronDown, MessageSquare, Check } from 'lucide-react';
-import { Modal } from '../ui/Modal';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '../ui/dialog';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 
@@ -37,21 +43,22 @@ const LogVisitModal = ({ isOpen, onClose, onSave, motherName, dayPostpartum }: L
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg">
-      <div className="flex flex-col">
-        {/* HEADER */}
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="text-lg font-semibold text-gray-900">Log visit</h3>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-400 font-normal">{motherName}</span>
-            <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-100" size="sm">
-              Day {dayPostpartum}
-            </Badge>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <div className="flex items-center gap-2 mb-1">
+            <DialogTitle className="text-lg font-semibold text-gray-900">Log visit</DialogTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-400 font-normal">{motherName}</span>
+              <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-100" size="sm">
+                Day {dayPostpartum}
+              </Badge>
+            </div>
           </div>
-        </div>
+        </DialogHeader>
 
         {/* FORM */}
-        <div className="mt-5 flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Clinical observation *</label>
             <textarea
@@ -84,15 +91,14 @@ const LogVisitModal = ({ isOpen, onClose, onSave, motherName, dayPostpartum }: L
         </div>
 
         {/* INFO BOX */}
-        <div className="mt-5 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex gap-3 items-start">
+        <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex gap-3 items-start">
           <MessageSquare size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
           <p className="text-sm text-gray-500 font-normal leading-relaxed">
             Saving sends <strong className="font-semibold">{motherName}</strong> a plain-language summary within an hour.
           </p>
         </div>
 
-        {/* BUTTONS */}
-        <div className="mt-5 flex justify-end gap-3">
+        <DialogFooter className="flex justify-end gap-3">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
@@ -105,9 +111,9 @@ const LogVisitModal = ({ isOpen, onClose, onSave, motherName, dayPostpartum }: L
             <Check size={18} />
             <span>Save visit</span>
           </Button>
-        </div>
-      </div>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

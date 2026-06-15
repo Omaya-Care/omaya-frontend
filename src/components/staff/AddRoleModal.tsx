@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '../ui/dialog';
 import { Button } from '../ui/Button';
 import { Input } from '@/components/ui/input';
 
@@ -20,28 +27,15 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/30" onClick={handleClose} />
-      <div
-        className="relative bg-white rounded-2xl shadow-xl w-full max-w-[calc(100vw-2rem)] sm:w-[440px] p-6 sm:p-8 mx-4 sm:mx-0"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Close button */}
-        <button
-          onClick={handleClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <X size={18} />
-        </button>
-
-        {/* Title */}
-        <h2 className="text-xl font-semibold text-gray-900">Add a role</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          New roles start with no permissions. Grant them in the matrix.
-        </p>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-semibold text-gray-900">Add a role</DialogTitle>
+          <DialogDescription className="text-sm text-gray-500 mt-1">
+            New roles start with no permissions. Grant them in the matrix.
+          </DialogDescription>
+        </DialogHeader>
 
         {/* Fields */}
         <div className="mt-6 flex flex-col gap-4">
@@ -65,13 +59,12 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 mt-7">
+        <DialogFooter className="flex justify-end gap-3 mt-7">
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
           <Button variant="default" disabled={!canSubmit}>Create role</Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

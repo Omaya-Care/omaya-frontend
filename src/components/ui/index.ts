@@ -1,7 +1,6 @@
 export * from "./Button";
 export * from "./input";
 export * from "./Badge";
-export * from "./Modal";
 export * from "./Pagination";
 export * from "./calendar";
 export * from "./popover";
@@ -14,3 +13,4 @@ export * from "./sonner";
 export * from "./tooltip";
 export * from "./table";
 export * from "./alert";
+export * from "./dialog";

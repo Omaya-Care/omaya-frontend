@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { X, Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../ui/dialog";
 import { Button } from "../ui/Button";
 import { Input } from "@/components/ui/input";
 import { useAddStaff } from "../../hooks/useMutations";
@@ -74,30 +82,17 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/30" onClick={handleClose} />
-      <div
-        className="relative bg-white rounded-2xl shadow-xl w-full max-w-[calc(100vw-2rem)] sm:w-[480px] p-6 sm:p-8 max-h-[90vh] overflow-y-auto mx-4 sm:mx-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close button */}
-        <button
-          onClick={handleClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <X size={18} />
-        </button>
-
-        {/* Title */}
-        <h2 className="text-xl font-semibold text-gray-900">
-          Add a staff member
-        </h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Invite them by email, or create the account directly.
-        </p>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-semibold text-gray-900">
+            Add a staff member
+          </DialogTitle>
+          <DialogDescription className="text-sm text-gray-500 mt-1">
+            Invite them by email, or create the account directly.
+          </DialogDescription>
+        </DialogHeader>
 
         {error && (
           <div className="mt-4">
@@ -110,7 +105,6 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
         )}
 
         {/* Toggle tabs */}
-
         <div className="flex mt-5 bg-gray-100 rounded-lg p-0.5 gap-0.5">
           {[
             { key: "invite" as TabKey, label: "Invite by email" },
@@ -181,8 +175,7 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 mt-7">
+        <DialogFooter className="flex justify-end gap-3 mt-7">
           <Button
             variant="outline"
             onClick={handleClose}
@@ -205,9 +198,9 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
                 ? "Send invite"
                 : "Create account"}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
