@@ -49,6 +49,8 @@ const MotherDetail = ({
   onLogVisitClick,
   onEditClick,
 }: MotherDetailProps) => {
+  const triggerCall = useTriggerCall();
+
   if (!mother) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
@@ -61,7 +63,6 @@ const MotherDetail = ({
   }
 
   const isWithdrawn = mother.consentStatus === "withdrawn";
-  const triggerCall = useTriggerCall();
   const consent = consentConfig[mother.consentStatus] ?? { label: mother.consentStatus, className: "bg-gray-100 text-gray-500" };
 
   const handleCallNow = async () => {

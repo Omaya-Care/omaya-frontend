@@ -3,7 +3,7 @@ import { Search, ArrowLeft, SlidersHorizontal } from "lucide-react";
 import { isToday, parseISO } from "date-fns";
 import { useCalls, useCall } from "../hooks/useCalls";
 import { CallListItem, CallDetail } from "../components/calls";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/Input";
 import { Skeleton } from "../components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import {

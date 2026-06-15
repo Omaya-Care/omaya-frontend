@@ -8,7 +8,7 @@ import {
   DialogFooter,
 } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
-import { Input } from '../ui/input';
+import { Input } from '../ui/Input';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';

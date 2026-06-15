@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, Lock, Eye, EyeOff, AlertCircle, AlertTriangle } from 'lucide-react';
-import { Input } from '../components/ui/input';
+import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
 import { Alert, AlertDescription } from '../components/ui/alert';

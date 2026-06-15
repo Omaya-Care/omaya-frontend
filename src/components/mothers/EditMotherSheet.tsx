@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Loader2, CalendarIcon, AlertCircle } from "lucide-react";
 import { format, parse } from "date-fns";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import { Button } from "../ui/Button";
-import { Input } from "../ui/input";
+import { Input } from "../ui/Input";
 import { Alert, AlertDescription } from "../ui/alert";
 import { ChipSelect } from "../onboarding";
 import { Calendar } from "../ui/calendar";
@@ -37,37 +37,35 @@ const DELIVERY_TYPE_OPTIONS = [
   { value: "caesarean", label: "Caesarean" },
 ];
 
+const buildForm = (mother: Mother) => ({
+  phone: mother.phone,
+  dateOfBirth: mother.dateOfBirth ?? "",
+  language: mother.language ?? "",
+  gravida: mother.gravida != null ? String(mother.gravida) : "",
+  para: mother.para != null ? String(mother.para) : "",
+  preferredCallWindow: mother.preferredCallWindow ?? "",
+  deliveryType: mother.deliveryType ?? "",
+  deliveryDate: mother.deliveryDate ?? "",
+});
+
 const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
   const updateMutation = useUpdateMother();
 
-  const [form, setForm] = useState({
-    phone: mother.phone,
-    dateOfBirth: mother.dateOfBirth ?? "",
-    language: mother.language ?? "",
-    gravida: mother.gravida != null ? String(mother.gravida) : "",
-    para: mother.para != null ? String(mother.para) : "",
-    preferredCallWindow: mother.preferredCallWindow ?? "",
-    deliveryType: mother.deliveryType ?? "",
-    deliveryDate: mother.deliveryDate ?? "",
-  });
-
+  const [form, setForm] = useState(() => buildForm(mother));
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Re-seed the form each time the sheet opens (or the mother changes while
+  // open) by comparing against the previous open-signature during render —
+  // avoids the extra render + stale-value flash of a useEffect.
+  const openSig = isOpen ? mother.id : "__closed__";
+  const [prevSig, setPrevSig] = useState(openSig);
+  if (openSig !== prevSig) {
+    setPrevSig(openSig);
     if (isOpen) {
-      setForm({
-        phone: mother.phone,
-        dateOfBirth: mother.dateOfBirth ?? "",
-        language: mother.language ?? "",
-        gravida: mother.gravida != null ? String(mother.gravida) : "",
-        para: mother.para != null ? String(mother.para) : "",
-        preferredCallWindow: mother.preferredCallWindow ?? "",
-        deliveryType: mother.deliveryType ?? "",
-        deliveryDate: mother.deliveryDate ?? "",
-      });
+      setForm(buildForm(mother));
       setError(null);
     }
-  }, [isOpen, mother]);
+  }
 
   const updateField = (field: keyof typeof form, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));

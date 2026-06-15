@@ -9,7 +9,7 @@ import {
   DialogFooter,
 } from "../ui/dialog";
 import { Button } from "../ui/Button";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/Input";
 import { Alert, AlertDescription } from "../ui/alert";
 import { useAddStaff } from "../../hooks/useMutations";
 import { StaffRole } from "../../types";
