@@ -2,6 +2,7 @@ import { EscalationItem } from "../../types";
 import { Badge } from "../ui/Badge";
 import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 
 interface AcknowledgeRowProps {
   item: EscalationItem;
@@ -54,13 +55,20 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
 
       {/* ACTION COLUMN */}
       <div className="w-36 flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onAcknowledge(item.id)}
-        >
-          Acknowledge
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onAcknowledge(item.id)}
+            >
+              Acknowledge
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>Acknowledge this alert</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

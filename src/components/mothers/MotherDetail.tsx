@@ -14,6 +14,7 @@ import { Mother } from "../../types";
 import { Badge } from "../ui/Badge";
 import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { formatDate } from "../../lib/format";
 
 interface MotherDetailProps {
@@ -193,33 +194,54 @@ const MotherDetail = ({
       <div className="mt-auto pt-4 border-t border-gray-200 flex justify-between items-center sticky bottom-0 bg-white">
         <div>
           {!isWithdrawn && (
-            <button
-              onClick={onWithdrawClick}
-              className="text-sm text-red-500 font-normal flex items-center gap-1.5 hover:underline"
-            >
-              <XCircle size={16} />
-              <span>Withdraw from program</span>
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onWithdrawClick}
+                  className="text-sm text-red-500 font-normal flex items-center gap-1.5 hover:underline"
+                >
+                  <XCircle size={16} />
+                  <span>Withdraw from program</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>This will stop all scheduled calls for this mother.</p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-1.5"
-            onClick={onLogVisitClick}
-          >
-            <ClipboardList size={16} />
-            <span className="font-medium">Log visit</span>
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            className="flex items-center gap-1.5"
-          >
-            <Phone size={16} />
-            <span className="font-medium">Call now</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1.5"
+                onClick={onLogVisitClick}
+              >
+                <ClipboardList size={16} />
+                <span className="font-medium">Log visit</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Record a manual visit or note.</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size="sm"
+                className="flex items-center gap-1.5"
+              >
+                <Phone size={16} />
+                <span className="font-medium">Call now</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Start a call with this mother.</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </div>

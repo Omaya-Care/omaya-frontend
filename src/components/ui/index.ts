@@ -11,3 +11,4 @@ export * from "./card";
 export * from "./separator";
 export * from "./skeleton";
 export * from "./sonner";
+export * from "./tooltip";

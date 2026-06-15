@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
 import { getSeverityBadgeClass } from '../../lib/badge-helpers';
 import { Button } from '../ui/Button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { EscalationItem } from '../../types';
 
 interface EscalationModalProps {
@@ -104,18 +105,25 @@ const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationMod
         </div>
 
         {/* ACKNOWLEDGE BUTTON */}
-        <Button
-          variant="default"
-          size="lg"
-          className="mt-5 gap-2 w-full"
-          onClick={() => {
-            onAcknowledge();
-            onClose();
-          }}
-        >
-          <Check size={20} />
-          <span>Acknowledge</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="default"
+              size="lg"
+              className="mt-5 gap-2 w-full"
+              onClick={() => {
+                onAcknowledge();
+                onClose();
+              }}
+            >
+              <Check size={20} />
+              <span>Acknowledge</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>Acknowledge this alert</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </Modal>
   );

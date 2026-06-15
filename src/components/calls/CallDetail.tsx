@@ -3,6 +3,7 @@ import { Call, CallStatus } from '../../types';
 import { Badge } from '../ui/Badge';
 import { getSeverityBadgeClass, getStatusBadgeClass } from '../../lib/badge-helpers';
 import { Button } from '../ui/Button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 interface CallDetailProps {
   call: Call | null;
@@ -113,10 +114,17 @@ const CallDetail = ({ call }: CallDetailProps) => {
           <PhoneCall size={16} />
           <span className="font-medium">View mother record</span>
         </Button>
-        <Button variant="default" size="sm" className="flex items-center gap-1.5">
-          <Phone size={16} />
-          <span className="font-medium">Call now</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="default" size="sm" className="flex items-center gap-1.5">
+              <Phone size={16} />
+              <span className="font-medium">Call now</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>Start a call with this mother.</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

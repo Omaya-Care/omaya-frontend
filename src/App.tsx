@@ -16,6 +16,7 @@ import { RequireAuth } from "./components/auth/RequireAuth";
 import { DocsGate } from "./components/auth/DocsGate";
 import { DrawerProvider } from "./contexts/DrawerContext";
 import { Toaster } from "./components/ui/sonner";
+import { TooltipProvider } from "./components/ui/tooltip";
 import DocsLoading from "./components/DocsLoading";
 
 const Docs = lazy(() => import("./Docs"));
@@ -73,6 +74,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <DrawerProvider>
+          <TooltipProvider>
           <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
           {isDocsHost ? (
             // Docs host: only sign-in + the gated docs. Everything funnels
@@ -141,6 +143,7 @@ export default function App() {
             </SentryRoutes>
           )}
           </Sentry.ErrorBoundary>
+          </TooltipProvider>
         </DrawerProvider>
         <Toaster />
       </BrowserRouter>

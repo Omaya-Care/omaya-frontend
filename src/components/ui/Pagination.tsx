@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
+import { Tooltip, TooltipTrigger, TooltipContent } from './tooltip';
 
 interface PaginationProps {
   currentPage: number;
@@ -85,13 +86,22 @@ export const Pagination: React.FC<PaginationProps> = ({
         {showNav && (
           <div className="flex items-center gap-2">
             {/* Previous */}
-            <button
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-1 text-gray-400 hover:text-[#93406B] disabled:opacity-20 transition-all"
-            >
-              <ChevronLeft size={16} />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => onPageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="p-1 text-gray-400 hover:text-[#93406B] disabled:opacity-20 transition-all"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+              </TooltipTrigger>
+              {currentPage > 1 && (
+                <TooltipContent side="top">
+                  <p>Previous page</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
 
             {/* Numbers */}
             <div className="flex items-center gap-1.5">
@@ -118,13 +128,22 @@ export const Pagination: React.FC<PaginationProps> = ({
             </div>
 
             {/* Next */}
-            <button
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="p-1 text-gray-400 hover:text-[#93406B] disabled:opacity-20 transition-all"
-            >
-              <ChevronRight size={16} />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => onPageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="p-1 text-gray-400 hover:text-[#93406B] disabled:opacity-20 transition-all"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </TooltipTrigger>
+              {currentPage < totalPages && (
+                <TooltipContent side="top">
+                  <p>Next page</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </div>
         )}
       </div>

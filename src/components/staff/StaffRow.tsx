@@ -13,7 +13,7 @@ const statusConfig: Record<StaffStatus, { dot: string; text: string; label: stri
 };
 
 const StaffRow = ({ member }: StaffRowProps) => {
-  const { dot, text, label } = statusConfig[member.status];
+  const { text, label } = statusConfig[member.status];
 
   return (
     <div className="grid grid-cols-[1fr_160px_144px_180px] items-center px-6 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">

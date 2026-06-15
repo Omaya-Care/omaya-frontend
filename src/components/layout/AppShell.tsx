@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useDrawer } from "../../contexts/DrawerContext";
 import { getClinician, clearSession, initialsOf } from "../../lib/auth";
-import { Sheet, SheetContent } from "../../components/ui";
+import { Sheet, SheetContent, Tooltip, TooltipTrigger, TooltipContent } from "../../components/ui";
 
 const AddMother = lazy(() => import("../../pages/AddMother"));
 const NewDischarge = lazy(() => import("../../pages/NewDischarge"));
@@ -118,17 +118,24 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               `}
             >
               {({ isActive }) => (
-                <>
-                  <item.icon
-                    size={18}
-                    className={
-                      isActive
-                        ? "text-[#93406B]"
-                        : "text-gray-400 group-hover:text-gray-500"
-                    }
-                  />
-                  <span>{item.label}</span>
-                </>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-3">
+                      <item.icon
+                        size={18}
+                        className={
+                          isActive
+                            ? "text-[#93406B]"
+                            : "text-gray-400 group-hover:text-gray-500"
+                        }
+                      />
+                      <span>{item.label}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>{item.label}</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </NavLink>
           ))}
