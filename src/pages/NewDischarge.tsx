@@ -226,7 +226,8 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         dischargePayload.phone = formData.phoneNumber;
       }
 
-      if (foundMother && motherId) {
+      if (motherId) {
+        // existing patient OR new patient whose record was already created on a prior failed attempt
         await api.post(`/mothers/${motherId}/discharge`, dischargePayload);
       } else {
         const motherRes = await api.post("/mothers", {
@@ -242,6 +243,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           consent_recording: formData.consentRecording,
         });
         const newId: string = motherRes.data.mother_id ?? motherRes.data.id;
+        setMotherId(newId);
         await api.post(`/mothers/${newId}/discharge`, dischargePayload);
       }
       toast.success("Discharge recorded. Her first call has been scheduled.");
@@ -509,7 +511,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         <div className="flex flex-col mt-6">
           <StepHeader
             title="Before we start"
-            description="This takes about 5 minutes. You're enrolling her in Omaya's follow-up care program. She'll receive check-in calls after delivery to make sure she and her baby are doing well."
+            description="This takes about 3 minutes. You're enrolling her in Omaya's follow-up care program. She'll receive check-in calls after delivery to make sure she and her baby are doing well."
           />
           <div className="flex flex-col gap-3">
             {[
@@ -564,27 +566,45 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           <div className="flex flex-col gap-5">
             <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-1">
               <div className="flex flex-col">
-                <span className="text-xs text-gray-400 font-medium">Full name</span>
-                <span className="text-sm font-semibold text-gray-900">{foundMother.name}</span>
+                <span className="text-xs text-gray-400 font-medium">
+                  Full name
+                </span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {foundMother.name}
+                </span>
               </div>
               <div className="flex flex-col">
                 <span className="text-xs text-gray-400 font-medium">Phone</span>
-                <span className="text-sm font-semibold text-gray-900">{foundMother.phone}</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {foundMother.phone}
+                </span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">Delivery date</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Delivery date
+                </label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
                       className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.deliveryDate ? "border-red-400" : "border-gray-200"}`}
                     >
-                      <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+                      <CalendarIcon
+                        size={16}
+                        className="text-gray-400 shrink-0"
+                      />
                       {formData.deliveryDate ? (
-                        format(parse(formData.deliveryDate, "yyyy-MM-dd", new Date()), "dd/MM/yyyy")
+                        format(
+                          parse(
+                            formData.deliveryDate,
+                            "yyyy-MM-dd",
+                            new Date(),
+                          ),
+                          "dd/MM/yyyy",
+                        )
                       ) : (
                         <span className="text-gray-400">Select date</span>
                       )}
@@ -593,26 +613,53 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={formData.deliveryDate ? parse(formData.deliveryDate, "yyyy-MM-dd", new Date()) : undefined}
-                      onSelect={(date) => updateField("deliveryDate", date ? format(date, "yyyy-MM-dd") : "")}
+                      selected={
+                        formData.deliveryDate
+                          ? parse(
+                              formData.deliveryDate,
+                              "yyyy-MM-dd",
+                              new Date(),
+                            )
+                          : undefined
+                      }
+                      onSelect={(date) =>
+                        updateField(
+                          "deliveryDate",
+                          date ? format(date, "yyyy-MM-dd") : "",
+                        )
+                      }
                     />
                   </PopoverContent>
                 </Popover>
                 {touched && !formData.deliveryDate && (
-                  <span className="text-xs text-red-500">Please select a delivery date</span>
+                  <span className="text-xs text-red-500">
+                    Please select a delivery date
+                  </span>
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">Discharge date</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Discharge date
+                </label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
                       className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.dischargeDate ? "border-red-400" : "border-gray-200"}`}
                     >
-                      <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+                      <CalendarIcon
+                        size={16}
+                        className="text-gray-400 shrink-0"
+                      />
                       {formData.dischargeDate ? (
-                        format(parse(formData.dischargeDate, "yyyy-MM-dd", new Date()), "dd/MM/yyyy")
+                        format(
+                          parse(
+                            formData.dischargeDate,
+                            "yyyy-MM-dd",
+                            new Date(),
+                          ),
+                          "dd/MM/yyyy",
+                        )
                       ) : (
                         <span className="text-gray-400">Select date</span>
                       )}
@@ -621,20 +668,39 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={formData.dischargeDate ? parse(formData.dischargeDate, "yyyy-MM-dd", new Date()) : undefined}
-                      onSelect={(date) => updateField("dischargeDate", date ? format(date, "yyyy-MM-dd") : "")}
+                      selected={
+                        formData.dischargeDate
+                          ? parse(
+                              formData.dischargeDate,
+                              "yyyy-MM-dd",
+                              new Date(),
+                            )
+                          : undefined
+                      }
+                      onSelect={(date) =>
+                        updateField(
+                          "dischargeDate",
+                          date ? format(date, "yyyy-MM-dd") : "",
+                        )
+                      }
                     />
                   </PopoverContent>
                 </Popover>
                 {touched && !formData.dischargeDate && (
-                  <span className="text-xs text-red-500">Please select a discharge date</span>
+                  <span className="text-xs text-red-500">
+                    Please select a discharge date
+                  </span>
                 )}
               </div>
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">Delivery type</label>
-              <div className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>div]:border-red-400" : ""}`}>
+              <label className="text-sm font-semibold text-gray-700 mb-3">
+                Delivery type
+              </label>
+              <div
+                className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>div]:border-red-400" : ""}`}
+              >
                 {[
                   { id: "vaginal", icon: Baby, title: "Vaginal delivery" },
                   { id: "caesarean", icon: Scissors, title: "C-section" },
@@ -644,18 +710,31 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     onClick={() => updateField("deliveryType", type.id as any)}
                     className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex flex-col items-center text-center gap-2 ${formData.deliveryType === type.id ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 hover:border-[#93406B]/40"}`}
                   >
-                    <type.icon size={24} className={formData.deliveryType === type.id ? "text-[#93406B]" : "text-gray-400"} />
-                    <span className="text-sm font-semibold text-gray-900">{type.title}</span>
+                    <type.icon
+                      size={24}
+                      className={
+                        formData.deliveryType === type.id
+                          ? "text-[#93406B]"
+                          : "text-gray-400"
+                      }
+                    />
+                    <span className="text-sm font-semibold text-gray-900">
+                      {type.title}
+                    </span>
                   </div>
                 ))}
               </div>
               {touched && !formData.deliveryType && (
-                <span className="text-xs text-red-500 mt-2">Please select a delivery type</span>
+                <span className="text-xs text-red-500 mt-2">
+                  Please select a delivery type
+                </span>
               )}
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">Preferred calling window</label>
+              <label className="text-sm font-semibold text-gray-700 mb-3">
+                Preferred calling window
+              </label>
               <ChipSelect
                 options={[
                   { value: "morning", label: "Morning 8am-11am" },
@@ -663,8 +742,15 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   { value: "evening", label: "Evening 4pm-6pm" },
                   { value: "inbound", label: "She will call in" },
                 ]}
-                selected={formData.callingWindow ? [formData.callingWindow] : []}
-                onChange={(val) => updateField("callingWindow", val.length > 0 ? (val[0] as any) : "")}
+                selected={
+                  formData.callingWindow ? [formData.callingWindow] : []
+                }
+                onChange={(val) =>
+                  updateField(
+                    "callingWindow",
+                    val.length > 0 ? (val[0] as any) : "",
+                  )
+                }
                 max={1}
               />
               {formData.callingWindow === "inbound" && (
@@ -673,7 +759,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 </span>
               )}
               {touched && !formData.callingWindow && (
-                <span className="text-xs text-red-500 mt-1">Please select a calling window</span>
+                <span className="text-xs text-red-500 mt-1">
+                  Please select a calling window
+                </span>
               )}
             </div>
           </div>
@@ -689,23 +777,42 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           />
           <div className="flex flex-col gap-3">
             {[
-              { id: "well", icon: CheckCircle2, title: "Mother and baby are well", description: "Both mother and newborn are stable and healthy" },
-              { id: "loss", icon: Heart, title: "There was a loss", description: "Bereavement support flow will be activated" },
+              {
+                id: "well",
+                icon: CheckCircle2,
+                title: "Mother and baby are well",
+                description: "Both mother and newborn are stable and healthy",
+              },
+              {
+                id: "loss",
+                icon: Heart,
+                title: "There was a loss",
+                description: "Bereavement support flow will be activated",
+              },
             ].map((outcome) => (
               <div
                 key={outcome.id}
                 onClick={() => updateField("outcome", outcome.id as any)}
                 className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 hover:border-[#93406B]/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
               >
-                <outcome.icon size={24} className={`shrink-0 ${formData.outcome === outcome.id ? "text-[#93406B]" : "text-gray-400"}`} />
+                <outcome.icon
+                  size={24}
+                  className={`shrink-0 ${formData.outcome === outcome.id ? "text-[#93406B]" : "text-gray-400"}`}
+                />
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">{outcome.title}</span>
-                  <span className="text-xs text-gray-500 mt-0.5">{outcome.description}</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {outcome.title}
+                  </span>
+                  <span className="text-xs text-gray-500 mt-0.5">
+                    {outcome.description}
+                  </span>
                 </div>
               </div>
             ))}
             {touched && !formData.outcome && (
-              <span className="text-xs text-red-500">Please select an outcome</span>
+              <span className="text-xs text-red-500">
+                Please select an outcome
+              </span>
             )}
           </div>
         </div>
@@ -763,22 +870,34 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               {
                 label: "Delivery date",
                 value: formData.deliveryDate
-                  ? format(parse(formData.deliveryDate, "yyyy-MM-dd", new Date()), "dd/MM/yyyy")
-                  : "—",
+                  ? format(
+                      parse(formData.deliveryDate, "yyyy-MM-dd", new Date()),
+                      "dd/MM/yyyy",
+                    )
+                  : "",
               },
               {
                 label: "Discharge date",
                 value: formData.dischargeDate
-                  ? format(parse(formData.dischargeDate, "yyyy-MM-dd", new Date()), "dd/MM/yyyy")
-                  : "—",
+                  ? format(
+                      parse(formData.dischargeDate, "yyyy-MM-dd", new Date()),
+                      "dd/MM/yyyy",
+                    )
+                  : "",
               },
               {
                 label: "Delivery type",
-                value: formData.deliveryType === "vaginal" ? "Vaginal delivery" : "C-section",
+                value:
+                  formData.deliveryType === "vaginal"
+                    ? "Vaginal delivery"
+                    : "C-section",
               },
               {
                 label: "Outcome",
-                value: formData.outcome === "well" ? "Mother and baby well" : "Pregnancy loss",
+                value:
+                  formData.outcome === "well"
+                    ? "Mother and baby well"
+                    : "Pregnancy loss",
               },
               {
                 label: "Medications",
@@ -795,7 +914,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     afternoon: "Afternoon 12pm–3pm",
                     evening: "Evening 4pm–6pm",
                     inbound: "She will call in",
-                  }[formData.callingWindow] || "—",
+                  }[formData.callingWindow] || "",
               },
               {
                 label: "First call",
@@ -803,7 +922,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   formData.outcome === "well"
                     ? formData.callingWindow === "inbound"
                       ? "Care line number will be sent to her"
-                      : firstCallDate || "—"
+                      : firstCallDate || ""
                     : "Bereavement support flow",
                 highlight: true,
               },
@@ -812,8 +931,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 key={idx}
                 className={`flex justify-between items-center px-6 py-3 ${idx % 2 === 1 ? "bg-gray-50" : ""}`}
               >
-                <span className="text-sm text-gray-500 font-normal">{row.label}</span>
-                <span className={`text-sm font-semibold ${row.highlight ? "text-[#93406B]" : "text-gray-900"}`}>
+                <span className="text-sm text-gray-500 font-normal">
+                  {row.label}
+                </span>
+                <span
+                  className={`text-sm font-semibold ${row.highlight ? "text-[#93406B]" : "text-gray-900"}`}
+                >
                   {row.value}
                 </span>
               </div>
@@ -839,21 +962,32 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   placeholder="e.g. Ama Mensah"
                   value={formData.motherName}
                   onChange={(e) => updateField("motherName", e.target.value)}
-                  className={touched && !formData.motherName ? "border-red-400" : ""}
+                  className={
+                    touched && !formData.motherName ? "border-red-400" : ""
+                  }
                   fullWidth
                 />
                 {touched && !formData.motherName && (
-                  <span className="text-xs text-red-500">Please enter her full name</span>
+                  <span className="text-xs text-red-500">
+                    Please enter her full name
+                  </span>
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">Phone number</label>
-                <div className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${touched && (!formData.phoneNumber || !phoneValid) ? "border-red-400" : "border-gray-200"}`}>
+                <label className="text-sm font-medium text-gray-700">
+                  Phone number
+                </label>
+                <div
+                  className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${touched && (!formData.phoneNumber || !phoneValid) ? "border-red-400" : "border-gray-200"}`}
+                >
                   <Select
                     value={countryCode}
                     onValueChange={(val) => {
                       setCountryCode(val);
-                      const local = formData.phoneNumber.replace(countryCode, "");
+                      const local = formData.phoneNumber.replace(
+                        countryCode,
+                        "",
+                      );
                       updateField("phoneNumber", local ? `${val}${local}` : "");
                     }}
                   >
@@ -874,43 +1008,75 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     placeholder="55 123 4567"
                     value={formData.phoneNumber.replace(countryCode, "")}
                     onChange={(e) => {
-                      const raw = e.target.value.replace(/\D/g, "").replace(/^0+/, "");
-                      updateField("phoneNumber", raw ? `${countryCode}${raw}` : "");
+                      const raw = e.target.value
+                        .replace(/\D/g, "")
+                        .replace(/^0+/, "");
+                      updateField(
+                        "phoneNumber",
+                        raw ? `${countryCode}${raw}` : "",
+                      );
                     }}
                     className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
                   />
                 </div>
                 {touched && !formData.phoneNumber && (
-                  <span className="text-xs text-red-500">Please enter a phone number</span>
+                  <span className="text-xs text-red-500">
+                    Please enter a phone number
+                  </span>
                 )}
                 {touched && formData.phoneNumber && !phoneValid && (
-                  <span className="text-xs text-red-500">Please enter a valid phone number</span>
+                  <span className="text-xs text-red-500">
+                    Please enter a valid phone number
+                  </span>
                 )}
               </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Date of birth</label>
+              <label className="text-sm font-medium text-gray-700">
+                Date of birth
+              </label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="ghost"
                     className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.dateOfBirth ? "border-red-400" : "border-gray-200"}`}
                   >
-                    <CalendarIcon size={16} className="text-gray-400 shrink-0" />
-                    {formData.dateOfBirth ? format(parse(formData.dateOfBirth, "yyyy-MM-dd", new Date()), "dd/MM/yyyy") : <span className="text-gray-400">Select date</span>}
+                    <CalendarIcon
+                      size={16}
+                      className="text-gray-400 shrink-0"
+                    />
+                    {formData.dateOfBirth ? (
+                      format(
+                        parse(formData.dateOfBirth, "yyyy-MM-dd", new Date()),
+                        "dd/MM/yyyy",
+                      )
+                    ) : (
+                      <span className="text-gray-400">Select date</span>
+                    )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={formData.dateOfBirth ? parse(formData.dateOfBirth, "yyyy-MM-dd", new Date()) : undefined}
-                    onSelect={(date) => updateField("dateOfBirth", date ? format(date, "yyyy-MM-dd") : "")}
+                    selected={
+                      formData.dateOfBirth
+                        ? parse(formData.dateOfBirth, "yyyy-MM-dd", new Date())
+                        : undefined
+                    }
+                    onSelect={(date) =>
+                      updateField(
+                        "dateOfBirth",
+                        date ? format(date, "yyyy-MM-dd") : "",
+                      )
+                    }
                   />
                 </PopoverContent>
               </Popover>
               {touched && !formData.dateOfBirth && (
-                <span className="text-xs text-red-500">Please select her date of birth</span>
+                <span className="text-xs text-red-500">
+                  Please select her date of birth
+                </span>
               )}
             </div>
 
@@ -924,13 +1090,18 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   value={formData.gravida}
                   onChange={(e) => {
                     const val = e.target.value;
-                    if (val === "" || parseInt(val) >= 0) updateField("gravida", val);
+                    if (val === "" || parseInt(val) >= 0)
+                      updateField("gravida", val);
                   }}
-                  className={touched && formData.gravida === "" ? "border-red-400" : ""}
+                  className={
+                    touched && formData.gravida === "" ? "border-red-400" : ""
+                  }
                   fullWidth
                 />
                 {touched && formData.gravida === "" && (
-                  <span className="text-xs text-red-500">Please enter number of pregnancies</span>
+                  <span className="text-xs text-red-500">
+                    Please enter number of pregnancies
+                  </span>
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
@@ -942,70 +1113,139 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   value={formData.para}
                   onChange={(e) => {
                     const val = e.target.value;
-                    if (val === "" || parseInt(val) >= 0) updateField("para", val);
+                    if (val === "" || parseInt(val) >= 0)
+                      updateField("para", val);
                   }}
-                  className={touched && formData.para === "" ? "border-red-400" : ""}
+                  className={
+                    touched && formData.para === "" ? "border-red-400" : ""
+                  }
                   fullWidth
                 />
                 {touched && formData.para === "" && (
-                  <span className="text-xs text-red-500">Please enter number of births</span>
+                  <span className="text-xs text-red-500">
+                    Please enter number of births
+                  </span>
                 )}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">Delivery date</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Delivery date
+                </label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
                       className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.deliveryDate ? "border-red-400" : "border-gray-200"}`}
                     >
-                      <CalendarIcon size={16} className="text-gray-400 shrink-0" />
-                      {formData.deliveryDate ? format(parse(formData.deliveryDate, "yyyy-MM-dd", new Date()), "dd/MM/yyyy") : <span className="text-gray-400">Select date</span>}
+                      <CalendarIcon
+                        size={16}
+                        className="text-gray-400 shrink-0"
+                      />
+                      {formData.deliveryDate ? (
+                        format(
+                          parse(
+                            formData.deliveryDate,
+                            "yyyy-MM-dd",
+                            new Date(),
+                          ),
+                          "dd/MM/yyyy",
+                        )
+                      ) : (
+                        <span className="text-gray-400">Select date</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={formData.deliveryDate ? parse(formData.deliveryDate, "yyyy-MM-dd", new Date()) : undefined}
-                      onSelect={(date) => updateField("deliveryDate", date ? format(date, "yyyy-MM-dd") : "")}
+                      selected={
+                        formData.deliveryDate
+                          ? parse(
+                              formData.deliveryDate,
+                              "yyyy-MM-dd",
+                              new Date(),
+                            )
+                          : undefined
+                      }
+                      onSelect={(date) =>
+                        updateField(
+                          "deliveryDate",
+                          date ? format(date, "yyyy-MM-dd") : "",
+                        )
+                      }
                     />
                   </PopoverContent>
                 </Popover>
                 {touched && !formData.deliveryDate && (
-                  <span className="text-xs text-red-500">Please select a delivery date</span>
+                  <span className="text-xs text-red-500">
+                    Please select a delivery date
+                  </span>
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">Discharge date</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Discharge date
+                </label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
                       className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.dischargeDate ? "border-red-400" : "border-gray-200"}`}
                     >
-                      <CalendarIcon size={16} className="text-gray-400 shrink-0" />
-                      {formData.dischargeDate ? format(parse(formData.dischargeDate, "yyyy-MM-dd", new Date()), "dd/MM/yyyy") : <span className="text-gray-400">Select date</span>}
+                      <CalendarIcon
+                        size={16}
+                        className="text-gray-400 shrink-0"
+                      />
+                      {formData.dischargeDate ? (
+                        format(
+                          parse(
+                            formData.dischargeDate,
+                            "yyyy-MM-dd",
+                            new Date(),
+                          ),
+                          "dd/MM/yyyy",
+                        )
+                      ) : (
+                        <span className="text-gray-400">Select date</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={formData.dischargeDate ? parse(formData.dischargeDate, "yyyy-MM-dd", new Date()) : undefined}
-                      onSelect={(date) => updateField("dischargeDate", date ? format(date, "yyyy-MM-dd") : "")}
+                      selected={
+                        formData.dischargeDate
+                          ? parse(
+                              formData.dischargeDate,
+                              "yyyy-MM-dd",
+                              new Date(),
+                            )
+                          : undefined
+                      }
+                      onSelect={(date) =>
+                        updateField(
+                          "dischargeDate",
+                          date ? format(date, "yyyy-MM-dd") : "",
+                        )
+                      }
                     />
                   </PopoverContent>
                 </Popover>
                 {touched && !formData.dischargeDate && (
-                  <span className="text-xs text-red-500">Please select a discharge date</span>
+                  <span className="text-xs text-red-500">
+                    Please select a discharge date
+                  </span>
                 )}
               </div>
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">Preferred language for calls</label>
+              <label className="text-sm font-semibold text-gray-700 mb-3">
+                Preferred language for calls
+              </label>
               <ChipSelect
                 max={1}
                 options={[
@@ -1014,15 +1254,21 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   { value: "ga", label: "Ga" },
                 ]}
                 selected={formData.language ? [formData.language] : []}
-                onChange={(val) => updateField("language", val.length > 0 ? val[0] : "")}
+                onChange={(val) =>
+                  updateField("language", val.length > 0 ? val[0] : "")
+                }
               />
               {touched && !formData.language && (
-                <span className="text-xs text-red-500 mt-1">Please select a preferred language</span>
+                <span className="text-xs text-red-500 mt-1">
+                  Please select a preferred language
+                </span>
               )}
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">Preferred calling window</label>
+              <label className="text-sm font-semibold text-gray-700 mb-3">
+                Preferred calling window
+              </label>
               <ChipSelect
                 max={1}
                 options={[
@@ -1031,8 +1277,15 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   { value: "evening", label: "Evening 4pm-6pm" },
                   { value: "inbound", label: "She will call in" },
                 ]}
-                selected={formData.callingWindow ? [formData.callingWindow] : []}
-                onChange={(val) => updateField("callingWindow", val.length > 0 ? (val[0] as any) : "")}
+                selected={
+                  formData.callingWindow ? [formData.callingWindow] : []
+                }
+                onChange={(val) =>
+                  updateField(
+                    "callingWindow",
+                    val.length > 0 ? (val[0] as any) : "",
+                  )
+                }
               />
               {formData.callingWindow === "inbound" && (
                 <span className="text-xs text-[#93406B] font-medium mt-2">
@@ -1040,13 +1293,19 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 </span>
               )}
               {touched && !formData.callingWindow && (
-                <span className="text-xs text-red-500 mt-1">Please select a calling window</span>
+                <span className="text-xs text-red-500 mt-1">
+                  Please select a calling window
+                </span>
               )}
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">Delivery type</label>
-              <div className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>div]:border-red-400" : ""}`}>
+              <label className="text-sm font-semibold text-gray-700 mb-3">
+                Delivery type
+              </label>
+              <div
+                className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>div]:border-red-400" : ""}`}
+              >
                 {[
                   { id: "vaginal", icon: Baby, title: "Vaginal delivery" },
                   { id: "caesarean", icon: Scissors, title: "C-section" },
@@ -1056,13 +1315,24 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     onClick={() => updateField("deliveryType", type.id as any)}
                     className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex flex-col items-center text-center gap-2 ${formData.deliveryType === type.id ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 hover:border-[#93406B]/40"}`}
                   >
-                    <type.icon size={24} className={formData.deliveryType === type.id ? "text-[#93406B]" : "text-gray-400"} />
-                    <span className="text-sm font-semibold text-gray-900">{type.title}</span>
+                    <type.icon
+                      size={24}
+                      className={
+                        formData.deliveryType === type.id
+                          ? "text-[#93406B]"
+                          : "text-gray-400"
+                      }
+                    />
+                    <span className="text-sm font-semibold text-gray-900">
+                      {type.title}
+                    </span>
                   </div>
                 ))}
               </div>
               {touched && !formData.deliveryType && (
-                <span className="text-xs text-red-500 mt-2">Please select a delivery type</span>
+                <span className="text-xs text-red-500 mt-2">
+                  Please select a delivery type
+                </span>
               )}
             </div>
           </div>
@@ -1078,23 +1348,42 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           />
           <div className="flex flex-col gap-3">
             {[
-              { id: "well", icon: CheckCircle2, title: "Mother and baby are well", description: "Both mother and newborn are stable and healthy" },
-              { id: "loss", icon: Heart, title: "There was a loss", description: "Bereavement support flow will be activated" },
+              {
+                id: "well",
+                icon: CheckCircle2,
+                title: "Mother and baby are well",
+                description: "Both mother and newborn are stable and healthy",
+              },
+              {
+                id: "loss",
+                icon: Heart,
+                title: "There was a loss",
+                description: "Bereavement support flow will be activated",
+              },
             ].map((outcome) => (
               <div
                 key={outcome.id}
                 onClick={() => updateField("outcome", outcome.id as any)}
                 className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 hover:border-[#93406B]/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
               >
-                <outcome.icon size={24} className={`shrink-0 ${formData.outcome === outcome.id ? "text-[#93406B]" : "text-gray-400"}`} />
+                <outcome.icon
+                  size={24}
+                  className={`shrink-0 ${formData.outcome === outcome.id ? "text-[#93406B]" : "text-gray-400"}`}
+                />
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">{outcome.title}</span>
-                  <span className="text-xs text-gray-500 mt-0.5">{outcome.description}</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {outcome.title}
+                  </span>
+                  <span className="text-xs text-gray-500 mt-0.5">
+                    {outcome.description}
+                  </span>
                 </div>
               </div>
             ))}
             {touched && !formData.outcome && (
-              <span className="text-xs text-red-500">Please select an outcome</span>
+              <span className="text-xs text-red-500">
+                Please select an outcome
+              </span>
             )}
           </div>
         </div>
@@ -1110,13 +1399,19 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           <div className="flex flex-col gap-5">
             <div className="flex flex-col">
               <h4 className="text-xs font-semibold text-gray-400 tracking-wide uppercase mb-4">
-                Risk factors — select all that apply
+                Risk factors
               </h4>
               <ChipSelect
                 options={[
                   { value: "prior_csection", label: "Previous C-section" },
-                  { value: "hypertension", label: "High blood pressure or pre-eclampsia" },
-                  { value: "diabetes", label: "Diabetes (including during pregnancy)" },
+                  {
+                    value: "hypertension",
+                    label: "High blood pressure or pre-eclampsia",
+                  },
+                  {
+                    value: "diabetes",
+                    label: "Diabetes (including during pregnancy)",
+                  },
                   { value: "multiple", label: "Twins or more" },
                   { value: "sickle_cell", label: "Sickle cell disease" },
                   { value: "prior_loss", label: "Previous pregnancy loss" },
@@ -1142,45 +1437,70 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Consent required</AlertTitle>
-                <AlertDescription>You must obtain consent to check-in calls before enrolling</AlertDescription>
+                <AlertDescription>
+                  You must obtain consent to check-in calls before enrolling
+                </AlertDescription>
               </Alert>
             </div>
           )}
           <div className="flex flex-col gap-4">
             <div
-              onClick={() => updateField("consentCalls", !formData.consentCalls)}
+              onClick={() =>
+                updateField("consentCalls", !formData.consentCalls)
+              }
               className={`border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentCalls ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 bg-white"} ${touched && !formData.consentCalls ? "border-red-400" : ""}`}
             >
-              <div className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentCalls ? "bg-[#93406B] border-[#93406B]" : "bg-white border-gray-300"}`}>
-                {formData.consentCalls && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+              <div
+                className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentCalls ? "bg-[#93406B] border-[#93406B]" : "bg-white border-gray-300"}`}
+              >
+                {formData.consentCalls && (
+                  <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                )}
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-semibold text-gray-900">Check-in calls</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  Check-in calls
+                </span>
                 <p className="text-sm text-gray-500 font-normal mt-1 leading-relaxed">
-                  Omaya will call her to check how she and her baby are doing after she goes home. She can ask to stop at any time.
+                  Omaya will call her to check how she and her baby are doing
+                  after she goes home. She can ask to stop at any time.
                 </p>
-                <span className="text-xs text-[#93406B] font-semibold mt-2 uppercase tracking-wide">Required to enroll</span>
+                <span className="text-xs text-[#93406B] font-semibold mt-2 uppercase tracking-wide">
+                  Required to enroll
+                </span>
               </div>
             </div>
 
             <div
-              onClick={() => updateField("consentRecording", !formData.consentRecording)}
+              onClick={() =>
+                updateField("consentRecording", !formData.consentRecording)
+              }
               className={`border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentRecording ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 bg-white"}`}
             >
-              <div className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentRecording ? "bg-[#93406B] border-[#93406B]" : "bg-white border-gray-300"}`}>
-                {formData.consentRecording && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+              <div
+                className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentRecording ? "bg-[#93406B] border-[#93406B]" : "bg-white border-gray-300"}`}
+              >
+                {formData.consentRecording && (
+                  <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                )}
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-semibold text-gray-900">Call recording</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  Call recording
+                </span>
                 <p className="text-sm text-gray-500 font-normal mt-1 leading-relaxed">
-                  Calls may be recorded to improve care quality. Recordings are stored securely and only used by her care team.
+                  Calls may be recorded to improve care quality. Recordings are
+                  stored securely and only used by her care team.
                 </p>
-                <span className="text-xs text-gray-400 font-semibold mt-2 uppercase tracking-wide">Optional</span>
+                <span className="text-xs text-gray-400 font-semibold mt-2 uppercase tracking-wide">
+                  Optional
+                </span>
               </div>
             </div>
           </div>
           <p className="text-xs text-gray-400 font-normal mt-6">
-            By tapping 'Confirm discharge', you confirm that you have explained this program to the mother and she has agreed to participate.
+            By tapping 'Confirm discharge', you confirm that you have explained
+            this program to the mother and she has agreed to participate.
           </p>
         </div>
       )}
@@ -1207,38 +1527,68 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               { label: "Phone", value: formData.phoneNumber },
               {
                 label: "Date of birth",
-                value: formData.dateOfBirth ? format(parse(formData.dateOfBirth, "yyyy-MM-dd", new Date()), "dd/MM/yyyy") : "—",
+                value: formData.dateOfBirth
+                  ? format(
+                      parse(formData.dateOfBirth, "yyyy-MM-dd", new Date()),
+                      "dd/MM/yyyy",
+                    )
+                  : "",
               },
-              { label: "Gravida / Para", value: `G${formData.gravida} P${formData.para}` },
+              {
+                label: "Gravida / Para",
+                value: `G${formData.gravida} P${formData.para}`,
+              },
               {
                 label: "Delivery date",
-                value: formData.deliveryDate ? format(parse(formData.deliveryDate, "yyyy-MM-dd", new Date()), "dd/MM/yyyy") : "—",
+                value: formData.deliveryDate
+                  ? format(
+                      parse(formData.deliveryDate, "yyyy-MM-dd", new Date()),
+                      "dd/MM/yyyy",
+                    )
+                  : "",
               },
               {
                 label: "Discharge date",
-                value: formData.dischargeDate ? format(parse(formData.dischargeDate, "yyyy-MM-dd", new Date()), "dd/MM/yyyy") : "—",
+                value: formData.dischargeDate
+                  ? format(
+                      parse(formData.dischargeDate, "yyyy-MM-dd", new Date()),
+                      "dd/MM/yyyy",
+                    )
+                  : "",
               },
               {
                 label: "Delivery type",
-                value: formData.deliveryType === "vaginal" ? "Vaginal delivery" : "C-section",
+                value:
+                  formData.deliveryType === "vaginal"
+                    ? "Vaginal delivery"
+                    : "C-section",
               },
               {
                 label: "Outcome",
-                value: formData.outcome === "well" ? "Mother and baby well" : "Pregnancy loss",
+                value:
+                  formData.outcome === "well"
+                    ? "Mother and baby well"
+                    : "Pregnancy loss",
               },
               {
                 label: "Language",
-                value: { english: "English", twi: "Twi", ga: "Ga" }[formData.language] || formData.language,
+                value:
+                  { english: "English", twi: "Twi", ga: "Ga" }[
+                    formData.language
+                  ] || formData.language,
               },
               {
                 label: "Clinical risks",
-                value: formData.risks.length > 0
-                  ? formData.risks.map((r) => r.replace(/_/g, " ")).join(", ")
-                  : "None recorded",
+                value:
+                  formData.risks.length > 0
+                    ? formData.risks.map((r) => r.replace(/_/g, " ")).join(", ")
+                    : "None recorded",
               },
               {
                 label: "Consent",
-                value: formData.consentCalls ? "Consented to calls" : "No consent",
+                value: formData.consentCalls
+                  ? "Consented to calls"
+                  : "No consent",
                 highlight: formData.consentCalls,
               },
               {
@@ -1247,7 +1597,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   formData.outcome === "well"
                     ? formData.callingWindow === "inbound"
                       ? "Care line number will be sent to her"
-                      : firstCallDate || "—"
+                      : firstCallDate || ""
                     : "Bereavement support flow",
                 highlight: true,
               },
@@ -1256,8 +1606,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 key={idx}
                 className={`flex justify-between items-center px-6 py-3 ${idx % 2 === 1 ? "bg-gray-50" : ""}`}
               >
-                <span className="text-sm text-gray-500 font-normal">{row.label}</span>
-                <span className={`text-sm font-semibold ${row.highlight ? "text-[#93406B]" : "text-gray-900"}`}>
+                <span className="text-sm text-gray-500 font-normal">
+                  {row.label}
+                </span>
+                <span
+                  className={`text-sm font-semibold ${row.highlight ? "text-[#93406B]" : "text-gray-900"}`}
+                >
                   {row.value}
                 </span>
               </div>

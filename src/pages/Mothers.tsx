@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { useDrawer } from "../contexts/DrawerContext";
 import { Plus, Search, ArrowLeft, UserRound, SlidersHorizontal } from "lucide-react";
-import { useMothers } from "../hooks/useMothers";
-import { useConfirmConsentAction } from "../hooks/useMutations";
+import { useMothers, useMother } from "../hooks/useMothers";
+import { useWithdrawMother } from "../hooks/useMutations";
 import {
   MotherListItem,
   MotherDetail,
   WithdrawModal,
   LogVisitModal,
-  type LogVisitData,
 } from "../components/mothers";
+import { EditMotherSheet } from "../components/mothers/EditMotherSheet";
 import { Button } from "../components/ui/Button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,22 +23,29 @@ import { toast } from "sonner";
 
 const MothersPage = () => {
   const { openDrawer } = useDrawer();
+  const location = useLocation();
   const { data: mothers = [], isLoading } = useMothers();
-  const withdrawMutation = useConfirmConsentAction("withdrawal");
-  const [selectedMotherId, setSelectedMotherId] = useState<string>("");
+  const withdrawMutation = useWithdrawMother();
+  const [selectedMotherId, setSelectedMotherId] = useState<string>(
+    (location.state as { motherId?: string } | null)?.motherId ?? ""
+  );
+  const { data: selectedMother = null, isLoading: isMotherLoading } = useMother(selectedMotherId);
 
-  console.log("[MothersPage] mothers from API:", mothers);
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [logVisitModalOpen, setLogVisitModalOpen] = useState(false);
+  const [editSheetOpen, setEditSheetOpen] = useState(false);
 
   useEffect(() => {
     if (mothers.length > 0 && !selectedMotherId) {
       setSelectedMotherId(mothers[0].id);
     }
-  }, [mothers, selectedMotherId]);
+    // If navigated with a motherId, open detail panel on mobile too
+    const navMotherId = (location.state as { motherId?: string } | null)?.motherId;
+    if (navMotherId) setMobileDetailOpen(true);
+  }, [mothers, selectedMotherId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredMothers = useMemo(() => {
     return mothers.filter((mother) => {
@@ -47,17 +55,15 @@ const MothersPage = () => {
     });
   }, [mothers, severityFilter, statusFilter]);
 
-  const selectedMother = mothers.find((m) => m.id === selectedMotherId) || null;
-
   const handleSelectMother = (id: string) => {
     setSelectedMotherId(id);
     setMobileDetailOpen(true);
   };
 
-  const handleWithdrawConfirm = async () => {
+  const handleWithdrawConfirm = async (reason: string) => {
     if (selectedMother) {
       try {
-        await withdrawMutation.mutateAsync(selectedMother.id);
+        await withdrawMutation.mutateAsync({ motherId: selectedMother.id, reason });
         toast.success("Mother withdrawn from program.");
         setWithdrawModalOpen(false);
       } catch (err) {
@@ -67,9 +73,6 @@ const MothersPage = () => {
     }
   };
 
-  const handleLogVisitSave = (data: LogVisitData) => {
-    console.log("visit saved", data);
-  };
 
   if (isLoading && mothers.length === 0) {
     return (
@@ -127,7 +130,7 @@ const MothersPage = () => {
             variant="default"
             size="sm"
             className="flex items-center gap-1.5 px-3"
-            onClick={() => openDrawer("add-mother")}
+            onClick={() => openDrawer("discharge")}
           >
             <Plus size={16} />
             <span className="font-medium">Add</span>
@@ -234,11 +237,41 @@ const MothersPage = () => {
           <span>Back to list</span>
         </button>
 
-        <MotherDetail
-          mother={selectedMother}
-          onWithdrawClick={() => setWithdrawModalOpen(true)}
-          onLogVisitClick={() => setLogVisitModalOpen(true)}
-        />
+        {isMotherLoading ? (
+          <div className="flex flex-col gap-6">
+            <div className="pb-5 border-b border-gray-200">
+              <Skeleton className="h-8 w-48 mb-2" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <div className="pb-5 border-b border-gray-200 flex flex-col gap-3">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+            </div>
+            <div className="pb-5 border-b border-gray-200">
+              <Skeleton className="h-4 w-24 mb-3" />
+              <div className="flex flex-col gap-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-x-16 gap-y-5">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="flex flex-col gap-1.5">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-5 w-28" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <MotherDetail
+            mother={selectedMother}
+            onWithdrawClick={() => setWithdrawModalOpen(true)}
+            onLogVisitClick={() => setLogVisitModalOpen(true)}
+            onEditClick={() => setEditSheetOpen(true)}
+          />
+        )}
       </div>
 
       {selectedMother && (
@@ -252,9 +285,14 @@ const MothersPage = () => {
           <LogVisitModal
             isOpen={logVisitModalOpen}
             onClose={() => setLogVisitModalOpen(false)}
-            onSave={handleLogVisitSave}
+            motherId={selectedMother.id}
             motherName={selectedMother.name}
             dayPostpartum={selectedMother.dayPostpartum}
+          />
+          <EditMotherSheet
+            isOpen={editSheetOpen}
+            onClose={() => setEditSheetOpen(false)}
+            mother={selectedMother}
           />
         </>
       )}

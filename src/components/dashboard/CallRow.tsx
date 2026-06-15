@@ -1,7 +1,19 @@
+import { format, parseISO, isValid } from "date-fns";
 import { Call } from "../../types";
 import { Badge } from "../ui/Badge";
 import { getStatusBadgeClass } from "../../lib/badge-helpers";
 import { TableRow, TableCell } from "../ui/table";
+
+function formatCallTime(raw: string): string {
+  if (!raw || raw === "--:--") return raw;
+  try {
+    const date = parseISO(raw);
+    if (isValid(date)) return format(date, "h:mm a");
+  } catch {
+    // not an ISO string, fall through
+  }
+  return raw;
+}
 
 interface CallRowProps {
   call: Call;
@@ -23,15 +35,11 @@ const CallRow = ({
   onMarkCompleted,
   onReschedule,
 }: CallRowProps) => {
-  console.log("CallRow data:", call);
   const label = statusLabel[call.status] ?? call.status;
 
-  // Map fields from API (handling potential snake_case from backend)
-  const motherName =
-    call.motherName || (call as any).mother_name || "Unknown Mother";
-  const time =
-    call.time || (call as any).time || (call as any).scheduled_at || "--:--";
-  const callType = call.callType || (call as any).call_type || "Check-in";
+  const motherName = call.motherName;
+  const time = call.scheduledAt;
+  const callType = call.callType;
 
   return (
     <TableRow className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
@@ -39,7 +47,7 @@ const CallRow = ({
         {motherName}
       </TableCell>
       <TableCell className="py-3 text-xs md:text-sm text-gray-700">
-        {time}
+        {formatCallTime(time)}
       </TableCell>
       <TableCell className="py-3 text-sm text-gray-500 hidden md:table-cell">
         {callType}

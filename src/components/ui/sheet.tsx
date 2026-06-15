@@ -74,7 +74,7 @@ const SheetContent = React.forwardRef<
         {side === "right" && (
           <div className="absolute left-0 top-0 w-px h-full bg-gray-200" />
         )}
-        <div className="h-full overflow-hidden">{children}</div>
+        <div className="h-full flex flex-col">{children}</div>
         <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>

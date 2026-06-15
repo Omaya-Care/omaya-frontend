@@ -35,9 +35,9 @@ export const useTriggerCall = () => {
       const response = await api.post(`/mothers/${motherId}/calls`);
       return response.data;
     },
-    onSuccess: () => {
-      // Refresh calls list
+    onSuccess: (_data, motherId) => {
       queryClient.invalidateQueries({ queryKey: ["calls"] });
+      queryClient.invalidateQueries({ queryKey: ["mother", motherId] });
     },
   });
 };
@@ -54,6 +54,64 @@ export const useConfirmConsentAction = (type: "consent" | "withdrawal") => {
           : `/mothers/${motherId}/confirm-withdrawal`;
       const response = await api.post(endpoint);
       return response.data;
+    },
+  });
+};
+
+export const useLogVisit = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      motherId,
+      clinicalObservation,
+      medicationAdvice,
+      nextAction,
+    }: {
+      motherId: string;
+      clinicalObservation: string;
+      medicationAdvice: string;
+      nextAction: string;
+    }) => {
+      const response = await api.post(`/mothers/${motherId}/visits`, {
+        clinical_observation: clinicalObservation,
+        medication_advice: medicationAdvice,
+        next_action: nextAction,
+      });
+      return response.data;
+    },
+    onSuccess: (_data, { motherId }) => {
+      queryClient.invalidateQueries({ queryKey: ["mother", motherId] });
+    },
+  });
+};
+
+export const useUpdateMother = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ motherId, data }: { motherId: string; data: Record<string, unknown> }) => {
+      const response = await api.patch(`/mothers/${motherId}`, data);
+      return response.data;
+    },
+    onSuccess: (_data, { motherId }) => {
+      queryClient.invalidateQueries({ queryKey: ["mothers"] });
+      queryClient.invalidateQueries({ queryKey: ["mother", motherId] });
+    },
+  });
+};
+
+export const useWithdrawMother = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ motherId, reason }: { motherId: string; reason: string }) => {
+      const response = await api.post(`/mothers/${motherId}/withdraw`, {
+        reason,
+        send_confirmation_sms: true,
+      });
+      return response.data;
+    },
+    onSuccess: (_data, { motherId }) => {
+      queryClient.invalidateQueries({ queryKey: ["mothers"] });
+      queryClient.invalidateQueries({ queryKey: ["mother", motherId] });
     },
   });
 };

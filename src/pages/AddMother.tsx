@@ -268,10 +268,12 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
             ].map((card, idx) => (
               <Card key={idx} className="border-gray-100 shadow-none">
                 <CardContent className="p-4 flex items-start gap-3">
-                  <card.icon
-                    size={20}
-                    className="text-[#93406B] mt-0.5 shrink-0"
-                  />
+                  <div className="w-10 h-10 rounded-full bg-[#F7E8F0] flex items-center justify-center shrink-0">
+                    <card.icon
+                      size={20}
+                      className="text-[#93406B] mt-0.5 shrink-0"
+                    />
+                  </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-semibold text-gray-900">
                       {card.title}
@@ -713,7 +715,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                       parse(formData.dob, "yyyy-MM-dd", new Date()),
                       "dd/MM/yyyy",
                     )
-                  : "—",
+                  : "",
               },
               {
                 label: "Expected delivery",
@@ -722,7 +724,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                       parse(formData.edd, "yyyy-MM-dd", new Date()),
                       "dd/MM/yyyy",
                     )
-                  : "—",
+                  : "",
               },
               {
                 label: "Gravida / Para",

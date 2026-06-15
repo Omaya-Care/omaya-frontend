@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { XCircle } from 'lucide-react';
 import {
   Dialog,
@@ -12,13 +13,25 @@ import { Button } from '../ui/Button';
 interface WithdrawModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (reason: string) => void;
   motherName: string;
 }
 
 const WithdrawModal = ({ isOpen, onClose, onConfirm, motherName }: WithdrawModalProps) => {
+  const [reason, setReason] = useState("");
+
+  const handleConfirm = () => {
+    onConfirm(reason);
+    setReason("");
+  };
+
+  const handleClose = () => {
+    setReason("");
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-start gap-3">
@@ -35,17 +48,25 @@ const WithdrawModal = ({ isOpen, onClose, onConfirm, motherName }: WithdrawModal
             </div>
           </div>
         </DialogHeader>
-        <DialogFooter className="mt-6 flex justify-end gap-3">
-          <Button variant="outline" onClick={onClose}>
+
+        <div className="mt-4">
+          <label className="text-sm font-medium text-gray-700 block mb-1.5">
+            Reason for withdrawal <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Mother requested no further calls."
+            rows={3}
+            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+          />
+        </div>
+
+        <DialogFooter className="mt-4 flex justify-end gap-3">
+          <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-          >
+          <Button variant="default" onClick={handleConfirm}>
             Withdraw consent
           </Button>
         </DialogFooter>

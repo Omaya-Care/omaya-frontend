@@ -39,23 +39,17 @@ const SignIn = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#F9FAFB]">
-      {/* Left Column: Image Panel */}
-      <div className="relative h-64 md:h-auto md:w-1/2 bg-brand-plum overflow-hidden">
-        <div className="absolute inset-0 bg-[#3D1A2E] opacity-40" />
+      {/* Left Column: Brand Panel */}
+      <div className="relative h-64 md:h-auto md:w-1/2 overflow-hidden" style={{ backgroundColor: "#93406B" }}>
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-60 mix-blend-overlay animate-ken-burns"
+          className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-overlay animate-ken-burns"
           style={{
             backgroundImage: "url('/login-bg.png')",
             filter: "grayscale(10%) contrast(105%)"
           }}
         />
         <div className="relative z-10 flex flex-col items-center justify-center h-full w-full p-8 md:p-12 text-white">
-          <div className="max-w-md text-center">
-             <Leaf className="w-12 h-12 md:w-16 md:h-16 mb-6 md:mb-8 mx-auto opacity-90 drop-shadow-lg" />
-             <h2 className="text-2xl md:text-4xl lg:text-5xl font-sans font-semibold leading-tight tracking-tight drop-shadow-md">
-               Care that follows you home.
-             </h2>
-          </div>
+          <Leaf className="w-12 h-12 md:w-16 md:h-16 opacity-80 drop-shadow-lg" />
         </div>
       </div>
 
@@ -118,7 +112,7 @@ const SignIn = () => {
                 type="submit"
                 size="lg"
                 disabled={submitting}
-                className="bg-brand-plum hover:bg-[#3D1A2E] text-white py-4 md:py-5 text-base md:text-lg font-bold transition-all shadow-xl shadow-brand-plum/20 active:scale-[0.98] w-full"
+                className="py-4 md:py-5 text-base md:text-lg font-bold w-full"
               >
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign In
