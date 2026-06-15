@@ -160,7 +160,7 @@ export default function Docs() {
         <Button
           variant="secondary"
           size="lg"
-          fullWidth
+          className="w-full"
           onClick={() => window.location.assign('/')}
         >
           Back to sign in
@@ -178,7 +178,7 @@ export default function Docs() {
         <Button
           variant="secondary"
           size="lg"
-          fullWidth
+          className="w-full"
           onClick={() => window.location.reload()}
         >
           Retry
