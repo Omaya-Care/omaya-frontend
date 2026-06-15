@@ -233,7 +233,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           full_name: formData.motherName,
           phone: formData.phoneNumber,
           date_of_birth: formData.dateOfBirth,
-          edd: formData.edd,
+          edd: formData.deliveryDate,
           gravida: parseInt(formData.gravida) || 0,
           para: parseInt(formData.para) || 0,
           language: formData.language,
@@ -241,7 +241,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           consent_calls: formData.consentCalls,
           consent_recording: formData.consentRecording,
         });
-        const newId: string = motherRes.data.id ?? motherRes.data._id;
+        const newId: string = motherRes.data.mother_id ?? motherRes.data.id;
         await api.post(`/mothers/${newId}/discharge`, dischargePayload);
       }
       toast.success("Discharge recorded. Her first call has been scheduled.");

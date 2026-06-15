@@ -148,7 +148,7 @@ const MotherDetail = ({
           {
             icon: Heart,
             label: "Delivery type",
-            value: mother.deliveryType.charAt(0).toUpperCase() + mother.deliveryType.slice(1),
+            value: mother.deliveryType ? mother.deliveryType.charAt(0).toUpperCase() + mother.deliveryType.slice(1) : "—",
           },
           {
             icon: Clock,
@@ -158,7 +158,7 @@ const MotherDetail = ({
           {
             icon: ShieldCheck,
             label: "Consent status",
-            value: mother.consentStatus.charAt(0).toUpperCase() + mother.consentStatus.slice(1),
+            value: mother.consentStatus ? mother.consentStatus.charAt(0).toUpperCase() + mother.consentStatus.slice(1) : "—",
           },
           {
             icon: MessageCircle,
