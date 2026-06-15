@@ -158,9 +158,9 @@ export default function Docs() {
         subtitle="Your account isn't on the API documentation allowlist. Ask an Omaya administrator to add you."
       >
         <Button
-          variant="secondary"
+          variant="outline"
           size="lg"
-          fullWidth
+          className="w-full"
           onClick={() => window.location.assign('/')}
         >
           Back to sign in
@@ -176,9 +176,9 @@ export default function Docs() {
         subtitle="The API spec couldn't be loaded. Check that the backend is reachable and try again."
       >
         <Button
-          variant="secondary"
+          variant="outline"
           size="lg"
-          fullWidth
+          className="w-full"
           onClick={() => window.location.reload()}
         >
           Retry

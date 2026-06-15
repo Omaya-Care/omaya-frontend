@@ -108,9 +108,9 @@ const SetupPassword = () => {
         subtitle="This link is invalid or has already been used. Request a fresh one and we'll email it to you."
       >
         <Button
-          variant="primary"
+          variant="default"
           size="lg"
-          fullWidth
+          className="w-full"
           onClick={() => navigate("/forgot-password")}
         >
           Request a new link
@@ -152,7 +152,6 @@ const SetupPassword = () => {
           autoComplete="new-password"
           fullWidth
           required
-          hint="At least 10 characters, with a letter and a digit."
           rightIcon={
             <button
               type="button"
@@ -182,11 +181,12 @@ const SetupPassword = () => {
         <div className="pt-1">
           <Button
             type="submit"
-            variant="primary"
+            variant="default"
             size="lg"
-            fullWidth
-            loading={submitting}
+            disabled={submitting}
+            className="w-full"
           >
+            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isInvite ? "Activate account" : "Reset password"}
           </Button>
         </div>

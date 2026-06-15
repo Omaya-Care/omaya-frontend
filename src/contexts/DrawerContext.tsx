@@ -16,8 +16,12 @@ export const DrawerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   return (
     <DrawerContext.Provider value={{
       drawerType,
-      openDrawer: (type) => setDrawerType(type),
-      closeDrawer: () => setDrawerType(null),
+      openDrawer: (type) => {
+        setDrawerType(type);
+      },
+      closeDrawer: () => {
+        setDrawerType(null);
+      },
     }}>
       {children}
     </DrawerContext.Provider>

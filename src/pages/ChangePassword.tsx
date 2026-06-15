@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Input, Button } from "../components/ui";
 import { AuthCard, AuthError } from "../components/auth/AuthCard";
 import { changePassword, validatePassword } from "../lib/auth-api";
@@ -89,7 +89,6 @@ const ChangePassword = () => {
           autoComplete="new-password"
           fullWidth
           required
-          hint="At least 10 characters, with a letter and a digit."
         />
 
         <Input
@@ -105,11 +104,12 @@ const ChangePassword = () => {
         <div className="pt-1">
           <Button
             type="submit"
-            variant="primary"
+            variant="default"
             size="lg"
-            fullWidth
-            loading={submitting}
+            disabled={submitting}
+            className="w-full"
           >
+            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Update password
           </Button>
         </div>

@@ -11,44 +11,55 @@ export interface CheckIn {
   day: number;           // day postpartum
   summary: string;       // one sentence summary
   severity: Severity;
+  transcript?: string;   // transcript text if available
 }
 
 export interface Mother {
   id: string;
   name: string;
-  dayPostpartum: number;
-  severity: Severity;
-  midwife: string;
   phone: string;
   hospital: string;
-  dischargeDate: string;
-  deliveryType: DeliveryType;
+  midwife: string;
+  severity: Severity;
   consentStatus: ConsentStatus;
-  lastInteraction: string;     // e.g. "Day 3 call · 2h ago"
-  note: string;                // short status note shown in list
+  consentRecording?: boolean;
+  lastInteraction: string;
+  note: string;
+  currentFlag?: string;
   checkIns: CheckIn[];
-  currentFlag?: string;        // the AI-generated flag text
+  // discharge info
+  deliveryType: DeliveryType;
+  deliveryDate?: string;
+  dischargeDate: string;
+  dayPostpartum: number;
+  // clinical
+  dateOfBirth?: string;
+  gravida?: number;
+  para?: number;
+  language?: string;
+  medications?: string[];
+  risks?: string[];
+  preferredCallWindow?: "morning" | "afternoon" | "evening" | "inbound";
 }
 
-export interface CallSummaryRow {
+export interface CallTranscriptRow {
   speaker: 'omaya' | 'mother';
   text: string;
 }
 
 export interface Call {
-  duration?: string;
-  deliveryType?: string;
-  dayInCare?: number;
-  severity?: Severity;
-  summaryRows?: CallSummaryRow[];
-  flagsRaised?: number;
-
   id: string;
-  time: string;
   motherId: string;
   motherName: string;
   callType: string;
   status: CallStatus;
+  scheduledAt: string;
+  durationSeconds?: number;
+  dayInCare?: number;
+  deliveryType?: string;
+  flagsRaised?: number;
+  severity?: Severity;
+  transcript?: CallTranscriptRow[];
 }
 
 export interface EscalationItem {
@@ -59,16 +70,49 @@ export interface EscalationItem {
   timeLeftMinutes: number;
 }
 
-export type StaffRole = "Administrator" | "Physician" | "Midwife" | "Coordinator";
+export type StaffRole =
+  | "Administrator"
+  | "Physician"
+  | "Midwife"
+  | "Coordinator"
+  | "Paediatrician"
+  | "Psychologist";
+
 export type StaffStatus = "active" | "invited" | "suspended";
 
 export interface StaffMember {
   id: string;
-  initials: string;
   name: string;
   email: string;
   role: StaffRole;
   status: StaffStatus;
-  lastActive: string;
+  lastActiveAt: string | null;
   isCurrentUser?: boolean;
+}
+
+export interface Me {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  hospitalId: string;
+  hospitalName: string;
+  mustChangePassword: boolean;
+  permissions: RolePermissions;
+}
+
+export interface RolePermissions {
+  view_mothers: boolean;
+  message_mothers: boolean;
+  escalate: boolean;
+  create_discharges: boolean;
+  manage_staff: boolean;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  permissions: RolePermissions;
 }

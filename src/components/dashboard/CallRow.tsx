@@ -1,74 +1,64 @@
+import { format, parseISO, isValid } from "date-fns";
 import { Call } from "../../types";
+import { Badge } from "../ui/Badge";
+import { getStatusBadgeClass } from "../../lib/badge-helpers";
+import { TableRow, TableCell } from "../ui/table";
+
+function formatCallTime(raw: string): string {
+  if (!raw || raw === "--:--") return raw;
+  try {
+    const date = parseISO(raw);
+    if (isValid(date)) return format(date, "h:mm a");
+  } catch {
+    // not an ISO string, fall through
+  }
+  return raw;
+}
 
 interface CallRowProps {
   call: Call;
 }
 
-const CallRow = ({ call }: CallRowProps) => {
-  const getStatusStyles = (status: Call["status"]) => {
-    switch (status) {
-      case "completed":
-        return {
-          label: "Completed",
-          dot: "bg-gray-600",
-          container: "bg-gray-100 text-gray-600",
-        };
-      case "in_progress":
-        return {
-          label: "In progress",
-          dot: "bg-[#16A34A]",
-          container: "bg-[#DCFCE7] text-[#16A34A]",
-        };
-      case "upcoming":
-        return {
-          label: "Upcoming",
-          dot: "bg-blue-600",
-          container: "bg-blue-50 text-blue-600",
-        };
-      case "missed":
-        return {
-          label: "Missed",
-          dot: "bg-[#DC2626]",
-          container: "bg-[#FEE2E2] text-[#DC2626]",
-        };
-      default:
-        return {
-          label: status,
-          dot: "bg-gray-400",
-          container: "bg-gray-100 text-gray-600",
-        };
-    }
-  };
+const statusLabel: Record<string, string> = {
+  completed: "Completed",
+  in_progress: "In progress",
+  upcoming: "Upcoming",
+  missed: "Missed",
+};
 
-  const statusStyle = getStatusStyles(call.status);
+const CallRow = ({
+  call,
+}: CallRowProps) => {
+  const label = statusLabel[call.status] ?? call.status;
+
+  const motherName = call.motherName;
+  const time = call.scheduledAt;
+  const callType = call.callType;
 
   return (
-    <div className="flex items-center w-full border-b border-gray-100 py-4">
-      {/* MOTHER COLUMN */}
-      <div className="flex-1 text-sm font-normal text-gray-900">
-        {call.motherName}
-      </div>
-
-      {/* TIME COLUMN */}
-      <div className="w-28 text-sm font-normal text-gray-700">{call.time}</div>
-
-      {/* CALL TYPE COLUMN */}
-      <div className="flex-1 text-sm font-normal text-gray-500">
-        {call.callType}
-      </div>
-
-      {/* STATUS COLUMN */}
-      <div className="w-40 flex justify-end">
-        <div
-          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle.container}`}
-        >
-          <span
-            className={`h-1.5 w-1.5 rounded-full mr-1.5 ${statusStyle.dot}`}
-          />
-          {statusStyle.label}
+    <TableRow className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <TableCell className="py-3 text-sm text-gray-900 truncate">
+        {motherName}
+      </TableCell>
+      <TableCell className="py-3 text-xs md:text-sm text-gray-700">
+        {formatCallTime(time)}
+      </TableCell>
+      <TableCell className="py-3 text-sm text-gray-500 hidden md:table-cell">
+        {callType}
+      </TableCell>
+      <TableCell className="py-3 text-right">
+        <div className="flex items-center justify-end gap-2">
+          <Badge
+            variant="outline"
+            className={getStatusBadgeClass(call.status)}
+            size="sm"
+            dot
+          >
+            {label}
+          </Badge>
         </div>
-      </div>
-    </div>
+      </TableCell>
+    </TableRow>
   );
 };
 

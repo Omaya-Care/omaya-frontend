@@ -1,17 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
-import { staffMembers as mockStaff } from "../data/staff";
-import { StaffMember } from "../types";
-// import { api } from "../lib/api";
+import { api } from "../lib/api";
+import { StaffMember, StaffRole, StaffStatus } from "../types";
 
-/**
- * Hook to fetch staff members.
- */
-export const useStaff = () => {
-  return useQuery<StaffMember[]>({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toStaffMember(raw: any): StaffMember {
+  return {
+    id: raw.id,
+    name: raw.name,
+    email: raw.email,
+    role: raw.role as StaffRole,
+    status: raw.status as StaffStatus,
+    lastActiveAt: raw.last_active_at ?? null,
+    isCurrentUser: raw.is_current_user ?? false,
+  };
+}
+
+export const useStaff = () =>
+  useQuery<StaffMember[]>({
     queryKey: ["staff"],
     queryFn: async () => {
-      // Real API: const response = await api.get("/admin/clinicians"); return response.data;
-      return mockStaff;
+      const res = await api.get("/admin/clinicians");
+      return (res.data.clinicians ?? []).map(toStaffMember);
     },
   });
-};

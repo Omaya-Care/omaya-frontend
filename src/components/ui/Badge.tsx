@@ -1,54 +1,46 @@
-import React from 'react';
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 
-interface BadgeProps {
-  variant?: 'crisis' | 'elevated' | 'monitor' | 'routine' | 'inactive' | 'default';
-  size?: 'sm' | 'md';
+import { cn } from "@/lib/utils"
+
+const badgeVariants = cva(
+  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default:
+          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        secondary:
+          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        destructive:
+          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+        outline: "text-foreground",
+      },
+      size: {
+        sm: "px-2 py-0.5 text-xs",
+        md: "px-2.5 py-1 text-sm",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "md",
+    },
+  }
+)
+
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {
   dot?: boolean;
-  children: React.ReactNode;
-  className?: string;
 }
 
-const Badge = ({ variant = 'default', size = 'md', dot = false, children, className = '' }: BadgeProps) => {
-  const baseStyles = 'inline-flex items-center gap-1.5 font-medium rounded-full';
-
-  const sizes = {
-    sm: 'px-2 py-0.5 text-xs',
-    md: 'px-2.5 py-1 text-sm',
-  };
-
-  const variants = {
-    crisis: 'bg-[#FEE2E2] text-[#DC2626]',
-    elevated: 'bg-[#FFEDD5] text-[#EA580C]',
-    monitor: 'bg-[#FEF9C3] text-[#CA8A04]',
-    routine: 'bg-[#DCFCE7] text-[#16A34A]',
-    inactive: 'bg-[#F3F4F6] text-[#9CA3AF]',
-    default: 'bg-gray-100 text-gray-600',
-  };
-
-  const dotColors = {
-    crisis: 'bg-[#DC2626]',
-    elevated: 'bg-[#EA580C]',
-    monitor: 'bg-[#CA8A04]',
-    routine: 'bg-[#16A34A]',
-    inactive: 'bg-[#9CA3AF]',
-    default: 'bg-gray-600',
-  };
-
-  const combinedClassName = `
-    ${baseStyles}
-    ${sizes[size]}
-    ${variants[variant]}
-    ${className}
-  `.trim().replace(/\s+/g, ' ');
-
+function Badge({ className, variant, size, dot = false, children, ...props }: BadgeProps) {
   return (
-    <span className={combinedClassName}>
-      {dot && (
-        <span className={`h-1.5 w-1.5 rounded-full ${dotColors[variant]}`} />
-      )}
+    <div className={cn(badgeVariants({ variant, size }), className)} {...props}>
+      {dot && <span className="h-1.5 w-1.5 rounded-full bg-current flex-shrink-0" />}
       {children}
-    </span>
-  );
-};
+    </div>
+  )
+}
 
-export { Badge };
+export { Badge, badgeVariants }

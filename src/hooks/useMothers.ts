@@ -1,33 +1,61 @@
 import { useQuery } from "@tanstack/react-query";
-import { mothers as mockMothers } from "../data/mothers";
-import { Mother } from "../types";
-// import { api } from "../lib/api";
+import { api } from "../lib/api";
+import { Mother, CheckIn } from "../types";
 
-/**
- * Hook to fetch the list of mothers.
- * Currently uses mock data as the GET /mothers endpoint is not in the spec yet.
- */
+export function toMother(raw: Record<string, unknown>): Mother {
+  return {
+    id: raw.id as string,
+    name: raw.name as string,
+    phone: (raw.phone as string) ?? "",
+    hospital: (raw.hospital as string) ?? "",
+    midwife: (raw.midwife as string) ?? "",
+    severity: raw.severity as Mother["severity"],
+    consentStatus: raw.consent_status as Mother["consentStatus"],
+    consentRecording: raw.consent_recording as boolean | undefined,
+    lastInteraction: (raw.last_interaction as string) ?? "",
+    note: (raw.note as string) ?? "",
+    currentFlag: (raw.current_flag as string) ?? undefined,
+    checkIns: ((raw.check_ins as Record<string, unknown>[]) ?? []).map(
+      (ci): CheckIn => ({
+        id: ci.id as string,
+        date: ci.date as string,
+        day: ci.day as number,
+        summary: ci.summary as string,
+        severity: ci.severity as CheckIn["severity"],
+      }),
+    ),
+    deliveryType: raw.delivery_type as Mother["deliveryType"],
+    deliveryDate: (raw.delivery_date as string) ?? undefined,
+    dischargeDate: (raw.discharge_date as string) ?? "",
+    dayPostpartum: (raw.day_postpartum as number) ?? 0,
+    dateOfBirth: (raw.date_of_birth as string) ?? undefined,
+    gravida: raw.gravida as number | undefined,
+    para: raw.para as number | undefined,
+    language: (raw.language as string) ?? undefined,
+    medications: (raw.medications as string[]) ?? undefined,
+    risks: (raw.risks as string[]) ?? undefined,
+    preferredCallWindow: (raw.preferred_call_window as Mother["preferredCallWindow"]) ?? undefined,
+  };
+}
+
 export const useMothers = () => {
   return useQuery<Mother[]>({
     queryKey: ["mothers"],
     queryFn: async () => {
-      // When the API is ready, we will do:
-      // const response = await api.get("/mothers");
-      // return response.data;
-
-      return mockMothers;
+      const response = await api.get("/mothers");
+      const raw = response.data.mothers as Record<string, unknown>[];
+      return (raw ?? []).map(toMother);
     },
   });
 };
 
-/**
- * Hook to fetch a single mother by ID.
- */
 export const useMother = (id: string) => {
   return useQuery<Mother | null>({
     queryKey: ["mother", id],
     queryFn: async () => {
-      return mockMothers.find((m) => m.id === id) || null;
+      const response = await api.get(`/mothers/${id}`);
+      const raw = response.data as Record<string, unknown>;
+      return raw ? toMother(raw) : null;
     },
     enabled: !!id,
   });

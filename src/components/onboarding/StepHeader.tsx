@@ -1,6 +1,5 @@
-
 interface StepHeaderProps {
-  step: number;
+  step?: number;
   title: string;
   description: string;
 }
@@ -8,12 +7,12 @@ interface StepHeaderProps {
 const StepHeader = ({ step, title, description }: StepHeaderProps) => {
   return (
     <div className="flex flex-col">
-      <span className="text-xs font-semibold text-[#93406B] tracking-wide uppercase">
-        Step {step}
-      </span>
-      <h1 className="text-2xl font-bold text-gray-900 mt-1">
-        {title}
-      </h1>
+      {step && step > 0 && (
+        <span className="text-xs font-semibold text-[#93406B] tracking-wide uppercase">
+          Step {step}
+        </span>
+      )}
+      <h1 className="text-2xl font-bold text-gray-900 mt-1">{title}</h1>
       <p className="text-sm text-gray-500 mt-2 leading-relaxed max-w-lg font-normal">
         {description}
       </p>
