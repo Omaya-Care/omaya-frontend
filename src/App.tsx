@@ -75,77 +75,84 @@ export default function App() {
       <BrowserRouter>
         <DrawerProvider>
           <TooltipProvider>
-          <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
-          {isDocsHost ? (
-            // Docs host: only sign-in + the gated docs. Everything funnels
-            // to /docs so the host never exposes the app surface.
-            <SentryRoutes>
-              <Route path="/" element={<SignIn />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/change-password" element={<ChangePassword />} />
-              <Route path="/docs" element={gatedDocs} />
-              <Route path="*" element={<Navigate to="/docs" replace />} />
-            </SentryRoutes>
-          ) : (
-            <SentryRoutes>
-              {/* Public auth routes */}
-              <Route path="/" element={<SignIn />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/activate" element={<SetupPassword />} />
-              <Route path="/reset" element={<SetupPassword />} />
-              <Route path="/change-password" element={<ChangePassword />} />
+            <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
+              {isDocsHost ? (
+                // Docs host: only sign-in + the gated docs. Everything funnels
+                // to /docs so the host never exposes the app surface.
+                <SentryRoutes>
+                  <Route path="/" element={<SignIn />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/change-password" element={<ChangePassword />} />
+                  <Route path="/docs" element={gatedDocs} />
+                  <Route path="*" element={<Navigate to="/docs" replace />} />
+                </SentryRoutes>
+              ) : (
+                <SentryRoutes>
+                  {/* Public auth routes */}
+                  <Route path="/" element={<SignIn />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/activate" element={<SetupPassword />} />
+                  <Route path="/reset" element={<SetupPassword />} />
+                  <Route path="/change-password" element={<ChangePassword />} />
 
-              {/* Protected app */}
-              <Route
-                path="/dashboard"
-                element={
-                  <Protected>
-                    <Dashboard />
-                  </Protected>
-                }
-              />
-              <Route
-                path="/mothers"
-                element={
-                  <Protected>
-                    <MothersPage />
-                  </Protected>
-                }
-              />
-              <Route
-                path="/calls"
-                element={
-                  <Protected>
-                    <CallsPage />
-                  </Protected>
-                }
-              />
-              <Route
-                path="/staff"
-                element={
-                  <Protected>
-                    <StaffPage />
-                  </Protected>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <Protected>
-                    <SettingsPage />
-                  </Protected>
-                }
-              />
+                  {/* Protected app */}
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <Protected>
+                        <Dashboard />
+                      </Protected>
+                    }
+                  />
+                  <Route
+                    path="/mothers"
+                    element={
+                      <Protected>
+                        <MothersPage />
+                      </Protected>
+                    }
+                  />
+                  <Route
+                    path="/calls"
+                    element={
+                      <Protected>
+                        <CallsPage />
+                      </Protected>
+                    }
+                  />
+                  <Route
+                    path="/staff"
+                    element={
+                      <Protected>
+                        <StaffPage />
+                      </Protected>
+                    }
+                  />
+                  <Route
+                    path="/settings"
+                    element={
+                      <Protected>
+                        <SettingsPage />
+                      </Protected>
+                    }
+                  />
 
-              {/* API docs — sign-in + server-side docs_access allowlist */}
-              <Route path="/docs" element={gatedDocs} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </SentryRoutes>
-          )}
-          </Sentry.ErrorBoundary>
+                  {/* API docs — sign-in + server-side docs_access allowlist */}
+                  <Route path="/docs" element={gatedDocs} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </SentryRoutes>
+              )}
+            </Sentry.ErrorBoundary>
           </TooltipProvider>
         </DrawerProvider>
-        <Toaster />
+        <Toaster
+          toastOptions={{
+            classNames: {
+              success: "bg-green-50 border-green-200 text-green-800",
+              error: "bg-red-50 border-red-200 text-red-800",
+            },
+          }}
+        />
       </BrowserRouter>
     </QueryClientProvider>
   );

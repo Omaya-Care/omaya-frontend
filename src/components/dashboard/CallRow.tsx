@@ -5,6 +5,9 @@ import { TableRow, TableCell } from "../ui/table";
 
 interface CallRowProps {
   call: Call;
+  onViewDetails?: () => void;
+  onMarkCompleted?: () => void;
+  onReschedule?: () => void;
 }
 
 const statusLabel: Record<string, string> = {
@@ -14,24 +17,44 @@ const statusLabel: Record<string, string> = {
   missed: "Missed",
 };
 
-const CallRow = ({ call }: CallRowProps) => {
+const CallRow = ({
+  call,
+  onViewDetails,
+  onMarkCompleted,
+  onReschedule,
+}: CallRowProps) => {
+  console.log("CallRow data:", call);
   const label = statusLabel[call.status] ?? call.status;
+
+  // Map fields from API (handling potential snake_case from backend)
+  const motherName =
+    call.motherName || (call as any).mother_name || "Unknown Mother";
+  const time =
+    call.time || (call as any).time || (call as any).scheduled_at || "--:--";
+  const callType = call.callType || (call as any).call_type || "Check-in";
 
   return (
     <TableRow className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
       <TableCell className="py-3 text-sm text-gray-900 truncate">
-        {call.motherName}
+        {motherName}
       </TableCell>
       <TableCell className="py-3 text-xs md:text-sm text-gray-700">
-        {call.time}
+        {time}
       </TableCell>
       <TableCell className="py-3 text-sm text-gray-500 hidden md:table-cell">
-        {call.callType}
+        {callType}
       </TableCell>
       <TableCell className="py-3 text-right">
-        <Badge variant="outline" className={getStatusBadgeClass(call.status)} size="sm" dot>
-          {label}
-        </Badge>
+        <div className="flex items-center justify-end gap-2">
+          <Badge
+            variant="outline"
+            className={getStatusBadgeClass(call.status)}
+            size="sm"
+            dot
+          >
+            {label}
+          </Badge>
+        </div>
       </TableCell>
     </TableRow>
   );

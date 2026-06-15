@@ -1,7 +1,13 @@
-import React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
-import { Tooltip, TooltipTrigger, TooltipContent } from './tooltip';
+import React from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./select";
+import { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
 
 interface PaginationProps {
   currentPage: number;
@@ -34,7 +40,7 @@ export const Pagination: React.FC<PaginationProps> = ({
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       pages.push(1);
-      if (currentPage > 3) pages.push('...');
+      if (currentPage > 3) pages.push("...");
 
       const start = Math.max(2, currentPage - 1);
       const end = Math.min(totalPages - 1, currentPage + 1);
@@ -43,7 +49,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         if (!pages.includes(i)) pages.push(i);
       }
 
-      if (currentPage < totalPages - 2) pages.push('...');
+      if (currentPage < totalPages - 2) pages.push("...");
       if (!pages.includes(totalPages)) pages.push(totalPages);
     }
     return pages;
@@ -52,12 +58,14 @@ export const Pagination: React.FC<PaginationProps> = ({
   const showNav = totalPages > 1;
 
   return (
-    <div className="flex items-center justify-between pt-3 pb-0 mt-0 border-t border-gray-100">
+    <div className="flex items-center justify-between pt-3 pb-0 mt-0 border-t border-gray-100 gap-4 flex-nowrap">
       {/* LEFT: Rows per page */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center">
         {onPageSizeChange && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-400">Rows per page:</span>
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-gray-400 whitespace-nowrap">
+              Rows per page:
+            </span>
             <Select
               value={String(pageSize)}
               onValueChange={(val) => onPageSizeChange(Number(val))}
@@ -106,9 +114,14 @@ export const Pagination: React.FC<PaginationProps> = ({
             {/* Numbers */}
             <div className="flex items-center gap-1.5">
               {getPageNumbers().map((p, idx) => {
-                if (p === '...') {
+                if (p === "...") {
                   return (
-                    <span key={`ellipsis-${idx}`} className="text-xs text-gray-300">...</span>
+                    <span
+                      key={`ellipsis-${idx}`}
+                      className="text-xs text-gray-300"
+                    >
+                      ...
+                    </span>
                   );
                 }
                 const isActive = p === currentPage;

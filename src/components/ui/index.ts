@@ -14,3 +14,4 @@ export * from "./tooltip";
 export * from "./table";
 export * from "./alert";
 export * from "./dialog";
+export * from "./dropdown-menu";

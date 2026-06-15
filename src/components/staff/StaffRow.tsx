@@ -1,4 +1,3 @@
-import { MoreHorizontal } from 'lucide-react';
 import { StaffMember, StaffStatus } from "../../types";
 import { Badge } from "../ui/Badge";
 
@@ -6,10 +5,13 @@ interface StaffRowProps {
   member: StaffMember;
 }
 
-const statusConfig: Record<StaffStatus, { dot: string; text: string; label: string }> = {
-  active:    { dot: 'bg-green-500',  text: 'text-green-700',  label: 'Active' },
-  invited:   { dot: 'bg-gray-400',   text: 'text-gray-500',   label: 'Invited' },
-  suspended: { dot: 'bg-red-500',    text: 'text-red-600',    label: 'Suspended' },
+const statusConfig: Record<
+  StaffStatus,
+  { dot: string; text: string; label: string }
+> = {
+  active: { dot: "bg-green-500", text: "text-green-700", label: "Active" },
+  invited: { dot: "bg-gray-400", text: "text-gray-500", label: "Invited" },
+  suspended: { dot: "bg-red-500", text: "text-red-600", label: "Suspended" },
 };
 
 const StaffRow = ({ member }: StaffRowProps) => {
@@ -24,9 +26,13 @@ const StaffRow = ({ member }: StaffRowProps) => {
         </div>
         <div>
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium text-gray-900">{member.name}</span>
+            <span className="text-sm font-medium text-gray-900">
+              {member.name}
+            </span>
             {member.isCurrentUser && (
-              <span className="text-xs bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">You</span>
+              <span className="text-xs bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">
+                You
+              </span>
             )}
           </div>
           <span className="text-sm text-gray-400">{member.email}</span>
@@ -42,17 +48,19 @@ const StaffRow = ({ member }: StaffRowProps) => {
 
       {/* STATUS */}
       <div>
-        <Badge variant="outline" className={`border-gray-100 ${text}`} size="sm" dot>
+        <Badge
+          variant="outline"
+          className={`border-gray-100 ${text}`}
+          size="sm"
+          dot
+        >
           {label}
         </Badge>
       </div>
 
-      {/* LAST ACTIVE + MENU */}
-      <div className="flex items-center justify-end gap-3">
+      {/* LAST ACTIVE */}
+      <div className="flex items-center justify-end">
         <span className="text-sm text-gray-400">{member.lastActive}</span>
-        <button className="text-gray-400 hover:text-gray-600 transition-colors">
-          <MoreHorizontal size={16} />
-        </button>
       </div>
     </div>
   );
