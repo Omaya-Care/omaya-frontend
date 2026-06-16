@@ -403,6 +403,9 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
+                      captionLayout="dropdown"
+                      startMonth={new Date(1940, 0, 1)}
+                      endMonth={new Date()}
                       selected={
                         formData.dob
                           ? parse(formData.dob, "yyyy-MM-dd", new Date())

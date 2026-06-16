@@ -1417,6 +1417,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
+                    captionLayout="dropdown"
+                    startMonth={new Date(1940, 0, 1)}
+                    endMonth={new Date()}
                     selected={
                       formData.dateOfBirth
                         ? parse(formData.dateOfBirth, "yyyy-MM-dd", new Date())
