@@ -6,7 +6,7 @@ export default {
   	extend: {
   		fontFamily: {
   			sans: [
-  				'Public Sans',
+  				'PublicSans',
   				'sans-serif'
   			],
   			serif: [

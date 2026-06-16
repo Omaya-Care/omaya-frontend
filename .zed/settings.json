@@ -1,0 +1,8 @@
+{
+  "disable_ai": false,
+  "languages": {
+    "CSS": {
+      "language_servers": ["tailwindcss-language-server", "..."],
+    },
+  },
+}
