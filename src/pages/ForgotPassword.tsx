@@ -41,7 +41,7 @@ const ForgotPassword = () => {
           <Button
             variant="outline"
             size="lg"
-            className="border-gray-200 text-gray-700 hover:bg-gray-50 py-4 md:py-5 text-base md:text-lg font-bold shadow-sm w-full"
+            className="border-gray-200 text-gray-700 hover:bg-gray-50 py-4 md:py-6 text-base md:text-lg font-bold shadow-sm w-full"
             onClick={() => navigate("/")}
           >
             Back to log in
@@ -54,7 +54,7 @@ const ForgotPassword = () => {
       <>
         <div className="mb-8 md:mb-12 text-center md:text-left">
           <div className="flex items-center justify-center md:justify-start mb-6 md:mb-10">
-            <img src="/logo.svg" className="h-16 md:h-20 w-auto object-contain" alt="Omaya Care" />
+            <img src="/logo.png" className="h-14 sm:h-16 md:h-20 w-auto object-contain" alt="Omaya Care" />
           </div>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-sans font-bold text-brand-navy mb-3 tracking-tight">Forgot password?</h1>
           <p className="text-gray-500 font-sans text-base md:text-lg font-normal">Enter your email and we'll send you a link to reset it.</p>
@@ -79,7 +79,7 @@ const ForgotPassword = () => {
               type="submit"
               size="lg"
               disabled={submitting}
-              className="bg-brand-plum hover:bg-[#3D1A2E] text-white py-4 md:py-5 text-base md:text-lg font-bold transition-all shadow-xl shadow-brand-plum/20 active:scale-[0.98] w-full"
+              className="bg-brand-plum hover:bg-[#3D1A2E] text-white py-4 md:py-6 text-base md:text-lg font-bold transition-all shadow-xl shadow-brand-plum/20 active:scale-[0.98] w-full"
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Send reset link
@@ -115,8 +115,8 @@ const ForgotPassword = () => {
         <div className="relative z-10 flex flex-col items-center justify-center h-full w-full p-8 md:p-12 text-white">
           <div className="max-w-md text-center">
             <img
-              src="/logo.svg"
-              className="h-40 md:h-56 w-auto object-contain mx-auto mb-4 md:mb-8"
+              src="/logo_tag.png"
+              className="h-56 md:h-72 lg:h-80 w-auto object-contain mx-auto mb-4 md:mb-8"
               alt="Omaya Care"
             />
             <h2 className="text-xl md:text-4xl lg:text-5xl font-sans font-semibold leading-tight tracking-tight drop-shadow-md">

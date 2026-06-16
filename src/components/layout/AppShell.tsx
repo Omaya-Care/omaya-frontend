@@ -104,7 +104,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             className="flex-none hover:opacity-80 transition-opacity"
             onClick={() => setMobileSidebarOpen(false)}
           >
-            <img src="/logo.svg" className="h-10 w-auto object-contain" alt="Omaya Care" />
+            <img src="/logo.png" className="h-12 sm:h-14 lg:h-16 w-auto object-contain" alt="Omaya Care" />
           </Link>
 
           {/* Mobile close */}
@@ -253,7 +253,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           >
             <Menu size={22} />
           </button>
-          <img src="/logo.svg" className="h-8 w-auto object-contain" alt="Omaya Care" />
+          <img src="/logo.png" className="h-12 w-auto object-contain" alt="Omaya Care" />
         </div>
 
         <div className="p-4 lg:p-6">
