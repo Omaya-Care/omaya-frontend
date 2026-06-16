@@ -1,4 +1,5 @@
 import React, { useState, lazy, Suspense } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,6 +16,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useDrawer } from "../../contexts/DrawerContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { RolePermissions } from "../../types";
 import { getClinician, clearSession, initialsOf } from "../../lib/auth";
 import {
   Sheet,
@@ -43,17 +46,32 @@ const navItems = [
   { icon: UserCog,         label: "Staff",     route: "/staff" },
 ];
 
+const navItemPermissions: Record<string, keyof RolePermissions | null> = {
+  "/dashboard": null,
+  "/mothers": "view_mothers",
+  "/calls": "view_mothers",
+  "/staff": "manage_staff",
+};
+
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { drawerType, closeDrawer } = useDrawer();
+  const { can } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const { drawerType, closeDrawer } = useDrawer();
+
+  const visibleNavItems = navItems.filter((item) => {
+    const required = navItemPermissions[item.route];
+    return required === null || can(required);
+  });
 
   const clinician = getClinician();
   const displayName = clinician?.name ?? clinician?.email ?? "";
   const roleLabel = clinician?.role ?? "";
 
   const handleSignOut = () => {
+    queryClient.removeQueries({ queryKey: ["me"] });
     clearSession();
     navigate("/", { replace: true });
   };
@@ -122,7 +140,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             </div>
           )}
 
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.route}
               to={item.route}
@@ -269,7 +287,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             </div>
           }>
             {drawerType === "add-mother" && <AddMother onClose={closeDrawer} />}
-            {drawerType === "discharge" && <NewDischarge onClose={closeDrawer} />}
+            {drawerType === "discharge" && can("create_discharges") && <NewDischarge onClose={closeDrawer} />}
           </Suspense>
         </SheetContent>
       </Sheet>

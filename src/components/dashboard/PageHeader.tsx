@@ -1,6 +1,7 @@
 import React from "react";
 import { Plus } from "lucide-react";
 import { Button } from "../ui/Button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 
 interface PageHeaderProps {
   userName: string;
@@ -33,14 +34,24 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         <span className="text-gray-400 text-xs md:text-sm font-normal">
           {formatDate()}
         </span>
-        <Button
-          variant="default"
-          onClick={onNewDischarge}
-          className="flex items-center gap-1.5 h-[2.4rem] md:h-[2.8rem] px-3 md:px-5"
-        >
-          <Plus size={14} className="md:size-4" />
-          <span className="font-medium text-xs md:text-sm">New discharge</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span tabIndex={0} className={!onNewDischarge ? "cursor-not-allowed inline-flex" : "inline-flex"}>
+              <Button
+                variant="default"
+                onClick={onNewDischarge}
+                disabled={!onNewDischarge}
+                className="flex items-center gap-1.5 h-[2.4rem] md:h-[2.8rem] px-3 md:px-5"
+              >
+                <Plus size={14} className="md:size-4" />
+                <span className="font-medium text-xs md:text-sm">New discharge</span>
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>{onNewDischarge ? "Enrol a new mother" : "You don't have permission to enrol mothers"}</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
       <h1 className="text-xl md:text-3xl font-bold text-gray-900">
         {getGreeting()}, {userName}

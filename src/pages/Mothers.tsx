@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { useDrawer } from "../contexts/DrawerContext";
+import { useAuth } from "../contexts/AuthContext";
 import { Plus, Search, ArrowLeft, UserRound, SlidersHorizontal } from "lucide-react";
 import { useMothers, useMother } from "../hooks/useMothers";
 import { useWithdrawMother } from "../hooks/useMutations";
@@ -12,7 +13,8 @@ import {
 } from "../components/mothers";
 import { EditMotherSheet } from "../components/mothers/EditMotherSheet";
 import { Button } from "../components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -23,6 +25,7 @@ import { toast } from "sonner";
 
 const MothersPage = () => {
   const { openDrawer } = useDrawer();
+  const { can } = useAuth();
   const location = useLocation();
   const { data: mothers = [], isLoading } = useMothers();
   const withdrawMutation = useWithdrawMother();
@@ -56,6 +59,7 @@ const MothersPage = () => {
   }, [mothers, severityFilter, statusFilter]);
 
   const handleSelectMother = (id: string) => {
+    if (!can("message_mothers")) return;
     setSelectedMotherId(id);
     setMobileDetailOpen(true);
   };
@@ -126,15 +130,25 @@ const MothersPage = () => {
         {/* Top bar */}
         <div className="px-4 pt-5 pb-3 flex justify-between items-center flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">Mothers</h2>
-          <Button
-            variant="default"
-            size="sm"
-            className="flex items-center gap-1.5 px-3"
-            onClick={() => openDrawer("discharge")}
-          >
-            <Plus size={16} />
-            <span className="font-medium">Add</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0} className={!can("create_discharges") ? "cursor-not-allowed" : ""}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex items-center gap-1.5 px-3"
+                  onClick={() => openDrawer("discharge")}
+                  disabled={!can("create_discharges")}
+                >
+                  <Plus size={16} />
+                  <span className="font-medium">Add</span>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>{can("create_discharges") ? "Enrol a new mother" : "You don't have permission to enrol mothers"}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Search */}
@@ -264,8 +278,8 @@ const MothersPage = () => {
           <MotherDetail
             mother={selectedMother}
             onWithdrawClick={() => setWithdrawModalOpen(true)}
-            onLogVisitClick={() => setLogVisitModalOpen(true)}
-            onEditClick={() => setEditSheetOpen(true)}
+            onLogVisitClick={can("message_mothers") ? () => setLogVisitModalOpen(true) : undefined}
+            onEditClick={can("message_mothers") ? () => setEditSheetOpen(true) : undefined}
           />
         )}
       </div>
