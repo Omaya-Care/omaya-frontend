@@ -60,23 +60,25 @@ const OMAYA_CUSTOM_CSS = `
 }
 
 .light-mode .scalar-app .section-header,
+.light-mode .scalar-app .operation-title,
 .light-mode .scalar-app .markdown h1,
 .light-mode .scalar-app .markdown h2,
 .light-mode .scalar-app .markdown h3,
 .light-mode .scalar-app .markdown h4,
 .light-mode .scalar-app .markdown h5,
 .light-mode .scalar-app .markdown h6 {
-  color: #8e4585;
+  color: #7a2850;
 }
 
 .dark-mode .scalar-app .section-header,
+.dark-mode .scalar-app .operation-title,
 .dark-mode .scalar-app .markdown h1,
 .dark-mode .scalar-app .markdown h2,
 .dark-mode .scalar-app .markdown h3,
 .dark-mode .scalar-app .markdown h4,
 .dark-mode .scalar-app .markdown h5,
 .dark-mode .scalar-app .markdown h6 {
-  color: #c073b8;
+  color: #7a2850;
 }
 
 .scalar-app .document-selector {
