@@ -110,7 +110,7 @@ const SetupPassword = () => {
         <Button
           variant="default"
           size="lg"
-          className="w-full"
+          className="w-full py-4 md:py-6 text-base md:text-lg font-bold"
           onClick={() => navigate("/forgot-password")}
         >
           Request a new link
@@ -184,7 +184,7 @@ const SetupPassword = () => {
             variant="default"
             size="lg"
             disabled={submitting}
-            className="w-full"
+            className="w-full py-4 md:py-6 text-base md:text-lg font-bold"
           >
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isInvite ? "Activate account" : "Reset password"}

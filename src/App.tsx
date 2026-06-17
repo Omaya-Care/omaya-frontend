@@ -14,6 +14,8 @@ import SettingsPage from "./pages/Settings";
 import { AppShell } from "./components/layout";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { DocsGate } from "./components/auth/DocsGate";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { RolePermissions } from "./types";
 import { DrawerProvider } from "./contexts/DrawerContext";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -49,8 +51,22 @@ function ErrorFallback() {
   );
 }
 
-/** Protected page: requires a session, rendered inside the app shell. */
+const routePermissions: Partial<Record<string, keyof RolePermissions>> = {
+  "/mothers": "view_mothers",
+  "/calls": "view_mothers",
+  "/staff": "manage_staff",
+};
+
+/** Protected page: requires a session + permission, rendered inside the app shell. */
 function Protected({ children }: { children: ReactNode }) {
+  const { pathname } = window.location;
+  const { can, isLoading } = useAuth();
+  const required = routePermissions[pathname];
+
+  if (required && !isLoading && !can(required)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return (
     <RequireAuth>
       <AppShell>{children}</AppShell>
@@ -73,6 +89,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <AuthProvider>
         <DrawerProvider>
           <TooltipProvider>
             <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
@@ -145,6 +162,7 @@ export default function App() {
             </Sentry.ErrorBoundary>
           </TooltipProvider>
         </DrawerProvider>
+        </AuthProvider>
         <Toaster />
       </BrowserRouter>
     </QueryClientProvider>

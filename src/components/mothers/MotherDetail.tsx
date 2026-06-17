@@ -93,15 +93,25 @@ const MotherDetail = ({
             <p className="text-xs text-gray-400 font-normal mt-0.5">{mother.hospital}</p>
           </div>
           {!isWithdrawn && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onEditClick}
-              className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 -mt-1"
-            >
-              <Pencil size={14} />
-              <span className="text-sm font-medium">Edit</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0} className={!onEditClick ? "cursor-not-allowed" : ""}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onEditClick}
+                    disabled={!onEditClick}
+                    className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 -mt-1"
+                  >
+                    <Pencil size={14} />
+                    <span className="text-sm font-medium">Edit</span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>{onEditClick ? "Edit mother details" : "You don't have permission to edit mother details"}</p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
 
@@ -330,17 +340,22 @@ const MotherDetail = ({
         <div className="flex gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-1.5"
-                onClick={onLogVisitClick}
-              >
-                <ClipboardList size={15} />
-                <span className="font-medium">Log visit</span>
-              </Button>
+              <span tabIndex={0} className={!onLogVisitClick ? "cursor-not-allowed" : ""}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1.5"
+                  onClick={onLogVisitClick}
+                  disabled={!onLogVisitClick}
+                >
+                  <ClipboardList size={15} />
+                  <span className="font-medium">Log visit</span>
+                </Button>
+              </span>
             </TooltipTrigger>
-            <TooltipContent side="top"><p>Record a manual visit or note.</p></TooltipContent>
+            <TooltipContent side="top">
+              <p>{onLogVisitClick ? "Record a manual visit or note." : "You don't have permission to log visits"}</p>
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>

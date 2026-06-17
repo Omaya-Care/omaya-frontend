@@ -4,6 +4,7 @@ import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { TableRow, TableCell } from "../ui/table";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface AcknowledgeRowProps {
   item: EscalationItem;
@@ -11,6 +12,7 @@ interface AcknowledgeRowProps {
 }
 
 const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
+  const { can } = useAuth();
   const formatTimeLeft = (totalMinutes: number) => {
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
@@ -51,16 +53,19 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
       <TableCell className="py-3 text-right">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onAcknowledge(item.id)}
-            >
-              Acknowledge
-            </Button>
+            <span tabIndex={0} className={!can("escalate") ? "cursor-not-allowed inline-flex" : "inline-flex"}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAcknowledge(item.id)}
+                disabled={!can("escalate")}
+              >
+                Acknowledge
+              </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent side="top">
-            <p>Acknowledge this alert</p>
+            <p>{can("escalate") ? "Acknowledge this alert" : "You don't have permission to acknowledge alerts"}</p>
           </TooltipContent>
         </Tooltip>
       </TableCell>

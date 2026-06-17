@@ -123,6 +123,7 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
             mode="single"
+            {...(field === "dateOfBirth" ? { captionLayout: "dropdown" as const, startMonth: new Date(1940, 0, 1), endMonth: new Date() } : {})}
             selected={form[field] ? parse(form[field], "yyyy-MM-dd", new Date()) : undefined}
             onSelect={(date) => updateField(field, date ? format(date, "yyyy-MM-dd") : "")}
           />

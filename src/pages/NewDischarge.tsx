@@ -70,6 +70,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [touched, setTouched] = useState(false);
   const [countryCode, setCountryCode] = useState("+233");
+  const [emergencyCountryCode, setEmergencyCountryCode] = useState("+233");
   const [motherId, setMotherId] = useState("");
   const [searchResults, setSearchResults] = useState<MotherSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -94,9 +95,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     risks: [] as string[],
     consentCalls: false,
     consentRecording: false,
+    emergencyName: "",
+    emergencyPhone: "",
+    emergencyRelationship: "",
+    emergencyRelationshipCustom: "",
   });
 
-  const totalSteps = foundMother ? 4 : 5;
+  const totalSteps = foundMother ? 5 : 6;
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
@@ -175,8 +180,18 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         if (!step2Valid) return;
       }
       // Step 3 (Medications) is optional
+      if (currentStep === 4) {
+        const relValid =
+          formData.emergencyRelationship &&
+          (formData.emergencyRelationship !== "other" || formData.emergencyRelationshipCustom);
+        const step4Valid =
+          formData.emergencyName &&
+          formData.emergencyPhone &&
+          relValid;
+        if (!step4Valid) return;
+      }
     } else {
-      // 5-step flow validation for new patients
+      // 6-step flow validation for new patients
       if (currentStep === 1) {
         const step1Valid =
           formData.motherName &&
@@ -197,6 +212,15 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       } else if (currentStep === 4) {
         const step4Valid = formData.consentCalls;
         if (!step4Valid) return;
+      } else if (currentStep === 5) {
+        const relValid =
+          formData.emergencyRelationship &&
+          (formData.emergencyRelationship !== "other" || formData.emergencyRelationshipCustom);
+        const step5Valid =
+          formData.emergencyName &&
+          formData.emergencyPhone &&
+          relValid;
+        if (!step5Valid) return;
       }
     }
 
@@ -220,6 +244,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         preferred_call_window: formData.callingWindow,
         consent_calls: foundMother ? true : formData.consentCalls,
         consent_recording: foundMother ? true : formData.consentRecording,
+        emergency_contact_name: formData.emergencyName,
+        emergency_contact_phone: formData.emergencyPhone,
+        emergency_contact_relationship:
+          formData.emergencyRelationship === "other"
+            ? formData.emergencyRelationshipCustom
+            : formData.emergencyRelationship,
       };
       if (formData.phoneNumber) {
         dischargePayload.phone = formData.phoneNumber;
@@ -867,6 +897,308 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         <div className="flex flex-col mt-6">
           <StepHeader
             step={4}
+            title="Emergency contact"
+            description="Who should we call if we cannot reach her?"
+          />
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1.5">
+              <Input
+                label="Full name"
+                placeholder="e.g. Kwame Asante"
+                value={formData.emergencyName}
+                onChange={(e) =>
+                  updateField("emergencyName", e.target.value)
+                }
+                className={
+                  touched && !formData.emergencyName ? "border-red-400" : ""
+                }
+                fullWidth
+              />
+              {touched && !formData.emergencyName && (
+                <span className="text-xs text-red-500">
+                  Please enter emergency contact name
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">
+                Phone number
+              </label>
+              <div
+                className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${touched && !formData.emergencyPhone ? "border-red-400" : "border-gray-200"}`}
+              >
+                <Select
+                  value={emergencyCountryCode}
+                  onValueChange={(val) => {
+                    setEmergencyCountryCode(val);
+                    const local = formData.emergencyPhone.replace(
+                      emergencyCountryCode,
+                      "",
+                    );
+                    updateField(
+                      "emergencyPhone",
+                      local ? `${val}${local}` : "",
+                    );
+                  }}
+                >
+                  <SelectTrigger className="h-auto w-fit border-0 bg-transparent px-2 py-2 text-sm font-medium text-gray-700 shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 [&>span]:line-clamp-none whitespace-nowrap shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="min-w-[100px]">
+                    <SelectItem value="+233">🇬🇭 +233</SelectItem>
+                    <SelectItem value="+234">🇳🇬 +234</SelectItem>
+                    <SelectItem value="+225">🇨🇮 +225</SelectItem>
+                    <SelectItem value="+228">🇹🇬 +228</SelectItem>
+                    <SelectItem value="+221">🇸🇳 +221</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="h-6 w-px bg-gray-200" />
+                <Input
+                  type="tel"
+                  placeholder="55 123 4567"
+                  value={formData.emergencyPhone.replace(emergencyCountryCode, "")}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                      .replace(/\D/g, "")
+                      .replace(/^0+/, "");
+                    updateField(
+                      "emergencyPhone",
+                      raw ? `${emergencyCountryCode}${raw}` : "",
+                    );
+                  }}
+                  className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
+                />
+              </div>
+              {touched && !formData.emergencyPhone && (
+                <span className="text-xs text-red-500">
+                  Please enter emergency contact phone number
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-700 mb-3">
+                Relationship
+              </label>
+              <ChipSelect
+                max={1}
+                options={[
+                  { value: "husband", label: "Husband" },
+                  { value: "wife", label: "Wife" },
+                  { value: "mother", label: "Mother" },
+                  { value: "father", label: "Father" },
+                  { value: "brother", label: "Brother" },
+                  { value: "sister", label: "Sister" },
+                  { value: "son", label: "Son" },
+                  { value: "daughter", label: "Daughter" },
+                  { value: "uncle", label: "Uncle" },
+                  { value: "aunt", label: "Aunt" },
+                  { value: "cousin", label: "Cousin" },
+                  { value: "grandmother", label: "Grandmother" },
+                  { value: "grandfather", label: "Grandfather" },
+                  { value: "friend", label: "Friend" },
+                  { value: "neighbour", label: "Neighbour" },
+                  { value: "colleague", label: "Colleague" },
+                  { value: "other", label: "Other" },
+                ]}
+                selected={formData.emergencyRelationship ? [formData.emergencyRelationship] : []}
+                onChange={(val) => {
+                  if (val.length === 0) {
+                    updateField("emergencyRelationship", "");
+                  } else {
+                    updateField("emergencyRelationship", val[0]);
+                  }
+                }}
+              />
+              {formData.emergencyRelationship === "other" && (
+                <div className="flex flex-col gap-1.5 mt-3">
+                  <Input
+                    placeholder="Please specify"
+                    value={formData.emergencyRelationshipCustom || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        emergencyRelationshipCustom: e.target.value,
+                      }))
+                    }
+                    className={
+                      touched && !formData.emergencyRelationshipCustom
+                        ? "border-red-400"
+                        : ""
+                    }
+                    fullWidth
+                  />
+                  {touched && !formData.emergencyRelationshipCustom && (
+                    <span className="text-xs text-red-500">
+                      Please specify relationship
+                    </span>
+                  )}
+                </div>
+              )}
+              {touched && !formData.emergencyRelationship && (
+                <span className="text-xs text-red-500 mt-1">
+                  Please select a relationship
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!foundMother && currentStep === 5 && (
+        <div className="flex flex-col mt-6">
+          <StepHeader
+            step={5}
+            title="Emergency contact"
+            description="Who should we call if we cannot reach her?"
+          />
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1.5">
+              <Input
+                label="Full name"
+                placeholder="e.g. Kwame Asante"
+                value={formData.emergencyName}
+                onChange={(e) =>
+                  updateField("emergencyName", e.target.value)
+                }
+                className={
+                  touched && !formData.emergencyName ? "border-red-400" : ""
+                }
+                fullWidth
+              />
+              {touched && !formData.emergencyName && (
+                <span className="text-xs text-red-500">
+                  Please enter emergency contact name
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">
+                Phone number
+              </label>
+              <div
+                className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${touched && !formData.emergencyPhone ? "border-red-400" : "border-gray-200"}`}
+              >
+                <Select
+                  value={emergencyCountryCode}
+                  onValueChange={(val) => {
+                    setEmergencyCountryCode(val);
+                    const local = formData.emergencyPhone.replace(
+                      emergencyCountryCode,
+                      "",
+                    );
+                    updateField(
+                      "emergencyPhone",
+                      local ? `${val}${local}` : "",
+                    );
+                  }}
+                >
+                  <SelectTrigger className="h-auto w-fit border-0 bg-transparent px-2 py-2 text-sm font-medium text-gray-700 shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 [&>span]:line-clamp-none whitespace-nowrap shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="min-w-[100px]">
+                    <SelectItem value="+233">🇬🇭 +233</SelectItem>
+                    <SelectItem value="+234">🇳🇬 +234</SelectItem>
+                    <SelectItem value="+225">🇨🇮 +225</SelectItem>
+                    <SelectItem value="+228">🇹🇬 +228</SelectItem>
+                    <SelectItem value="+221">🇸🇳 +221</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="h-6 w-px bg-gray-200" />
+                <Input
+                  type="tel"
+                  placeholder="55 123 4567"
+                  value={formData.emergencyPhone.replace(emergencyCountryCode, "")}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                      .replace(/\D/g, "")
+                      .replace(/^0+/, "");
+                    updateField(
+                      "emergencyPhone",
+                      raw ? `${emergencyCountryCode}${raw}` : "",
+                    );
+                  }}
+                  className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
+                />
+              </div>
+              {touched && !formData.emergencyPhone && (
+                <span className="text-xs text-red-500">
+                  Please enter emergency contact phone number
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-700 mb-3">
+                Relationship
+              </label>
+              <ChipSelect
+                max={1}
+                options={[
+                  { value: "husband", label: "Husband" },
+                  { value: "wife", label: "Wife" },
+                  { value: "mother", label: "Mother" },
+                  { value: "father", label: "Father" },
+                  { value: "brother", label: "Brother" },
+                  { value: "sister", label: "Sister" },
+                  { value: "son", label: "Son" },
+                  { value: "daughter", label: "Daughter" },
+                  { value: "uncle", label: "Uncle" },
+                  { value: "aunt", label: "Aunt" },
+                  { value: "cousin", label: "Cousin" },
+                  { value: "grandmother", label: "Grandmother" },
+                  { value: "grandfather", label: "Grandfather" },
+                  { value: "friend", label: "Friend" },
+                  { value: "neighbour", label: "Neighbour" },
+                  { value: "colleague", label: "Colleague" },
+                  { value: "other", label: "Other" },
+                ]}
+                selected={formData.emergencyRelationship ? [formData.emergencyRelationship] : []}
+                onChange={(val) => {
+                  if (val.length === 0) {
+                    updateField("emergencyRelationship", "");
+                  } else {
+                    updateField("emergencyRelationship", val[0]);
+                  }
+                }}
+              />
+              {formData.emergencyRelationship === "other" && (
+                <div className="flex flex-col gap-1.5 mt-3">
+                  <Input
+                    placeholder="Please specify"
+                    value={formData.emergencyRelationshipCustom || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        emergencyRelationshipCustom: e.target.value,
+                      }))
+                    }
+                    className={
+                      touched && !formData.emergencyRelationshipCustom
+                        ? "border-red-400"
+                        : ""
+                    }
+                    fullWidth
+                  />
+                  {touched && !formData.emergencyRelationshipCustom && (
+                    <span className="text-xs text-red-500">
+                      Please specify relationship
+                    </span>
+                  )}
+                </div>
+              )}
+              {touched && !formData.emergencyRelationship && (
+                <span className="text-xs text-red-500 mt-1">
+                  Please select a relationship
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {foundMother && currentStep === 5 && (
+        <div className="flex flex-col mt-6">
+          <StepHeader
+            step={5}
             title="Summary"
             description="Review all details before confirming discharge."
           />
@@ -940,6 +1272,17 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                       : firstCallDate || ""
                     : "Bereavement support flow",
                 highlight: true,
+              },
+              {
+                label: "Emergency contact",
+                value:
+                  formData.emergencyName
+                    ? `${formData.emergencyName} (${formData.emergencyRelationship === "other" ? formData.emergencyRelationshipCustom : formData.emergencyRelationship})`
+                    : "None recorded",
+              },
+              {
+                label: "Emergency phone",
+                value: formData.emergencyPhone || "None recorded",
               },
             ].map((row, idx) => (
               <div
@@ -1074,6 +1417,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
+                    captionLayout="dropdown"
+                    startMonth={new Date(1940, 0, 1)}
+                    endMonth={new Date()}
                     selected={
                       formData.dateOfBirth
                         ? parse(formData.dateOfBirth, "yyyy-MM-dd", new Date())
@@ -1521,10 +1867,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         </div>
       )}
 
-      {!foundMother && currentStep === 5 && (
+      {!foundMother && currentStep === 6 && (
         <div className="flex flex-col mt-6">
           <StepHeader
-            step={5}
+            step={6}
             title="Summary"
             description="Review all details before confirming discharge."
           />
@@ -1616,6 +1962,17 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                       : firstCallDate || ""
                     : "Bereavement support flow",
                 highlight: true,
+              },
+              {
+                label: "Emergency contact",
+                value:
+                  formData.emergencyName
+                    ? `${formData.emergencyName} (${formData.emergencyRelationship === "other" ? formData.emergencyRelationshipCustom : formData.emergencyRelationship})`
+                    : "None recorded",
+              },
+              {
+                label: "Emergency phone",
+                value: formData.emergencyPhone || "None recorded",
               },
             ].map((row, idx) => (
               <div

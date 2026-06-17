@@ -50,8 +50,8 @@ const SignIn = () => {
         />
         <div className="relative z-10 flex flex-col items-center justify-center h-full w-full p-8 md:p-12">
           <img
-            src="/logo.svg"
-            className="h-40 md:h-56 w-auto object-contain"
+            src="/logo_tag.png"
+            className="h-56 md:h-72 lg:h-80 w-auto object-contain"
             alt="Omaya Care"
           />
         </div>
@@ -62,7 +62,7 @@ const SignIn = () => {
         <div className="max-w-md w-full">
           <div className="mb-8 md:mb-12 text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start mb-6 md:mb-10">
-              <img src="/logo.svg" className="h-16 md:h-20 w-auto object-contain" alt="Omaya Care" />
+              <img src="/logo.png" className="h-14 sm:h-16 md:h-20 w-auto object-contain" alt="Omaya Care" />
             </div>
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-sans font-bold text-brand-navy mb-3 tracking-tight">Log in</h1>
             <p className="text-gray-500 font-sans text-base md:text-lg font-normal">Welcome back.</p>
@@ -114,7 +114,7 @@ const SignIn = () => {
                 type="submit"
                 size="lg"
                 disabled={submitting}
-                className="py-4 md:py-5 text-base md:text-lg font-bold w-full"
+                className="py-4 md:py-6 text-base md:text-lg font-bold w-full"
               >
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign In

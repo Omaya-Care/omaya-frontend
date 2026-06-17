@@ -12,6 +12,7 @@ import { getSeverityBadgeClass } from '../../lib/badge-helpers';
 import { Button } from '../ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { EscalationItem } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface EscalationModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ interface EscalationModalProps {
 }
 
 const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationModalProps) => {
+  const { can } = useAuth();
   if (!item) return null;
 
   const formatTimeLeft = (totalMinutes: number) => {
@@ -113,21 +115,24 @@ const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationMod
         <DialogFooter>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="default"
-                size="lg"
-                className="gap-2 w-full"
-                onClick={() => {
-                  onAcknowledge();
-                  onClose();
-                }}
-              >
-                <Check size={20} />
-                <span>Acknowledge</span>
-              </Button>
+              <span tabIndex={0} className={!can("escalate") ? "w-full cursor-not-allowed" : "w-full"}>
+                <Button
+                  variant="default"
+                  size="lg"
+                  className="gap-2 w-full"
+                  onClick={() => {
+                    onAcknowledge();
+                    onClose();
+                  }}
+                  disabled={!can("escalate")}
+                >
+                  <Check size={20} />
+                  <span>Acknowledge</span>
+                </Button>
+              </span>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>Acknowledge this alert</p>
+              <p>{can("escalate") ? "Acknowledge this alert" : "You don't have permission to acknowledge alerts"}</p>
             </TooltipContent>
           </Tooltip>
         </DialogFooter>

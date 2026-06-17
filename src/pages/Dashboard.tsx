@@ -16,6 +16,7 @@ import { useCalls } from "../hooks/useCalls";
 import { useEscalations } from "../hooks/useEscalations";
 import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
+import { useAuth } from "../contexts/AuthContext";
 import { getClinician } from "../lib/auth";
 import { Card, CardContent, CardHeader, Separator, Skeleton, Alert, AlertTitle, AlertDescription } from "../components/ui";
 
@@ -26,6 +27,7 @@ const Dashboard = () => {
   const { data: calls = [], isLoading: callsLoading, isError: callsError, refetch: refetchCalls } = useCalls();
   const { data: escalations = [], isLoading: escalationsLoading, isError: escalationsError, refetch: refetchEscalations } = useEscalations();
   const acknowledgeMutation = useAcknowledgeAlert();
+  const { can } = useAuth();
 
   const [acknowledgeModal, setAcknowledgeModal] = useState<{
     open: boolean;
@@ -62,7 +64,7 @@ const Dashboard = () => {
   return (
     <div className="flex flex-col gap-4">
       {/* BLOCK 1: PAGE HEADER */}
-      <PageHeader userName={firstName} onNewDischarge={handleNewDischarge} />
+      <PageHeader userName={firstName} onNewDischarge={can("create_discharges") ? handleNewDischarge : undefined} />
 
       {/* BLOCK 2: STAT CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -92,14 +94,16 @@ const Dashboard = () => {
               background="#F2DCEA"
               onViewAll={() => navigate("/calls")}
             />
-            <StatCard
-              label="Need attention"
-              sublabel="L3 & L4 unacknowledged"
-              value={escalations.length}
-              background="#F2DCEA"
-              footerText={escalations.length > 0 ? `${escalations.length} waiting` : undefined}
-              footerColor="#DC2626"
-            />
+            {can("escalate") && (
+              <StatCard
+                label="Need attention"
+                sublabel="L3 & L4 unacknowledged"
+                value={escalations.length}
+                background="#F2DCEA"
+                footerText={escalations.length > 0 ? `${escalations.length} waiting` : undefined}
+                footerColor="#DC2626"
+              />
+            )}
             <StatCard
               label="Avg. response time"
               sublabel="To L3 & L4 alerts"
@@ -112,54 +116,55 @@ const Dashboard = () => {
 
       {/* BLOCK 3: TWO COLUMN ROW */}
       <div className="flex flex-col lg:flex-row gap-4">
-        {/* LEFT — "Needs attention now" panel */}
-        <Card className="border-gray-200 shadow-sm rounded-2xl flex-1 flex flex-col min-h-[200px]">
-          <CardHeader className="px-3 md:px-5 pt-4 md:pt-5 pb-0">
-            <SectionHeader
-              title="Needs attention now"
-              count={escalations.length > 0 ? escalations.length : undefined}
-            />
-          </CardHeader>
-          <CardContent className="px-3 md:px-5 pb-3 flex-1 flex flex-col">
-            {escalationsLoading ? (
-              <div className="flex flex-col gap-3 py-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <div className="space-y-2 flex-1">
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                    <Skeleton className="h-4 w-16 ml-4" />
-                  </div>
-                ))}
-              </div>
-            ) : escalationsError ? (
-              <div className="flex-1 flex flex-col items-center justify-center">
-                <Alert variant="destructive" className="max-w-xs">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>Could not load alerts.</AlertDescription>
-                </Alert>
-                <button onClick={() => refetchEscalations()} className="mt-3 text-xs text-[#93406B] hover:underline flex items-center gap-1">
-                  <RefreshCw size={12} /> Try again
-                </button>
-              </div>
-            ) : escalations.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
-                <CheckCircle2 size={32} className="text-[#93406B]" />
-                <span className="text-sm font-semibold text-gray-700 mt-1">No alerts right now</span>
-                <span className="text-xs text-gray-400 font-normal text-center max-w-[220px]">
-                  All mothers are within safe response times.
-                </span>
-              </div>
-            ) : (
-              <AlertsTable
-                escalations={escalations}
-                onAcknowledgeClick={handleAcknowledgeClick}
+        {can("escalate") && (
+          <Card className="border-gray-200 shadow-sm rounded-2xl flex-1 flex flex-col min-h-[200px]">
+            <CardHeader className="px-3 md:px-5 pt-4 md:pt-5 pb-0">
+              <SectionHeader
+                title="Needs attention now"
+                count={escalations.length > 0 ? escalations.length : undefined}
               />
-            )}
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent className="px-3 md:px-5 pb-3 flex-1 flex flex-col">
+              {escalationsLoading ? (
+                <div className="flex flex-col gap-3 py-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <div className="space-y-2 flex-1">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-4 w-16 ml-4" />
+                    </div>
+                  ))}
+                </div>
+              ) : escalationsError ? (
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  <Alert variant="destructive" className="max-w-xs">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>Could not load alerts.</AlertDescription>
+                  </Alert>
+                  <button onClick={() => refetchEscalations()} className="mt-3 text-xs text-[#93406B] hover:underline flex items-center gap-1">
+                    <RefreshCw size={12} /> Try again
+                  </button>
+                </div>
+              ) : escalations.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
+                  <CheckCircle2 size={32} className="text-[#93406B]" />
+                  <span className="text-sm font-semibold text-gray-700 mt-1">No alerts right now</span>
+                  <span className="text-xs text-gray-400 font-normal text-center max-w-[220px]">
+                    All mothers are within safe response times.
+                  </span>
+                </div>
+              ) : (
+                <AlertsTable
+                  escalations={escalations}
+                  onAcknowledgeClick={handleAcknowledgeClick}
+                />
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* RIGHT — "This week" summary panel */}
         <Card className="border-gray-200 shadow-sm rounded-2xl w-full lg:w-80 self-start">
@@ -249,14 +254,16 @@ const Dashboard = () => {
         </CardContent>
       </Card>
 
-      <EscalationModal
-        isOpen={acknowledgeModal.open}
-        onClose={() =>
-          setAcknowledgeModal({ ...acknowledgeModal, open: false })
-        }
-        onAcknowledge={handleAcknowledgeConfirm}
-        item={acknowledgeModal.item}
-      />
+      {can("escalate") && (
+        <EscalationModal
+          isOpen={acknowledgeModal.open}
+          onClose={() =>
+            setAcknowledgeModal({ ...acknowledgeModal, open: false })
+          }
+          onAcknowledge={handleAcknowledgeConfirm}
+          item={acknowledgeModal.item}
+        />
+      )}
     </div>
   );
 };

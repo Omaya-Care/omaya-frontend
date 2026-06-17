@@ -1,7 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { useDrawer } from "../contexts/DrawerContext";
-import { Plus, Search, ArrowLeft, UserRound, SlidersHorizontal } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  Plus,
+  Search,
+  ArrowLeft,
+  UserRound,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useMothers, useMother } from "../hooks/useMothers";
 import { useWithdrawMother } from "../hooks/useMutations";
 import {
@@ -12,7 +19,12 @@ import {
 } from "../components/mothers";
 import { EditMotherSheet } from "../components/mothers/EditMotherSheet";
 import { Button } from "../components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Input } from "../components/ui/Input";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "../components/ui/tooltip";
 import {
   Popover,
   PopoverContent,
@@ -23,13 +35,15 @@ import { toast } from "sonner";
 
 const MothersPage = () => {
   const { openDrawer } = useDrawer();
+  const { can } = useAuth();
   const location = useLocation();
   const { data: mothers = [], isLoading } = useMothers();
   const withdrawMutation = useWithdrawMother();
   const [selectedMotherId, setSelectedMotherId] = useState<string>(
-    (location.state as { motherId?: string } | null)?.motherId ?? ""
+    (location.state as { motherId?: string } | null)?.motherId ?? "",
   );
-  const { data: selectedMother = null, isLoading: isMotherLoading } = useMother(selectedMotherId);
+  const { data: selectedMother = null, isLoading: isMotherLoading } =
+    useMother(selectedMotherId);
 
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -43,19 +57,23 @@ const MothersPage = () => {
       setSelectedMotherId(mothers[0].id);
     }
     // If navigated with a motherId, open detail panel on mobile too
-    const navMotherId = (location.state as { motherId?: string } | null)?.motherId;
+    const navMotherId = (location.state as { motherId?: string } | null)
+      ?.motherId;
     if (navMotherId) setMobileDetailOpen(true);
   }, [mothers, selectedMotherId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredMothers = useMemo(() => {
     return mothers.filter((mother) => {
-      if (severityFilter !== "all" && mother.severity !== severityFilter) return false;
-      if (statusFilter !== "all" && mother.consentStatus !== statusFilter) return false;
+      if (severityFilter !== "all" && mother.severity !== severityFilter)
+        return false;
+      if (statusFilter !== "all" && mother.consentStatus !== statusFilter)
+        return false;
       return true;
     });
   }, [mothers, severityFilter, statusFilter]);
 
   const handleSelectMother = (id: string) => {
+    if (!can("message_mothers")) return;
     setSelectedMotherId(id);
     setMobileDetailOpen(true);
   };
@@ -63,7 +81,10 @@ const MothersPage = () => {
   const handleWithdrawConfirm = async (reason: string) => {
     if (selectedMother) {
       try {
-        await withdrawMutation.mutateAsync({ motherId: selectedMother.id, reason });
+        await withdrawMutation.mutateAsync({
+          motherId: selectedMother.id,
+          reason,
+        });
         toast.success("Mother withdrawn from program.");
         setWithdrawModalOpen(false);
       } catch (err) {
@@ -72,7 +93,6 @@ const MothersPage = () => {
       }
     }
   };
-
 
   if (isLoading && mothers.length === 0) {
     return (
@@ -107,8 +127,12 @@ const MothersPage = () => {
     return (
       <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center gap-3">
         <UserRound size={48} className="text-[#93406B]" />
-        <span className="text-sm font-semibold text-gray-700">No mothers enrolled yet</span>
-        <span className="text-xs text-gray-400 font-normal">Discharged mothers will appear here.</span>
+        <span className="text-sm font-semibold text-gray-700">
+          No mothers enrolled yet
+        </span>
+        <span className="text-xs text-gray-400 font-normal">
+          Discharged mothers will appear here.
+        </span>
       </div>
     );
   }
@@ -126,15 +150,34 @@ const MothersPage = () => {
         {/* Top bar */}
         <div className="px-4 pt-5 pb-3 flex justify-between items-center flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">Mothers</h2>
-          <Button
-            variant="default"
-            size="sm"
-            className="flex items-center gap-1.5 px-3"
-            onClick={() => openDrawer("discharge")}
-          >
-            <Plus size={16} />
-            <span className="font-medium">Add</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                className={
+                  !can("create_discharges") ? "cursor-not-allowed" : ""
+                }
+              >
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex items-center gap-1.5 px-3"
+                  onClick={() => openDrawer("discharge")}
+                  disabled={!can("create_discharges")}
+                >
+                  <Plus size={16} />
+                  <span className="font-medium">Add</span>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>
+                {can("create_discharges")
+                  ? "Enrol a new mother"
+                  : "You don't have permission to enrol mothers"}
+              </p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Search */}
@@ -155,7 +198,8 @@ const MothersPage = () => {
                 <span>Filter</span>
                 {(severityFilter !== "all" || statusFilter !== "all") && (
                   <span className="ml-1 w-5 h-5 rounded-full bg-[#93406B] text-white text-[10px] font-bold flex items-center justify-center">
-                    {(severityFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0)}
+                    {(severityFilter !== "all" ? 1 : 0) +
+                      (statusFilter !== "all" ? 1 : 0)}
                   </span>
                 )}
               </button>
@@ -163,9 +207,18 @@ const MothersPage = () => {
             <PopoverContent align="start" className="w-56 p-3">
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Severity</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                    Severity
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {["all", "routine", "elevated", "crisis", "monitor", "inactive"].map((val) => (
+                    {[
+                      "all",
+                      "routine",
+                      "elevated",
+                      "crisis",
+                      "monitor",
+                      "inactive",
+                    ].map((val) => (
                       <button
                         key={val}
                         onClick={() => setSeverityFilter(val)}
@@ -175,13 +228,17 @@ const MothersPage = () => {
                             : "border-gray-200 text-gray-600 hover:border-gray-300"
                         }`}
                       >
-                        {val === "all" ? "All" : val.charAt(0).toUpperCase() + val.slice(1)}
+                        {val === "all"
+                          ? "All"
+                          : val.charAt(0).toUpperCase() + val.slice(1)}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                    Status
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
                     {["all", "active", "withdrawn", "pending"].map((val) => (
                       <button
@@ -193,7 +250,9 @@ const MothersPage = () => {
                             : "border-gray-200 text-gray-600 hover:border-gray-300"
                         }`}
                       >
-                        {val === "all" ? "All" : val.charAt(0).toUpperCase() + val.slice(1)}
+                        {val === "all"
+                          ? "All"
+                          : val.charAt(0).toUpperCase() + val.slice(1)}
                       </button>
                     ))}
                   </div>
@@ -264,8 +323,14 @@ const MothersPage = () => {
           <MotherDetail
             mother={selectedMother}
             onWithdrawClick={() => setWithdrawModalOpen(true)}
-            onLogVisitClick={() => setLogVisitModalOpen(true)}
-            onEditClick={() => setEditSheetOpen(true)}
+            onLogVisitClick={
+              can("message_mothers")
+                ? () => setLogVisitModalOpen(true)
+                : undefined
+            }
+            onEditClick={
+              can("message_mothers") ? () => setEditSheetOpen(true) : undefined
+            }
           />
         )}
       </div>

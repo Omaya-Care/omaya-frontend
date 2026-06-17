@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Users, AlertCircle } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 import { useStaff } from "../hooks/useStaff";
 import { useRoles } from "../hooks/useRoles";
 import {
@@ -9,9 +10,11 @@ import {
   AddRoleModal,
 } from "../components/staff";
 import { Button } from "../components/ui/Button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip";
 import { Skeleton } from "../components/ui/skeleton";
 
 const StaffPage = () => {
+  const { can } = useAuth();
   const { data: staffMembers = [], isLoading, isError } = useStaff();
   const { data: roles = [] } = useRoles();
   const [activeFilter, setActiveFilter] = useState("All");
@@ -93,14 +96,24 @@ const StaffPage = () => {
               : "No members yet"}
           </p>
         </div>
-        <Button
-          variant="default"
-          className="flex items-center gap-1.5"
-          onClick={() => setAddStaffOpen(true)}
-        >
-          <Plus size={16} />
-          <span>Add staff member</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span tabIndex={0} className={!can("manage_staff") ? "cursor-not-allowed" : ""}>
+              <Button
+                variant="default"
+                className="flex items-center gap-1.5"
+                onClick={() => setAddStaffOpen(true)}
+                disabled={!can("manage_staff")}
+              >
+                <Plus size={16} />
+                <span>Add staff member</span>
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>{can("manage_staff") ? "Add a new staff member" : "You don't have permission to manage staff"}</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* FILTER PILLS */}
