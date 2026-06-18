@@ -1,18 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, ArrowLeft, SlidersHorizontal } from "lucide-react";
+import { Search, ArrowLeft, SlidersHorizontal, X } from "lucide-react";
 import { isToday, parseISO } from "date-fns";
 import { useCalls, useCall } from "../hooks/useCalls";
 import { CallListItem, CallDetail } from "../components/calls";
 import { Input } from "@/components/ui/Input";
 import { Skeleton } from "../components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 
 const CallsPage = () => {
   const { data: calls = [], isLoading } = useCalls();
@@ -58,7 +51,7 @@ const CallsPage = () => {
 
   if (isLoading && calls.length === 0) {
     return (
-      <div className="flex flex-row gap-4 h-[calc(100vh-64px)]">
+      <div className="flex flex-1 min-h-0 flex-row gap-6">
         <div className="w-full lg:w-72 bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3">
           <Skeleton className="h-6 w-16" />
           <Skeleton className="h-9 w-full rounded-md" />
@@ -83,7 +76,7 @@ const CallsPage = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-64px)] flex flex-row gap-4">
+    <div className="flex flex-1 min-h-0 flex-row gap-6">
       {/* ── LEFT PANEL ──────────────────────────────────────── */}
       <div
         className={`
@@ -106,14 +99,14 @@ const CallsPage = () => {
           />
         </div>
 
-        <div className="px-4 pb-3 flex-shrink-0">
+        <div className="px-4 pb-3 flex-shrink-0 flex items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
               <button className="flex items-center gap-1.5 text-xs border border-gray-200 bg-white rounded-md py-1.5 px-2.5 font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 <SlidersHorizontal size={14} />
                 <span>Filter</span>
                 {activeFilterCount > 0 && (
-                  <span className="ml-1 w-5 h-5 rounded-full bg-[#93406B] text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="ml-1 w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center animate-in zoom-in-50 duration-150 motion-reduce:animate-none">
                     {activeFilterCount}
                   </span>
                 )}
@@ -130,7 +123,7 @@ const CallsPage = () => {
                         onClick={() => setStatusFilter(val)}
                         className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
                           statusFilter === val
-                            ? "border-[#93406B] bg-[#F7E8F0] text-[#93406B] font-medium"
+                            ? "border-primary bg-primary-100 text-primary font-medium"
                             : "border-gray-200 text-gray-600 hover:border-gray-300"
                         }`}
                       >
@@ -148,7 +141,7 @@ const CallsPage = () => {
                         onClick={() => setDateFilter(val)}
                         className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
                           dateFilter === val
-                            ? "border-[#93406B] bg-[#F7E8F0] text-[#93406B] font-medium"
+                            ? "border-primary bg-primary-100 text-primary font-medium"
                             : "border-gray-200 text-gray-600 hover:border-gray-300"
                         }`}
                       >
@@ -160,32 +153,35 @@ const CallsPage = () => {
               </div>
             </PopoverContent>
           </Popover>
+
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => {
+                setStatusFilter("all");
+                setDateFilter("all");
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-primary transition-colors"
+            >
+              <X size={13} />
+              <span>Clear</span>
+            </button>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto border-t border-gray-50">
+        <div className="flex-1 overflow-y-auto border-t border-gray-200">
           {filteredCalls.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-1 px-4">
               <p className="text-sm text-gray-400 font-normal text-center">No calls match this filter.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="border-b border-gray-100">
-                  <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide pl-4">Mother</TableHead>
-                  <TableHead className="text-xs font-medium text-gray-400 uppercase tracking-wide text-right pr-4">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCalls.map((call) => (
-                  <CallListItem
-                    key={call.id}
-                    call={call}
-                    isSelected={selectedCallId === call.id}
-                    onClick={() => handleSelectCall(call.id)}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+            filteredCalls.map((call) => (
+              <CallListItem
+                key={call.id}
+                call={call}
+                isSelected={selectedCallId === call.id}
+                onClick={() => handleSelectCall(call.id)}
+              />
+            ))
           )}
         </div>
       </div>
@@ -193,7 +189,7 @@ const CallsPage = () => {
       {/* ── RIGHT PANEL ─────────────────────────────────────── */}
       <div
         className={`
-          flex-col bg-white rounded-2xl overflow-y-auto shadow-sm p-6
+          flex-col bg-white rounded-2xl overflow-hidden shadow-sm p-6
           flex-1 h-full
           ${mobileDetailOpen ? "flex" : "hidden lg:flex"}
         `}
@@ -219,7 +215,7 @@ const CallsPage = () => {
             {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full rounded-xl mb-1" />)}
           </div>
         ) : (
-          <CallDetail call={selectedCall} />
+          <CallDetail key={selectedCallId} call={selectedCall} />
         )}
       </div>
     </div>

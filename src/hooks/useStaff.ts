@@ -6,7 +6,9 @@ import { StaffMember, StaffRole, StaffStatus } from "../types";
 function toStaffMember(raw: any): StaffMember {
   return {
     id: raw.id,
-    name: raw.name,
+    // Invited-but-not-activated seats can have a null name; default to "" so
+    // initials()/edit-form state never crash on null.
+    name: raw.name ?? "",
     email: raw.email,
     role: raw.role as StaffRole,
     status: raw.status as StaffStatus,

@@ -124,7 +124,7 @@ const StaffPage = () => {
             onClick={() => setActiveFilter(f.key)}
             className={`rounded-full px-3 py-1 text-sm transition-colors border ${
               activeFilter === f.key
-                ? "bg-[#F7E8F0] text-[#93406B] border-[#93406B] font-medium"
+                ? "bg-primary-100 text-primary border-primary font-medium"
                 : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
             }`}
           >
@@ -164,7 +164,7 @@ const StaffPage = () => {
                 {activeFilter !== "All" && (
                   <button
                     onClick={() => setActiveFilter("All")}
-                    className="text-xs text-[#93406B] font-medium hover:underline mt-0.5"
+                    className="text-xs text-primary font-medium hover:underline mt-0.5"
                   >
                     Clear filter
                   </button>

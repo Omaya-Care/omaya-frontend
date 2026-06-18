@@ -14,7 +14,10 @@ import {
 } from "lucide-react";
 import { Mother } from "../../types";
 import { Badge } from "../ui/Badge";
-import { getSeverityBadgeClass } from "../../lib/badge-helpers";
+import {
+  getSeverityBadgeClass,
+  getSeverityTokens,
+} from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { Alert, AlertDescription } from "../ui/alert";
@@ -29,18 +32,11 @@ interface MotherDetailProps {
   onEditClick?: () => void;
 }
 
+// Shades kept in lockstep with StaffRow's status badges (pink / amber / red).
 const consentConfig = {
-  active:    { label: "Active",    className: "bg-green-100 text-green-700" },
-  withdrawn: { label: "Withdrawn", className: "bg-red-100 text-red-600" },
-  pending:   { label: "Pending",   className: "bg-yellow-100 text-yellow-700" },
-};
-
-const severityColors: Record<string, string> = {
-  crisis:   "#DC2626",
-  elevated: "#EA580C",
-  monitor:  "#CA8A04",
-  routine:  "#16A34A",
-  inactive: "#9CA3AF",
+  active:    { label: "Active",    className: "bg-primary-100 text-primary-700" },
+  withdrawn: { label: "Withdrawn", className: "bg-red-50 text-red-600" },
+  pending:   { label: "Pending",   className: "bg-yellow-50 text-yellow-700" },
 };
 
 const MotherDetail = ({
@@ -53,7 +49,7 @@ const MotherDetail = ({
 
   if (!mother) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
+      <div className="flex flex-col items-center justify-center h-full animate-in fade-in-0 zoom-in-95 duration-300 motion-reduce:animate-none">
         <UserRound className="text-gray-300 mb-2" size={48} />
         <p className="text-sm text-gray-400 font-normal">
           Select a mother to view her profile
@@ -78,7 +74,9 @@ const MotherDetail = ({
   };
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-1 flex-col min-h-0 animate-in fade-in-0 duration-200 motion-reduce:animate-none">
+      {/* Scrollable content — the actions bar below stays pinned (never overlaps). */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
 
       {/* ── HEADER ─────────────────────────────────────────── */}
       <div className="pb-4 border-b border-gray-100">
@@ -86,7 +84,7 @@ const MotherDetail = ({
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-xl font-bold text-gray-900">{mother.name}</h2>
-              <Badge variant="outline" className={getSeverityBadgeClass(mother.severity)} dot>
+              <Badge variant="outline" className={getSeverityBadgeClass(mother.severity)} size="sm" dot>
                 {mother.severity.charAt(0).toUpperCase() + mother.severity.slice(1)}
               </Badge>
             </div>
@@ -122,9 +120,9 @@ const MotherDetail = ({
         )}
 
         {mother.currentFlag && (
-          <div className="mt-3 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2.5 flex gap-2.5 items-start">
-            <AlertTriangle size={15} className="text-orange-400 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-orange-700 font-normal leading-snug">{mother.currentFlag}</p>
+          <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 flex gap-2.5 items-start">
+            <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-700 font-normal leading-snug">{mother.currentFlag}</p>
           </div>
         )}
       </div>
@@ -186,15 +184,14 @@ const MotherDetail = ({
                 </div>
                 <div className="flex-1 px-3 flex items-center gap-2 min-w-0">
                   <div
-                    className="h-1.5 w-1.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: severityColors[checkIn.severity] }}
+                    className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${getSeverityTokens(checkIn.severity).dot}`}
                   />
                   <span className="text-sm text-gray-600 font-normal truncate">
                     {checkIn.summary}
                   </span>
                 </div>
                 {checkIn.transcript && (
-                  <button className="text-xs text-[#93406B] font-medium hover:underline whitespace-nowrap flex-shrink-0">
+                  <button className="text-xs text-primary font-medium hover:underline whitespace-nowrap flex-shrink-0">
                     Transcript
                   </button>
                 )}
@@ -284,9 +281,9 @@ const MotherDetail = ({
         {mother.risks && mother.risks.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-widest">Risk factors</p>
-            <div className="bg-orange-50 border border-orange-100 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
+            <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
               {mother.risks.map((r) => (
-                <span key={r} className="px-2.5 py-1 rounded-full bg-white text-orange-700 text-xs font-medium border border-orange-100 shadow-sm">
+                <span key={r} className="px-2.5 py-1 rounded-full bg-white text-amber-700 text-xs font-medium border border-amber-100 shadow-sm">
                   {r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                 </span>
               ))}
@@ -298,9 +295,9 @@ const MotherDetail = ({
         {mother.medications && mother.medications.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-widest">Medications sent home</p>
-            <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
               {mother.medications.map((m) => (
-                <span key={m} className="px-2.5 py-1 rounded-full bg-white text-blue-700 text-xs font-medium border border-blue-100 shadow-sm">
+                <span key={m} className="px-2.5 py-1 rounded-full bg-white text-gray-600 text-xs font-medium border border-gray-200 shadow-sm">
                   {m.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                 </span>
               ))}
@@ -316,9 +313,10 @@ const MotherDetail = ({
           Severity labels are system-set and read-only for audit integrity.
         </AlertDescription>
       </Alert>
+      </div>
 
-      {/* ── ACTIONS ────────────────────────────────────────── */}
-      <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-center sticky bottom-0 bg-white">
+      {/* ── ACTIONS (pinned footer) ────────────────────────── */}
+      <div className="shrink-0 pt-4 border-t border-gray-100 flex justify-between items-center bg-white">
         <div>
           {!isWithdrawn && (
             <Tooltip>

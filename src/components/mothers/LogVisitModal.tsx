@@ -60,7 +60,7 @@ const LogVisitModal = ({ isOpen, onClose, motherId, motherName, dayPostpartum }:
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
-            <ClipboardList size={18} className="text-[#93406B]" />
+            <ClipboardList size={18} className="text-primary" />
             <DialogTitle className="text-lg font-semibold text-gray-900">Log visit</DialogTitle>
             <span className="text-sm text-gray-400 font-normal">{motherName}</span>
             {dayPostpartum != null && (
@@ -97,9 +97,9 @@ const LogVisitModal = ({ isOpen, onClose, motherId, motherName, dayPostpartum }:
           />
         </div>
 
-        <Alert className="border-blue-100 bg-blue-50 text-blue-700 mt-1">
-          <Info className="h-4 w-4 text-blue-500" />
-          <AlertDescription className="text-blue-700 font-normal">
+        <Alert className="border-primary-100 bg-primary-50 text-primary-700 mt-1">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-primary-700 font-normal">
             Saving sends <strong className="font-semibold">{motherName}</strong> a plain-language summary within an hour.
           </AlertDescription>
         </Alert>

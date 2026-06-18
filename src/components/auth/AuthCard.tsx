@@ -12,7 +12,7 @@ interface AuthCardProps {
  *  the logo mark + heading block, matching the original SignIn layout. */
 export function AuthCard({ title, subtitle, children }: AuthCardProps) {
   return (
-    <div className="min-h-screen bg-[#F4F4F5] flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-surface-app flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full mx-auto flex flex-col items-center">
         <div className="mb-3">
           <img src="/logo.png" className="h-14 sm:h-16 w-auto object-contain" alt="Omaya Care" />

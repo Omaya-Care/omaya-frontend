@@ -14,10 +14,19 @@ declare const __SENTRY_RELEASE__: string | undefined;
 // PHI redaction shared by beforeBreadcrumb + beforeSend. Mother-scoped URLs
 // (e.g. /mothers/<uuid>) and long digit runs (phone-ish) get collapsed to :id.
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+// Phone-shaped runs that survive separators (e.g. "024-123-4567",
+// "+233 24 123 4567") — a leading (optional +)digit, then 7+ digit/space/
+// dash/paren chars, then a trailing digit. Runs BEFORE LONG_DIGITS so grouped
+// numbers collapse fully. (Trade-off: also collapses ISO dates to :id, which
+// is acceptable for a PHI-first posture.)
+const PHONE_RE = /\+?\d[\d\s().-]{7,}\d/g;
 const LONG_DIGITS_RE = /\d{5,}/g;
 
 function redactIds(text: string): string {
-  return text.replace(UUID_RE, ":id").replace(LONG_DIGITS_RE, ":id");
+  return text
+    .replace(UUID_RE, ":id")
+    .replace(PHONE_RE, ":id")
+    .replace(LONG_DIGITS_RE, ":id");
 }
 
 function redactUrl(url: string): string {
@@ -91,6 +100,9 @@ export function initSentry() {
     beforeSend(event) {
       if (event.request?.url) event.request.url = redactUrl(event.request.url);
       if (event.request?.query_string) event.request.query_string = "[scrubbed]";
+      // POST/PUT bodies (e.g. a 422 on /mothers, or /auth password fields) can
+      // carry full PHI/credentials — drop them wholesale.
+      if (event.request?.data != null) event.request.data = "[scrubbed]";
       for (const ex of event.exception?.values ?? []) {
         if (ex.value) ex.value = redactIds(ex.value);
       }

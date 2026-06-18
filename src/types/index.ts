@@ -26,6 +26,7 @@ export interface Mother {
   lastInteraction: string;
   note: string;
   currentFlag?: string;
+  nextCallAt?: string; // ISO datetime of the soonest upcoming scheduled call
   checkIns: CheckIn[];
   // discharge info
   deliveryType: DeliveryType;

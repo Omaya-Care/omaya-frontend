@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Phone,
   ShieldCheck,
@@ -47,6 +48,7 @@ interface AddMotherProps {
 
 const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { openDrawer } = useDrawer();
   const handleClose = onClose ?? (() => navigate("/mothers"));
   const [currentStep, setCurrentStep] = useState(1);
@@ -132,11 +134,15 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
         consent_calls: formData.consentCalls,
         consent_recording: formData.consentRecording,
       });
+      queryClient.invalidateQueries({ queryKey: ["mothers"] });
       toast.success("Mother enrolled successfully.");
       handleClose();
     } catch (err: unknown) {
-      extractApiError(err);
-      setSubmitError("Enrollment failed. Please check the form and try again.");
+      const { message } = extractApiError(
+        err,
+        "Enrollment failed. Please check the form and try again.",
+      );
+      setSubmitError(message);
     } finally {
       setSubmitting(false);
     }
@@ -268,10 +274,10 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
             ].map((card, idx) => (
               <Card key={idx} className="border-gray-100 shadow-none">
                 <CardContent className="p-4 flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#F7E8F0] flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
                     <card.icon
                       size={20}
-                      className="text-[#93406B] mt-0.5 shrink-0"
+                      className="text-primary mt-0.5 shrink-0"
                     />
                   </div>
                   <div className="flex flex-col">
@@ -618,14 +624,14 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               }
               className={`
                 border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all
-                ${formData.consentCalls ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 bg-white"}
+                ${formData.consentCalls ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}
                 ${touched && !formData.consentCalls ? "border-red-400" : ""}
               `}
             >
               <div
                 className={`
                 w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center
-                ${formData.consentCalls ? "bg-[#93406B] border-[#93406B]" : "bg-white border-gray-300"}
+                ${formData.consentCalls ? "bg-primary border-primary" : "bg-white border-gray-300"}
               `}
               >
                 {formData.consentCalls && (
@@ -640,7 +646,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   Omaya will call her to check how she and her baby are doing
                   after she goes home. She can ask to stop at any time.
                 </p>
-                <span className="text-xs text-[#93406B] font-semibold mt-2 uppercase tracking-wide">
+                <span className="text-xs text-primary font-semibold mt-2 uppercase tracking-wide">
                   REQUIRED TO ENROLL
                 </span>
               </div>
@@ -657,13 +663,13 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               }
               className={`
                 border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all
-                ${formData.consentRecording ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 bg-white"}
+                ${formData.consentRecording ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}
               `}
             >
               <div
                 className={`
                 w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center
-                ${formData.consentRecording ? "bg-[#93406B] border-[#93406B]" : "bg-white border-gray-300"}
+                ${formData.consentRecording ? "bg-primary border-primary" : "bg-white border-gray-300"}
               `}
               >
                 {formData.consentRecording && (
@@ -764,7 +770,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   {row.label}
                 </span>
                 <span
-                  className={`text-sm font-semibold ${row.highlight ? "text-[#93406B]" : "text-gray-900"}`}
+                  className={`text-sm font-semibold ${row.highlight ? "text-primary" : "text-gray-900"}`}
                 >
                   {row.value}
                 </span>

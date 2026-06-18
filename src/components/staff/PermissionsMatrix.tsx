@@ -75,6 +75,9 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
         ),
       );
       await queryClient.invalidateQueries({ queryKey: ['roles'] });
+      // The editing admin's own role permissions may have changed; refresh
+      // /auth/me so can() reflects it without waiting for staleTime.
+      await queryClient.invalidateQueries({ queryKey: ['me'] });
       toast.success('Permissions updated.');
       setIsEditing(false);
     } catch {
@@ -138,7 +141,7 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
               <Button
                 variant="outline"
                 size="sm"
-                className="border-[#93406B] text-[#93406B] hover:bg-[#F7E8F0]"
+                className="border-primary text-primary hover:bg-primary-100"
                 onClick={startEditing}
                 disabled={isLoading || isError}
               >
@@ -190,7 +193,7 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
                     <div className="flex flex-col items-center gap-1">
                       <span>{role.name}</span>
                       <div className="flex items-center gap-1">
-                        <span className={`text-[10px] font-normal ${role.isSystem ? 'text-gray-400' : 'text-[#93406B]'}`}>
+                        <span className={`text-[10px] font-normal ${role.isSystem ? 'text-gray-400' : 'text-primary'}`}>
                           {role.isSystem ? 'system' : 'custom'}
                         </span>
                         {isEditing && !role.isSystem && (
@@ -223,14 +226,14 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
                             onClick={() => toggle(role.id, key)}
                             className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer mx-auto transition-colors ${
                               checked
-                                ? 'bg-[#93406B] border-[#93406B]'
+                                ? 'bg-primary border-primary'
                                 : 'bg-white border-gray-300 hover:border-gray-400'
                             }`}
                           >
                             {checked && <Check size={12} className="text-white" strokeWidth={3} />}
                           </div>
                         ) : (
-                          <span className={checked ? 'text-[#93406B] font-semibold' : 'text-gray-300'}>
+                          <span className={checked ? 'text-primary font-semibold' : 'text-gray-300'}>
                             {checked ? '✓' : '–'}
                           </span>
                         )}

@@ -21,12 +21,12 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
 
   const getTimeStatusStyles = (totalMinutes: number) => {
     if (totalMinutes < 30) {
-      return "text-rose-600 animate-soft-pulse";
+      return "text-red-600 animate-soft-pulse";
     }
     if (totalMinutes <= 120) {
       return "text-amber-600";
     }
-    return "text-emerald-600";
+    return "text-gray-400";
   };
 
   const statusStyles = getTimeStatusStyles(item.timeLeftMinutes);
@@ -40,7 +40,7 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
         </div>
       </TableCell>
       <TableCell className="py-3">
-        <Badge variant="outline" className={getSeverityBadgeClass(item.severity)} dot>
+        <Badge variant="outline" className={getSeverityBadgeClass(item.severity)} size="sm" dot>
           {item.severity.charAt(0).toUpperCase() + item.severity.slice(1)}
         </Badge>
       </TableCell>

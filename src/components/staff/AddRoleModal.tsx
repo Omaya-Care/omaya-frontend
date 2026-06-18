@@ -132,7 +132,7 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
                     <div
                       className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                         checked
-                          ? 'bg-[#93406B] border-[#93406B]'
+                          ? 'bg-primary border-primary'
                           : 'bg-white border-gray-300'
                       }`}
                     >

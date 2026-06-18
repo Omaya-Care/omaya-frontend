@@ -158,11 +158,11 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
                   onClick={() => setSelectedRole(r.value)}
                   className={`border rounded-xl p-3 cursor-pointer transition-all ${
                     selected
-                      ? "border-[#93406B] bg-[#F7E8F0]"
+                      ? "border-primary bg-primary-100"
                       : "border-gray-200 bg-white hover:border-gray-300"
                   }`}
                 >
-                  <span className={`text-sm font-semibold ${selected ? "text-[#93406B]" : "text-gray-900"}`}>
+                  <span className={`text-sm font-semibold ${selected ? "text-primary" : "text-gray-900"}`}>
                     {r.value}
                   </span>
                   <p className="text-xs text-gray-500 mt-0.5 font-normal">{r.desc}</p>

@@ -8,7 +8,7 @@ const StepHeader = ({ step, title, description }: StepHeaderProps) => {
   return (
     <div className="flex flex-col">
       {step && step > 0 && (
-        <span className="text-xs font-semibold text-[#93406B] tracking-wide uppercase">
+        <span className="text-xs font-semibold text-primary tracking-wide uppercase">
           Step {step}
         </span>
       )}

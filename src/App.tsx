@@ -1,7 +1,14 @@
 import { lazy, Suspense, type ReactNode } from "react";
+import { Loader2 } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import SignIn from "./pages/SignIn";
 import ForgotPassword from "./pages/ForgotPassword";
 import SetupPassword from "./pages/SetupPassword";
@@ -59,7 +66,7 @@ const routePermissions: Partial<Record<string, keyof RolePermissions>> = {
 
 /** Protected page: requires a session + permission, rendered inside the app shell. */
 function Protected({ children }: { children: ReactNode }) {
-  const { pathname } = window.location;
+  const { pathname } = useLocation();
   const { can, isLoading } = useAuth();
   const required = routePermissions[pathname];
 
@@ -67,9 +74,21 @@ function Protected({ children }: { children: ReactNode }) {
     return <Navigate to="/dashboard" replace />;
   }
 
+  // While /auth/me is still loading for a permission-gated route, render a
+  // loader inside the shell instead of mounting the page — otherwise the page
+  // fetches its data and 403s before the post-load redirect can fire.
+  const content =
+    required && isLoading ? (
+      <div className="flex flex-1 items-center justify-center py-24">
+        <Loader2 className="animate-spin text-muted-foreground" size={24} />
+      </div>
+    ) : (
+      children
+    );
+
   return (
     <RequireAuth>
-      <AppShell>{children}</AppShell>
+      <AppShell>{content}</AppShell>
     </RequireAuth>
   );
 }
@@ -91,7 +110,7 @@ export default function App() {
       <BrowserRouter>
         <AuthProvider>
         <DrawerProvider>
-          <TooltipProvider>
+          <TooltipProvider delayDuration={150}>
             <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
               {isDocsHost ? (
                 // Docs host: only sign-in + the gated docs. Everything funnels

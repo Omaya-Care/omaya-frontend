@@ -70,7 +70,7 @@ export const Pagination: React.FC<PaginationProps> = ({
               value={String(pageSize)}
               onValueChange={(val) => onPageSizeChange(Number(val))}
             >
-              <SelectTrigger className="h-auto border border-gray-200 bg-white rounded-md px-2 py-1 text-xs font-semibold text-gray-700 hover:text-[#93406B] focus:ring-0 shadow-none [&>svg]:text-gray-400 [&>svg]:h-3 [&>svg]:w-3 gap-1">
+              <SelectTrigger className="h-auto border border-gray-200 bg-white rounded-md px-2 py-1 text-xs font-semibold text-gray-700 hover:text-primary focus:ring-0 shadow-none [&>svg]:text-gray-400 [&>svg]:h-3 [&>svg]:w-3 gap-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -99,7 +99,7 @@ export const Pagination: React.FC<PaginationProps> = ({
                 <button
                   onClick={() => onPageChange(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className="p-1 text-gray-400 hover:text-[#93406B] disabled:opacity-20 transition-all"
+                  className="p-1 text-gray-400 hover:text-primary disabled:opacity-20 transition-all"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -131,7 +131,7 @@ export const Pagination: React.FC<PaginationProps> = ({
                     onClick={() => onPageChange(p as number)}
                     className={`
                       text-xs transition-all px-0.5
-                      ${isActive ? "font-bold text-gray-900" : "text-gray-400 hover:text-[#93406B]"}
+                      ${isActive ? "font-bold text-gray-900" : "text-gray-400 hover:text-primary"}
                     `}
                   >
                     {p}
@@ -146,7 +146,7 @@ export const Pagination: React.FC<PaginationProps> = ({
                 <button
                   onClick={() => onPageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
-                  className="p-1 text-gray-400 hover:text-[#93406B] disabled:opacity-20 transition-all"
+                  className="p-1 text-gray-400 hover:text-primary disabled:opacity-20 transition-all"
                 >
                   <ChevronRight size={16} />
                 </button>

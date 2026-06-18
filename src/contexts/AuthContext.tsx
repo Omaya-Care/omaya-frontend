@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useCallback, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { api } from "../lib/api";
@@ -42,12 +42,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const permissions = user?.permissions ?? DEFAULT_PERMISSIONS;
 
-  const can = (permission: keyof RolePermissions): boolean => {
-    return permissions[permission];
-  };
+  const can = useCallback(
+    (permission: keyof RolePermissions): boolean => permissions[permission],
+    [permissions],
+  );
+
+  const value = useMemo(
+    () => ({ user, permissions, isLoading, can }),
+    [user, permissions, isLoading, can],
+  );
 
   return (
-    <AuthContext.Provider value={{ user, permissions, isLoading, can }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

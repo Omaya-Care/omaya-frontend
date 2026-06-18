@@ -1,8 +1,8 @@
-import { format, parseISO, isToday } from "date-fns";
+import { Clock } from "lucide-react";
 import { Call } from "../../types";
 import { Badge } from "../ui/Badge";
 import { getStatusBadgeClass } from "../../lib/badge-helpers";
-import { TableRow, TableCell } from "../ui/table";
+import { formatDateTime } from "../../lib/format";
 
 interface CallListItemProps {
   call: Call;
@@ -17,37 +17,51 @@ const statusLabel: Record<string, string> = {
   missed:      "Missed",
 };
 
-function formatScheduled(iso: string): string {
-  try {
-    const d = parseISO(iso);
-    return isToday(d) ? format(d, "h:mm a") : format(d, "d MMM · h:mm a");
-  } catch {
-    return iso;
-  }
-}
-
 const CallListItem = ({ call, isSelected, onClick }: CallListItemProps) => {
   const label = statusLabel[call.status] ?? call.status;
+  const initials = call.motherName?.charAt(0) ?? "?";
 
   return (
-    <TableRow className={`transition-colors ${isSelected ? "bg-[#F7E8F0]" : "hover:bg-gray-50"}`}>
-      <TableCell
-        onClick={onClick}
-        className={`py-3.5 pl-4 border-l-2 cursor-pointer ${isSelected ? "border-[#93406B]" : "border-transparent"}`}
-      >
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-semibold text-gray-900">{call.motherName}</span>
-          <span className="text-xs text-gray-400 font-normal">
-            {call.callType} · {formatScheduled(call.scheduledAt)}
+    <div
+      className={`
+        w-full px-4 py-3 transition-colors border-l-4
+        ${isSelected ? "border-l-primary bg-gray-50" : "border-l-transparent hover:bg-gray-50"}
+      `}
+    >
+      <div className="flex justify-between items-center">
+        <button
+          onClick={onClick}
+          className="flex-1 text-left min-w-0 flex items-center gap-3"
+        >
+          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+            {initials}
+          </div>
+          <span className="text-sm font-semibold text-gray-900 truncate">
+            {call.motherName}
           </span>
+        </button>
+        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+          <Badge
+            variant="outline"
+            className={getStatusBadgeClass(call.status)}
+            size="sm"
+            dot
+          >
+            {label}
+          </Badge>
         </div>
-      </TableCell>
-      <TableCell className="py-3.5 pr-4">
-        <Badge variant="outline" className={getStatusBadgeClass(call.status)} size="sm" dot>
-          {label}
-        </Badge>
-      </TableCell>
-    </TableRow>
+      </div>
+
+      <button
+        onClick={onClick}
+        className="w-full text-left pl-11 mt-1.5 flex items-center gap-1.5"
+      >
+        <Clock size={11} className="text-gray-400 shrink-0" />
+        <span className="text-xs text-gray-500 font-normal truncate">
+          {call.callType} · {formatDateTime(call.scheduledAt)}
+        </span>
+      </button>
+    </div>
   );
 };
 

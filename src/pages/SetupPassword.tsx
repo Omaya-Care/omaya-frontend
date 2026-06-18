@@ -96,7 +96,7 @@ const SetupPassword = () => {
   if (phase === "verifying") {
     return (
       <AuthCard title="One moment" subtitle="Verifying your link…">
-        <Loader2 className="h-6 w-6 animate-spin text-[#93406B]" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </AuthCard>
     );
   }

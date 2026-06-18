@@ -61,7 +61,7 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
 
   if (!call && !isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
+      <div className="flex flex-col items-center justify-center h-full animate-in fade-in-0 zoom-in-95 duration-300 motion-reduce:animate-none">
         <PhoneCall className="text-gray-300 mb-2" size={48} />
         <p className="text-sm text-gray-400 font-normal">Select a call to view details</p>
       </div>
@@ -75,7 +75,9 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
   const hasTranscript = (call.transcript ?? []).length > 0;
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-1 flex-col min-h-0 animate-in fade-in-0 duration-200 motion-reduce:animate-none">
+      {/* Scrollable content — the actions bar below stays pinned (never overlaps). */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
 
       {/* ── HEADER ─────────────────────────────────────────── */}
       <div className="pb-4 border-b border-gray-100">
@@ -84,7 +86,7 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
             <h2 className="text-xl font-bold text-gray-900">{call.motherName}</h2>
             <p className="text-sm text-gray-500 font-normal mt-0.5">{call.callType}</p>
           </div>
-          <Badge variant="outline" className={getStatusBadgeClass(call.status)} dot>
+          <Badge variant="outline" className={getStatusBadgeClass(call.status)} size="sm" dot>
             {label}
           </Badge>
         </div>
@@ -144,7 +146,7 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
       </div>
 
       {/* ── TRANSCRIPT ─────────────────────────────────────── */}
-      <div className="py-4 flex-1 border-b border-gray-100">
+      <div className="py-4 border-b border-gray-100">
         <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-3">
           Transcript
         </h3>
@@ -167,13 +169,13 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
                   className={`flex gap-2.5 ${isOmaya ? "" : "flex-row-reverse"}`}
                 >
                   <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5 ${
-                    isOmaya ? "bg-[#93406B] text-white" : "bg-gray-200 text-gray-600"
+                    isOmaya ? "bg-primary text-white" : "bg-gray-200 text-gray-600"
                   }`}>
                     {isOmaya ? "O" : "M"}
                   </div>
                   <div className={`max-w-[78%] px-3 py-2 rounded-xl text-sm font-normal leading-relaxed ${
                     isOmaya
-                      ? "bg-[#F7E8F0] text-gray-800 rounded-tl-sm"
+                      ? "bg-primary-100 text-gray-800 rounded-tl-sm"
                       : "bg-gray-100 text-gray-800 rounded-tr-sm"
                   }`}>
                     {row.text}
@@ -189,7 +191,7 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
       {isCompleted && (
         <div className="py-4 border-b border-gray-100 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Flag size={14} className={call.flagsRaised ? "text-orange-500" : "text-gray-300"} />
+            <Flag size={14} className={call.flagsRaised ? "text-amber-500" : "text-gray-300"} />
             <span className="text-sm text-gray-500 font-normal">
               {call.flagsRaised
                 ? `${call.flagsRaised} flag${call.flagsRaised > 1 ? "s" : ""} raised`
@@ -203,9 +205,10 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
           )}
         </div>
       )}
+      </div>
 
-      {/* ── ACTIONS ────────────────────────────────────────── */}
-      <div className="mt-auto pt-4 border-t border-gray-100 flex justify-end items-center gap-2 sticky bottom-0 bg-white">
+      {/* ── ACTIONS (pinned footer) ────────────────────────── */}
+      <div className="shrink-0 pt-4 border-t border-gray-100 flex justify-end items-center gap-2 bg-white">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

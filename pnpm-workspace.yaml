@@ -1,3 +1,9 @@
+# Supply-chain hardening: delay installs of brand-new releases (7 days) so
+# malicious versions caught + unpublished within hours never get installed,
+# and never accept a package whose trust signals weakened between updates.
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+
 allowBuilds:
   '@sentry/cli': true
   esbuild: true

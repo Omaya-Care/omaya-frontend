@@ -17,7 +17,7 @@ const badgeVariants = cva(
         outline: "text-foreground",
       },
       size: {
-        sm: "px-2 py-0.5 text-xs",
+        sm: "px-1.5 py-0.5 text-[11px] leading-tight",
         md: "px-2.5 py-1 text-sm",
       },
     },
@@ -37,7 +37,7 @@ export interface BadgeProps
 function Badge({ className, variant, size, dot = false, children, ...props }: BadgeProps) {
   return (
     <div className={cn(badgeVariants({ variant, size }), className)} {...props}>
-      {dot && <span className="h-1.5 w-1.5 rounded-full bg-current flex-shrink-0" />}
+      {dot && <span className="h-1 w-1 rounded-full bg-current flex-shrink-0" />}
       {children}
     </div>
   )

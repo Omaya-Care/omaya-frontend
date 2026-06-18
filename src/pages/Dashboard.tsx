@@ -62,7 +62,7 @@ const Dashboard = () => {
   const firstName = clinician?.name?.split(/\s+/)[0] ?? "User";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       {/* BLOCK 1: PAGE HEADER */}
       <PageHeader userName={firstName} onNewDischarge={can("create_discharges") ? handleNewDischarge : undefined} />
 
@@ -70,11 +70,11 @@ const Dashboard = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {mothersLoading || callsLoading || escalationsLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="border-0 shadow-none rounded-2xl" style={{ backgroundColor: "#F2DCEA" }}>
-              <CardContent className="p-3 md:p-5 space-y-3">
-                <Skeleton className="h-4 w-24 bg-[#D4B8CB]" />
-                <Skeleton className="h-3 w-32 bg-[#D4B8CB]" />
-                <Skeleton className="h-9 w-16 bg-[#D4B8CB]" />
+            <Card key={i} className="border-0 shadow-none rounded-2xl bg-surface-tint-3">
+              <CardContent className="p-3 md:p-4 space-y-2">
+                <Skeleton className="h-4 w-24 bg-primary-200" />
+                <Skeleton className="h-3 w-32 bg-primary-200" />
+                <Skeleton className="h-9 w-16 bg-primary-200" />
               </CardContent>
             </Card>
           ))
@@ -84,14 +84,14 @@ const Dashboard = () => {
               label="Mothers in care"
               sublabel="Active right now"
               value={mothers.length}
-              background="#F2DCEA"
+              tint={3}
               onViewAll={() => navigate("/mothers")}
             />
             <StatCard
               label="Calls today"
               sublabel="Scheduled & completed"
               value={calls.length}
-              background="#F2DCEA"
+              tint={3}
               onViewAll={() => navigate("/calls")}
             />
             {can("escalate") && (
@@ -99,7 +99,7 @@ const Dashboard = () => {
                 label="Need attention"
                 sublabel="L3 & L4 unacknowledged"
                 value={escalations.length}
-                background="#F2DCEA"
+                tint={3}
                 footerText={escalations.length > 0 ? `${escalations.length} waiting` : undefined}
                 footerColor="#DC2626"
               />
@@ -108,7 +108,7 @@ const Dashboard = () => {
               label="Avg. response time"
               sublabel="To L3 & L4 alerts"
               value="--"
-              background="#F2DCEA"
+              tint={3}
             />
           </>
         )}
@@ -144,13 +144,13 @@ const Dashboard = () => {
                     <AlertTitle>Error</AlertTitle>
                     <AlertDescription>Could not load alerts.</AlertDescription>
                   </Alert>
-                  <button onClick={() => refetchEscalations()} className="mt-3 text-xs text-[#93406B] hover:underline flex items-center gap-1">
+                  <button onClick={() => refetchEscalations()} className="mt-3 text-xs text-primary hover:underline flex items-center gap-1">
                     <RefreshCw size={12} /> Try again
                   </button>
                 </div>
               ) : escalations.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
-                  <CheckCircle2 size={32} className="text-[#93406B]" />
+                  <CheckCircle2 size={32} className="text-primary" />
                   <span className="text-sm font-semibold text-gray-700 mt-1">No alerts right now</span>
                   <span className="text-xs text-gray-400 font-normal text-center max-w-[220px]">
                     All mothers are within safe response times.
@@ -231,13 +231,13 @@ const Dashboard = () => {
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>Could not load calls.</AlertDescription>
               </Alert>
-              <button onClick={() => refetchCalls()} className="text-xs text-[#93406B] hover:underline flex items-center gap-1">
+              <button onClick={() => refetchCalls()} className="text-xs text-primary hover:underline flex items-center gap-1">
                 <RefreshCw size={12} /> Try again
               </button>
             </div>
           ) : calls.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8">
-              <Phone size={32} className="text-[#93406B]" />
+              <Phone size={32} className="text-primary" />
               <span className="text-sm font-semibold text-gray-700 mt-1">No calls scheduled today</span>
               <span className="text-xs text-gray-400 font-normal text-center max-w-[260px]">
                 Calls will appear here once mothers are enrolled and discharged.

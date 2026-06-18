@@ -44,6 +44,7 @@ import {
   PopoverTrigger,
 } from "../components/ui/popover";
 import { useDrawer } from "../contexts/DrawerContext";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 
@@ -60,6 +61,7 @@ interface MotherSearchResult {
 
 const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { openDrawer } = useDrawer();
   const handleClose = onClose ?? (() => navigate("/dashboard"));
   const [searchPhase, setSearchPhase] = useState(true);
@@ -114,11 +116,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(async () => {
       try {
-        console.log("Searching for:", searchQuery);
         const res = await api.get(
           `/mothers/search?q=${encodeURIComponent(searchQuery)}`,
         );
-        console.log("Search response:", res.data);
         const results = res.data?.results;
         if (Array.isArray(results)) {
           setSearchResults(results);
@@ -155,7 +155,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         : format(addDays(new Date(), 1), "dd/MM/yyyy")
       : "";
 
-  const phoneValid = /^\+233[25]\d{8}$/.test(formData.phoneNumber);
+  // Mirror AddMother's country-code-aware check: strip the dial code + any
+  // separators, require >=9 local digits. (The old +233-only regex rejected
+  // the non-GH numbers enrollment accepts.)
+  const phoneDigits = formData.phoneNumber
+    .replace(countryCode, "")
+    .replace(/\D/g, "");
+  const phoneValid = phoneDigits.length >= 9;
 
   const handleNext = async () => {
     // Step 0 intro - no validation
@@ -242,8 +248,15 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         ),
         outcome: formData.outcome,
         preferred_call_window: formData.callingWindow,
-        consent_calls: foundMother ? true : formData.consentCalls,
-        consent_recording: foundMother ? true : formData.consentRecording,
+        // Existing mothers have no consent step in this flow — omit the keys so
+        // the backend keeps their originally-recorded consent (do NOT fabricate
+        // it as true). Only the new-patient flow below collects fresh consent.
+        ...(foundMother
+          ? {}
+          : {
+              consent_calls: formData.consentCalls,
+              consent_recording: formData.consentRecording,
+            }),
         emergency_contact_name: formData.emergencyName,
         emergency_contact_phone: formData.emergencyPhone,
         emergency_contact_relationship:
@@ -284,6 +297,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           : firstCallAt
             ? `Discharge recorded. First call scheduled for ${format(new Date(firstCallAt), "d MMM 'at' h:mm a")}.`
             : "Discharge recorded. Her first call has been scheduled.";
+      queryClient.invalidateQueries({ queryKey: ["mothers"] });
+      queryClient.invalidateQueries({ queryKey: ["mother"] });
+      queryClient.invalidateQueries({ queryKey: ["calls"] });
       toast.success(successMsg);
       handleClose();
     } catch (err: unknown) {
@@ -414,7 +430,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     setSearchPhase(false);
                     setCurrentStep(1);
                   }}
-                  className="bg-white border border-gray-200 rounded-xl px-4 py-3.5 hover:border-[#93406B] cursor-pointer transition-all flex justify-between items-center group shadow-sm"
+                  className="bg-white border border-gray-200 rounded-xl px-4 py-3.5 hover:border-primary cursor-pointer transition-all flex justify-between items-center group shadow-sm"
                 >
                   <div className="flex flex-col">
                     <span className="text-sm font-semibold text-gray-900">
@@ -438,7 +454,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                       )}
                     </div>
                   </div>
-                  <span className="text-xs text-[#93406B] font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-xs text-primary font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
                     Select →
                   </span>
                 </div>
@@ -463,7 +479,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     <Skeleton className="h-4 w-36" />
                     <Skeleton className="h-3 w-28" />
                   </div>
-                  <Loader2 className="h-4 w-4 animate-spin text-[#93406B]" />
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 </div>
               </div>
             )}
@@ -484,10 +500,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 setSearchPhase(false);
                 setCurrentStep(0);
               }}
-              className="bg-white border border-gray-200 rounded-xl px-5 py-6 cursor-pointer hover:border-[#93406B] hover:bg-[#F7E8F0]/30 transition-all flex flex-col items-center text-center gap-3 shadow-sm"
+              className="bg-white border border-gray-200 rounded-xl px-5 py-6 cursor-pointer hover:border-primary hover:bg-primary-100/30 transition-all flex flex-col items-center text-center gap-3 shadow-sm"
             >
-              <div className="w-10 h-10 bg-[#F7E8F0] rounded-full flex items-center justify-center">
-                <UserPlus size={20} className="text-[#93406B]" />
+              <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                <UserPlus size={20} className="text-primary" />
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-semibold text-gray-900">
@@ -500,10 +516,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
             <div
               onClick={() => openDrawer("add-mother")}
-              className="bg-white border border-gray-200 rounded-xl px-5 py-6 cursor-pointer hover:border-[#93406B] hover:bg-[#F7E8F0]/30 transition-all flex flex-col items-center text-center gap-3 shadow-sm"
+              className="bg-white border border-gray-200 rounded-xl px-5 py-6 cursor-pointer hover:border-primary hover:bg-primary-100/30 transition-all flex flex-col items-center text-center gap-3 shadow-sm"
             >
-              <div className="w-10 h-10 bg-[#F7E8F0] rounded-full flex items-center justify-center">
-                <Baby size={20} className="text-[#93406B]" />
+              <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                <Baby size={20} className="text-primary" />
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-semibold text-gray-900">
@@ -582,8 +598,8 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             ].map((card, idx) => (
               <Card key={idx} className="border-gray-100 shadow-sm">
                 <CardContent className="p-4 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-[#F7E8F0] flex items-center justify-center shrink-0">
-                    <card.icon size={20} className="text-[#93406B]" />
+                  <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+                    <card.icon size={20} className="text-primary" />
                   </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-semibold text-gray-900">
@@ -753,14 +769,14 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 ].map((type) => (
                   <div
                     key={type.id}
-                    onClick={() => updateField("deliveryType", type.id as any)}
-                    className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex flex-col items-center text-center gap-2 ${formData.deliveryType === type.id ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 hover:border-[#93406B]/40"}`}
+                    onClick={() => updateField("deliveryType", type.id as (typeof formData)["deliveryType"])}
+                    className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex flex-col items-center text-center gap-2 ${formData.deliveryType === type.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"}`}
                   >
                     <type.icon
                       size={24}
                       className={
                         formData.deliveryType === type.id
-                          ? "text-[#93406B]"
+                          ? "text-primary"
                           : "text-gray-400"
                       }
                     />
@@ -794,13 +810,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 onChange={(val) =>
                   updateField(
                     "callingWindow",
-                    val.length > 0 ? (val[0] as any) : "",
+                    val.length > 0 ? (val[0] as (typeof formData)["callingWindow"]) : "",
                   )
                 }
                 max={1}
               />
               {formData.callingWindow === "inbound" && (
-                <span className="text-xs text-[#93406B] font-medium mt-2">
+                <span className="text-xs text-primary font-medium mt-2">
                   We will share the care line number with her on the welcome SMS
                 </span>
               )}
@@ -838,12 +854,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             ].map((outcome) => (
               <div
                 key={outcome.id}
-                onClick={() => updateField("outcome", outcome.id as any)}
-                className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 hover:border-[#93406B]/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
+                onClick={() => updateField("outcome", outcome.id as (typeof formData)["outcome"])}
+                className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
               >
                 <outcome.icon
                   size={24}
-                  className={`shrink-0 ${formData.outcome === outcome.id ? "text-[#93406B]" : "text-gray-400"}`}
+                  className={`shrink-0 ${formData.outcome === outcome.id ? "text-primary" : "text-gray-400"}`}
                 />
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold text-gray-900">
@@ -1293,7 +1309,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   {row.label}
                 </span>
                 <span
-                  className={`text-sm font-semibold ${row.highlight ? "text-[#93406B]" : "text-gray-900"}`}
+                  className={`text-sm font-semibold ${row.highlight ? "text-primary" : "text-gray-900"}`}
                 >
                   {row.value}
                 </span>
@@ -1645,12 +1661,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 onChange={(val) =>
                   updateField(
                     "callingWindow",
-                    val.length > 0 ? (val[0] as any) : "",
+                    val.length > 0 ? (val[0] as (typeof formData)["callingWindow"]) : "",
                   )
                 }
               />
               {formData.callingWindow === "inbound" && (
-                <span className="text-xs text-[#93406B] font-medium mt-2">
+                <span className="text-xs text-primary font-medium mt-2">
                   We will share the care line number with her on the welcome SMS
                 </span>
               )}
@@ -1674,14 +1690,14 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 ].map((type) => (
                   <div
                     key={type.id}
-                    onClick={() => updateField("deliveryType", type.id as any)}
-                    className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex flex-col items-center text-center gap-2 ${formData.deliveryType === type.id ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 hover:border-[#93406B]/40"}`}
+                    onClick={() => updateField("deliveryType", type.id as (typeof formData)["deliveryType"])}
+                    className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex flex-col items-center text-center gap-2 ${formData.deliveryType === type.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"}`}
                   >
                     <type.icon
                       size={24}
                       className={
                         formData.deliveryType === type.id
-                          ? "text-[#93406B]"
+                          ? "text-primary"
                           : "text-gray-400"
                       }
                     />
@@ -1725,12 +1741,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             ].map((outcome) => (
               <div
                 key={outcome.id}
-                onClick={() => updateField("outcome", outcome.id as any)}
-                className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 hover:border-[#93406B]/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
+                onClick={() => updateField("outcome", outcome.id as (typeof formData)["outcome"])}
+                className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
               >
                 <outcome.icon
                   size={24}
-                  className={`shrink-0 ${formData.outcome === outcome.id ? "text-[#93406B]" : "text-gray-400"}`}
+                  className={`shrink-0 ${formData.outcome === outcome.id ? "text-primary" : "text-gray-400"}`}
                 />
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold text-gray-900">
@@ -1810,10 +1826,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               onClick={() =>
                 updateField("consentCalls", !formData.consentCalls)
               }
-              className={`border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentCalls ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 bg-white"} ${touched && !formData.consentCalls ? "border-red-400" : ""}`}
+              className={`border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentCalls ? "border-primary bg-primary-100" : "border-gray-200 bg-white"} ${touched && !formData.consentCalls ? "border-red-400" : ""}`}
             >
               <div
-                className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentCalls ? "bg-[#93406B] border-[#93406B]" : "bg-white border-gray-300"}`}
+                className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentCalls ? "bg-primary border-primary" : "bg-white border-gray-300"}`}
               >
                 {formData.consentCalls && (
                   <div className="w-1.5 h-1.5 bg-white rounded-full" />
@@ -1827,7 +1843,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   Omaya will call her to check how she and her baby are doing
                   after she goes home. She can ask to stop at any time.
                 </p>
-                <span className="text-xs text-[#93406B] font-semibold mt-2 uppercase tracking-wide">
+                <span className="text-xs text-primary font-semibold mt-2 uppercase tracking-wide">
                   Required to enroll
                 </span>
               </div>
@@ -1837,10 +1853,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               onClick={() =>
                 updateField("consentRecording", !formData.consentRecording)
               }
-              className={`border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentRecording ? "border-[#93406B] bg-[#F7E8F0]" : "border-gray-200 bg-white"}`}
+              className={`border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentRecording ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}`}
             >
               <div
-                className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentRecording ? "bg-[#93406B] border-[#93406B]" : "bg-white border-gray-300"}`}
+                className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentRecording ? "bg-primary border-primary" : "bg-white border-gray-300"}`}
               >
                 {formData.consentRecording && (
                   <div className="w-1.5 h-1.5 bg-white rounded-full" />
@@ -1983,7 +1999,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   {row.label}
                 </span>
                 <span
-                  className={`text-sm font-semibold ${row.highlight ? "text-[#93406B]" : "text-gray-900"}`}
+                  className={`text-sm font-semibold ${row.highlight ? "text-primary" : "text-gray-900"}`}
                 >
                   {row.value}
                 </span>

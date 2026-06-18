@@ -15,6 +15,7 @@ export function toMother(raw: Record<string, unknown>): Mother {
     lastInteraction: (raw.last_interaction as string) ?? "",
     note: (raw.note as string) ?? "",
     currentFlag: (raw.current_flag as string) ?? undefined,
+    nextCallAt: (raw.next_call_at as string) ?? undefined,
     checkIns: ((raw.check_ins as Record<string, unknown>[]) ?? []).map(
       (ci): CheckIn => ({
         id: ci.id as string,

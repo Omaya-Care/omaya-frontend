@@ -7,7 +7,16 @@ export const Toaster = ({ ...props }: ToasterProps) => {
     <SonnerToaster
       position="bottom-right"
       duration={4000}
-      richColors
+      toastOptions={{
+        classNames: {
+          // Brand-neutral toasts (no green success). Type is conveyed by the
+          // icon + copy, not a coloured card.
+          toast: "bg-white border border-gray-200 text-gray-800 shadow-md",
+          success: "[&_[data-icon]]:text-primary",
+          error: "[&_[data-icon]]:text-red-600",
+          description: "text-gray-500",
+        },
+      }}
       {...props}
     />
   );

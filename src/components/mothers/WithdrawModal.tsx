@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, XCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,19 +15,25 @@ interface WithdrawModalProps {
   onClose: () => void;
   onConfirm: (reason: string) => void;
   motherName: string;
+  isPending?: boolean;
 }
 
-const WithdrawModal = ({ isOpen, onClose, onConfirm, motherName }: WithdrawModalProps) => {
+const WithdrawModal = ({ isOpen, onClose, onConfirm, motherName, isPending = false }: WithdrawModalProps) => {
   const [reason, setReason] = useState("");
+
+  // Clear the field whenever the modal is closed (incl. the success path,
+  // which closes externally and bypasses handleClose).
+  useEffect(() => {
+    if (!isOpen) setReason("");
+  }, [isOpen]);
 
   const handleConfirm = () => {
     onConfirm(reason);
-    setReason("");
   };
 
   const handleClose = () => {
-    setReason("");
-    onClose();
+    if (isPending) return;
+    onClose(); // reason is cleared by the isOpen effect
   };
 
   return (
@@ -63,10 +69,11 @@ const WithdrawModal = ({ isOpen, onClose, onConfirm, motherName }: WithdrawModal
         </div>
 
         <DialogFooter className="mt-4 flex justify-end gap-3">
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={isPending}>
             Cancel
           </Button>
-          <Button variant="default" onClick={handleConfirm}>
+          <Button variant="default" onClick={handleConfirm} disabled={isPending} className="gap-2">
+            {isPending && <Loader2 size={16} className="animate-spin" />}
             Withdraw consent
           </Button>
         </DialogFooter>

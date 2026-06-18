@@ -1,6 +1,6 @@
-import React, { useState, lazy, Suspense } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { NavLink, useNavigate, Link } from "react-router-dom";
+import { NavLink, useNavigate, useLocation, Link } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -12,8 +12,8 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useDrawer } from "../../contexts/DrawerContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -25,12 +25,21 @@ import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
+  Button,
 } from "../../components/ui";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "../../components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../../components/ui/dialog";
 
 const AddMother = lazy(() => import("../../pages/AddMother"));
 const NewDischarge = lazy(() => import("../../pages/NewDischarge"));
@@ -55,11 +64,13 @@ const navItemPermissions: Record<string, keyof RolePermissions | null> = {
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { drawerType, closeDrawer } = useDrawer();
   const { can } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
 
   const visibleNavItems = navItems.filter((item) => {
     const required = navItemPermissions[item.route];
@@ -69,6 +80,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const clinician = getClinician();
   const displayName = clinician?.name ?? clinician?.email ?? "";
   const roleLabel = clinician?.role ?? "";
+  const hospitalName = clinician?.hospital_name ?? "";
+
+  // Browser tab title — scoped to the signed-in hospital while in the app.
+  useEffect(() => {
+    document.title = hospitalName
+      ? `Omaya Care | ${hospitalName}`
+      : "Omaya Care";
+    return () => {
+      document.title = "Omaya Care";
+    };
+  }, [hospitalName]);
 
   const handleSignOut = () => {
     queryClient.removeQueries({ queryKey: ["me"] });
@@ -93,24 +115,25 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           ${sidebarCollapsed ? "lg:w-[64px]" : "lg:w-[220px]"}
           w-[220px] flex-none h-full flex flex-col py-4
           bg-white border-r border-gray-100
-          transition-[width] duration-200 ease-in-out overflow-hidden
+          transition-[width] duration-200 ease-in-out motion-reduce:transition-none overflow-hidden
           ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
         {/* Logo row */}
-        <div className={`pt-6 pb-8 flex items-center px-4 ${sidebarCollapsed ? "lg:justify-center" : "justify-between"}`}>
+        <div className={`pt-2 pb-8 flex items-center px-5 ${sidebarCollapsed ? "lg:justify-center lg:px-0" : "justify-between"}`}>
           <Link
             to="/dashboard"
             className="flex-none hover:opacity-80 transition-opacity"
             onClick={() => setMobileSidebarOpen(false)}
           >
-            <img src="/logo.png" className="h-12 sm:h-14 lg:h-16 w-auto object-contain" alt="Omaya Care" />
+            <img src="/logo.png" className="h-[28px] w-auto object-contain" alt="Omaya Care" />
           </Link>
 
           {/* Mobile close */}
           <button
             className="lg:hidden text-gray-400 hover:text-gray-600 transition-colors"
             onClick={() => setMobileSidebarOpen(false)}
+            aria-label="Close menu"
           >
             <X size={18} />
           </button>
@@ -120,8 +143,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <button
               className="hidden lg:flex text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-md hover:bg-gray-100"
               onClick={() => setSidebarCollapsed(true)}
+              aria-label="Collapse sidebar"
             >
-              <ChevronLeft size={16} />
+              <PanelLeftClose size={18} />
             </button>
           )}
         </div>
@@ -134,8 +158,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <button
                 className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-md hover:bg-gray-100"
                 onClick={() => setSidebarCollapsed(false)}
+                aria-label="Expand sidebar"
               >
-                <ChevronRight size={16} />
+                <PanelLeftOpen size={18} />
               </button>
             </div>
           )}
@@ -147,10 +172,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               onClick={() => setMobileSidebarOpen(false)}
               className={({ isActive }) => `
                 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm group
-                ${sidebarCollapsed ? "lg:justify-center lg:px-2" : ""}
                 ${
                   isActive
-                    ? "bg-[#F7E8F0] text-[#93406B] font-medium"
+                    ? "bg-primary-100 text-primary font-medium"
                     : "text-gray-500 hover:bg-gray-100 hover:text-gray-700 font-normal"
                 }
                 focus-visible:ring-0 focus-visible:outline-none
@@ -159,12 +183,20 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {({ isActive }) => (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className={`flex items-center gap-3 ${sidebarCollapsed ? "lg:justify-center" : ""}`}>
+                    <div className="flex items-center gap-3">
                       <item.icon
                         size={18}
-                        className={isActive ? "text-[#93406B]" : "text-gray-400 group-hover:text-gray-500"}
+                        className={`flex-none ${isActive ? "text-primary" : "text-gray-400 group-hover:text-gray-500"}`}
                       />
-                      <span className={sidebarCollapsed ? "lg:hidden" : ""}>{item.label}</span>
+                      <span
+                        className={`whitespace-nowrap overflow-hidden transition-[max-width,opacity] duration-200 ease-in-out motion-reduce:transition-none ${
+                          sidebarCollapsed
+                            ? "lg:max-w-0 lg:opacity-0"
+                            : "max-w-[160px] opacity-100"
+                        }`}
+                      >
+                        {item.label}
+                      </span>
                     </div>
                   </TooltipTrigger>
                   {sidebarCollapsed && (
@@ -181,13 +213,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         {/* Bottom section */}
         <div className="mt-auto px-2">
           {/* Notifications */}
-          <div className={`flex mb-2 ${sidebarCollapsed ? "lg:justify-center" : "px-1"}`}>
+          <div className="flex mb-2 px-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors relative">
                   <Bell size={18} />
                   {/* Unread dot — wire to real count when available */}
-                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#93406B] rounded-full" />
+                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side={sidebarCollapsed ? "right" : "top"}>
@@ -201,19 +233,23 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           {/* Profile popover */}
           <Popover>
             <PopoverTrigger asChild>
-              <div
-                className={`flex items-center gap-2.5 px-2 py-2 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors ${sidebarCollapsed ? "lg:justify-center" : ""}`}
-              >
-                <div className="w-8 h-8 bg-[#93406B] rounded-full flex-none flex items-center justify-center text-white text-xs font-semibold">
+              <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                <div className="w-8 h-8 bg-primary rounded-full flex-none flex items-center justify-center text-white text-xs font-semibold">
                   {initialsOf(clinician)}
                 </div>
-                <div className={`flex flex-col min-w-0 flex-1 ${sidebarCollapsed ? "lg:hidden" : ""}`}>
-                  <span className="text-sm font-medium text-gray-700 truncate">{displayName}</span>
-                  <span className="text-xs font-normal text-gray-400 truncate">{roleLabel}</span>
+                <div
+                  className={`flex flex-col min-w-0 overflow-hidden transition-[max-width,opacity] duration-200 ease-in-out motion-reduce:transition-none ${
+                    sidebarCollapsed
+                      ? "lg:max-w-0 lg:opacity-0 flex-1"
+                      : "max-w-[160px] opacity-100 flex-1"
+                  }`}
+                >
+                  <span className="text-sm font-medium text-gray-700 truncate whitespace-nowrap">{displayName}</span>
+                  <span className="text-xs font-normal text-gray-400 truncate whitespace-nowrap">{roleLabel}</span>
                 </div>
                 <ChevronsUpDown
                   size={14}
-                  className={`text-gray-400 flex-none ${sidebarCollapsed ? "lg:hidden" : ""}`}
+                  className={`text-gray-400 flex-none transition-opacity duration-200 motion-reduce:transition-none ${sidebarCollapsed ? "lg:opacity-0" : "opacity-100"}`}
                 />
               </div>
             </PopoverTrigger>
@@ -232,7 +268,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </Link>
               <div className="h-px bg-gray-100 my-1" />
               <button
-                onClick={handleSignOut}
+                onClick={() => setSignOutOpen(true)}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
               >
                 <LogOut size={15} />
@@ -244,7 +280,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       </aside>
 
       {/* ── MAIN CONTENT ─────────────────────────────────────── */}
-      <main className="flex-1 bg-[#F4F4F5] relative flex flex-col lg:rounded-tl-2xl overflow-y-auto">
+      <main className="flex-1 bg-surface-app relative flex flex-col lg:rounded-l-2xl overflow-y-auto">
         {/* Mobile top bar */}
         <div className="lg:hidden flex items-center gap-3 px-4 py-3 flex-shrink-0">
           <button
@@ -253,10 +289,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           >
             <Menu size={22} />
           </button>
-          <img src="/logo.png" className="h-12 w-auto object-contain" alt="Omaya Care" />
+          <img src="/logo.png" className="h-[50px] w-auto object-contain" alt="Omaya Care" />
         </div>
 
-        <div className="p-4 lg:p-6">
+        <div
+          key={location.pathname}
+          className="flex flex-1 flex-col min-h-0 p-4 lg:p-6 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+        >
           {children}
         </div>
       </main>
@@ -291,6 +330,34 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </Suspense>
         </SheetContent>
       </Sheet>
+
+      {/* ── SIGN-OUT CONFIRMATION ────────────────────────────── */}
+      <Dialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-gray-900">
+              Sign out?
+            </DialogTitle>
+            <DialogDescription className="text-sm text-gray-500 mt-1">
+              You'll be returned to the login screen and will need to sign in
+              again to continue.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-end gap-3 mt-6">
+            <Button variant="outline" onClick={() => setSignOutOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleSignOut}
+              className="flex items-center gap-2"
+            >
+              <LogOut size={16} />
+              Sign out
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

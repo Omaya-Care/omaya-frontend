@@ -37,8 +37,8 @@ const ChipSelect = ({ options, selected, onChange, max }: ChipSelectProps) => {
               px-4 py-2.5 rounded-xl border text-sm cursor-pointer transition-all flex flex-col
               ${
                 isSelected
-                  ? 'border-[#93406B] bg-[#F7E8F0] text-[#93406B] font-medium'
-                  : 'border-gray-200 bg-white text-gray-600 hover:border-[#93406B]/40 font-normal'
+                  ? 'border-primary bg-primary-100 text-primary font-medium'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-primary/40 font-normal'
               }
             `}
           >

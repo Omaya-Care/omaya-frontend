@@ -17,7 +17,7 @@ const release = `portal@${sha}`
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -26,6 +26,15 @@ export default defineConfig({
   define: {
     __SENTRY_RELEASE__: JSON.stringify(release),
   },
+  // Strip chatty/PHI-prone console output + debugger from production bundles so
+  // PHI can never leak to a clinic-workstation console. Keep console.error/warn
+  // so Sentry's runtime console breadcrumbs (warn/error) still fire — `pure`
+  // lets the minifier drop log/debug/info (return value always unused). Dev
+  // (vite serve) keeps everything.
+  esbuild:
+    command === 'build'
+      ? { drop: ['debugger'], pure: ['console.log', 'console.debug', 'console.info'] }
+      : {},
   build: {
     sourcemap: Boolean(sentryAuthToken),
   },
@@ -42,4 +51,4 @@ export default defineConfig({
         })
       : undefined,
   ],
-})
+}))

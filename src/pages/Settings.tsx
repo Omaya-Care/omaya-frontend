@@ -24,7 +24,7 @@ const Toggle = ({ enabled, onChange, locked = false }: ToggleProps) => (
     className={`
       relative inline-flex w-11 h-6 rounded-full flex-shrink-0
       transition-all duration-200 ease-in-out
-      ${enabled ? 'bg-[#93406B]' : 'bg-gray-200'}
+      ${enabled ? 'bg-primary' : 'bg-gray-200'}
       ${locked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
     `}
   >
@@ -285,7 +285,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div>
       <div className="w-full flex flex-col gap-10 pb-10">
 
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
@@ -321,7 +321,7 @@ const SettingsPage = () => {
           ) : (
             <>
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-14 h-14 rounded-full bg-[#93406B] text-white font-bold text-lg flex items-center justify-center flex-shrink-0 select-none">
+                <div className="w-14 h-14 rounded-full bg-primary text-white font-bold text-lg flex items-center justify-center flex-shrink-0 select-none">
                   {initials(me?.name || me?.email || '?')}
                 </div>
                 <div>

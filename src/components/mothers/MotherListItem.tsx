@@ -1,7 +1,11 @@
+import { PhoneCall } from "lucide-react";
 import { Mother } from "../../types";
 import { Badge } from "../ui/Badge";
-import { getSeverityBadgeClass } from "../../lib/badge-helpers";
-import { formatDate } from "../../lib/format";
+import {
+  getSeverityBadgeClass,
+  getSeverityBorderClass,
+} from "../../lib/badge-helpers";
+import { formatDateTime } from "../../lib/format";
 import { Skeleton } from "../ui/skeleton";
 
 interface MotherListItemProps {
@@ -9,14 +13,6 @@ interface MotherListItemProps {
   isSelected: boolean;
   onClick: () => void;
 }
-
-const severityBorderColors: Record<string, string> = {
-  crisis: "border-l-red-500",
-  elevated: "border-l-orange-500",
-  monitor: "border-l-yellow-500",
-  routine: "border-l-green-500",
-  inactive: "border-l-gray-300",
-};
 
 const MotherListItem = ({
   mother,
@@ -48,7 +44,7 @@ const MotherListItem = ({
 
   const isWithdrawn = mother.consentStatus === "withdrawn";
   const severity = mother.severity || "routine";
-  const borderColor = severityBorderColors[severity] || "border-l-transparent";
+  const borderColor = getSeverityBorderClass(severity);
 
   // Safe initials generation
   const initials = mother.name?.charAt(0) ?? "?";
@@ -61,55 +57,59 @@ const MotherListItem = ({
         ${isWithdrawn ? "text-gray-400" : ""}
       `}
     >
-      <div className="flex justify-between items-start">
+      <div className="flex items-center gap-3">
+        {/* Name icon — vertically centered against the whole 2-line block */}
         <button
           onClick={onClick}
-          className="flex-1 text-left min-w-0 flex items-center gap-3"
+          aria-label={`View ${mother.name}`}
+          className="shrink-0"
         >
-          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400 shrink-0">
+          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-bold text-primary">
             {initials}
           </div>
-          <span
-            className={`text-sm font-semibold text-gray-900 truncate ${isWithdrawn ? "italic text-gray-400" : ""}`}
-          >
-            {mother.name}
-          </span>
         </button>
-        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-          <Badge
-            variant="outline"
-            className={getSeverityBadgeClass(severity)}
-            size="sm"
-            dot
-          >
-            {(severity?.charAt(0)?.toUpperCase() ?? "") +
-              (severity?.slice(1) ?? "")}
-          </Badge>
+
+        <div className="flex-1 min-w-0">
+          {/* Line 1: name + severity badge */}
+          <div className="flex justify-between items-center gap-2">
+            <button onClick={onClick} className="min-w-0 flex-1 text-left">
+              <span
+                className={`block text-sm font-semibold text-gray-900 truncate ${isWithdrawn ? "italic text-gray-400" : ""}`}
+              >
+                {mother.name}
+              </span>
+            </button>
+            <Badge
+              variant="outline"
+              className={getSeverityBadgeClass(severity)}
+              size="sm"
+              dot
+            >
+              {(severity?.charAt(0)?.toUpperCase() ?? "") +
+                (severity?.slice(1) ?? "")}
+            </Badge>
+          </div>
+
+          {/* Line 2: next call */}
+          <button onClick={onClick} className="w-full text-left mt-1">
+            {mother.nextCallAt && !isWithdrawn ? (
+              <div className="flex items-center gap-1.5">
+                <PhoneCall size={11} className="text-primary shrink-0" />
+                <span className="text-xs font-medium text-primary truncate">
+                  Next call · {formatDateTime(mother.nextCallAt)}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <PhoneCall size={11} className="text-gray-300 shrink-0" />
+                <span className="text-xs font-normal text-gray-400">
+                  No upcoming call
+                </span>
+              </div>
+            )}
+          </button>
         </div>
       </div>
-
-      <button onClick={onClick} className="w-full text-left pl-11">
-        <div className="flex items-center gap-2 mt-1">
-          <span className="text-xs text-gray-500 font-normal">
-            Day {mother.dayPostpartum}
-          </span>
-          <span className="text-gray-300 text-xs">·</span>
-          <span className="text-xs text-gray-500 font-normal">
-            {(mother.deliveryType?.charAt(0)?.toUpperCase() ?? "") +
-              (mother.deliveryType?.slice(1) ?? "")}
-          </span>
-          <span className="text-gray-300 text-xs">·</span>
-          <span className="text-xs text-gray-500 font-normal">
-            {formatDate(mother.dischargeDate)}
-          </span>
-        </div>
-
-        <div
-          className={`text-xs text-gray-400 mt-1 font-normal truncate ${isWithdrawn ? "italic text-gray-400" : ""}`}
-        >
-          {mother.note}
-        </div>
-      </button>
     </div>
   );
 };

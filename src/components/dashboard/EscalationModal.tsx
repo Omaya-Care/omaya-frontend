@@ -46,8 +46,8 @@ const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationMod
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <div className="flex items-start gap-4">
-            <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="text-orange-400" size={22} />
+            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="text-amber-500" size={22} />
             </div>
             <div>
               <DialogTitle className="text-base font-semibold text-gray-900">{item.motherName}</DialogTitle>
@@ -106,7 +106,7 @@ const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationMod
           </div>
           <div className="h-1 bg-gray-100 rounded-full mt-2 overflow-hidden">
             <div
-              className="h-full bg-[#93406B] rounded-full transition-all duration-500"
+              className="h-full bg-primary rounded-full transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             />
           </div>

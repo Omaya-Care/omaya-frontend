@@ -43,22 +43,6 @@ export const useTriggerCall = () => {
   });
 };
 
-/**
- * Hook to confirm consent/withdrawal (sends SMS).
- */
-export const useConfirmConsentAction = (type: "consent" | "withdrawal") => {
-  return useMutation({
-    mutationFn: async (motherId: string) => {
-      const endpoint =
-        type === "consent"
-          ? `/mothers/${motherId}/confirm-consent`
-          : `/mothers/${motherId}/confirm-withdrawal`;
-      const response = await api.post(endpoint);
-      return response.data;
-    },
-  });
-};
-
 export const useLogVisit = () => {
   const queryClient = useQueryClient();
   return useMutation({

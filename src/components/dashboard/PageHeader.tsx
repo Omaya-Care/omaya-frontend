@@ -29,8 +29,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   onNewDischarge,
 }) => {
   return (
-    <div className="mb-6 md:mb-8">
-      <div className="flex justify-between items-center mb-1">
+    <div>
+      <div className="flex justify-between items-start mb-1 lg:pt-1">
         <span className="text-gray-400 text-xs md:text-sm font-normal">
           {formatDate()}
         </span>

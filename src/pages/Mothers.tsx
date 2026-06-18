@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   UserRound,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { useMothers, useMother } from "../hooks/useMothers";
 import { useWithdrawMother } from "../hooks/useMutations";
@@ -47,6 +48,7 @@ const MothersPage = () => {
 
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [logVisitModalOpen, setLogVisitModalOpen] = useState(false);
@@ -68,12 +70,23 @@ const MothersPage = () => {
         return false;
       if (statusFilter !== "all" && mother.consentStatus !== statusFilter)
         return false;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        if (
+          !mother.name.toLowerCase().includes(q) &&
+          !mother.phone.toLowerCase().includes(q)
+        )
+          return false;
+      }
       return true;
     });
-  }, [mothers, severityFilter, statusFilter]);
+  }, [mothers, severityFilter, statusFilter, search]);
 
   const handleSelectMother = (id: string) => {
-    if (!can("message_mothers")) return;
+    // Viewing a profile is a read action — the /mothers route already requires
+    // `view_mothers`. Do NOT gate selection on `message_mothers` (that's for
+    // actions like calling/logging visits, gated on the buttons themselves),
+    // otherwise roles without messaging (e.g. Administrator) can't open anyone.
     setSelectedMotherId(id);
     setMobileDetailOpen(true);
   };
@@ -96,7 +109,7 @@ const MothersPage = () => {
 
   if (isLoading && mothers.length === 0) {
     return (
-      <div className="flex flex-row gap-4 h-[calc(100vh-64px)]">
+      <div className="flex flex-1 min-h-0 flex-row gap-6">
         <div className="w-full lg:w-72 bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3">
           <Skeleton className="h-6 w-24" />
           <Skeleton className="h-9 w-full rounded-md" />
@@ -125,8 +138,8 @@ const MothersPage = () => {
 
   if (!mothers || mothers.length === 0) {
     return (
-      <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center gap-3">
-        <UserRound size={48} className="text-[#93406B]" />
+      <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3">
+        <UserRound size={48} className="text-primary" />
         <span className="text-sm font-semibold text-gray-700">
           No mothers enrolled yet
         </span>
@@ -138,7 +151,7 @@ const MothersPage = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-64px)] lg:h-[calc(100vh-64px)] flex flex-row gap-4">
+    <div className="flex flex-1 min-h-0 flex-row gap-6">
       {/* LEFT PANEL */}
       <div
         className={`
@@ -183,21 +196,23 @@ const MothersPage = () => {
         {/* Search */}
         <div className="px-4 pb-3 flex-shrink-0">
           <Input
-            placeholder="Search name or reference"
+            placeholder="Search name or phone"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             leftIcon={<Search size={16} />}
             className="bg-gray-50/50"
           />
         </div>
 
         {/* Combined filter */}
-        <div className="px-4 pb-3 flex-shrink-0">
+        <div className="px-4 pb-3 flex-shrink-0 flex items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
               <button className="flex items-center gap-1.5 text-xs border border-gray-200 bg-white rounded-md py-1.5 px-2.5 font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 <SlidersHorizontal size={14} />
                 <span>Filter</span>
                 {(severityFilter !== "all" || statusFilter !== "all") && (
-                  <span className="ml-1 w-5 h-5 rounded-full bg-[#93406B] text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="ml-1 w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center animate-in zoom-in-50 duration-150 motion-reduce:animate-none">
                     {(severityFilter !== "all" ? 1 : 0) +
                       (statusFilter !== "all" ? 1 : 0)}
                   </span>
@@ -224,7 +239,7 @@ const MothersPage = () => {
                         onClick={() => setSeverityFilter(val)}
                         className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
                           severityFilter === val
-                            ? "border-[#93406B] bg-[#F7E8F0] text-[#93406B] font-medium"
+                            ? "border-primary bg-primary-100 text-primary font-medium"
                             : "border-gray-200 text-gray-600 hover:border-gray-300"
                         }`}
                       >
@@ -246,7 +261,7 @@ const MothersPage = () => {
                         onClick={() => setStatusFilter(val)}
                         className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
                           statusFilter === val
-                            ? "border-[#93406B] bg-[#F7E8F0] text-[#93406B] font-medium"
+                            ? "border-primary bg-primary-100 text-primary font-medium"
                             : "border-gray-200 text-gray-600 hover:border-gray-300"
                         }`}
                       >
@@ -260,6 +275,19 @@ const MothersPage = () => {
               </div>
             </PopoverContent>
           </Popover>
+
+          {(severityFilter !== "all" || statusFilter !== "all") && (
+            <button
+              onClick={() => {
+                setSeverityFilter("all");
+                setStatusFilter("all");
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-primary transition-colors"
+            >
+              <X size={13} />
+              <span>Clear</span>
+            </button>
+          )}
         </div>
 
         {/* List */}
@@ -278,7 +306,7 @@ const MothersPage = () => {
       {/* RIGHT PANEL */}
       <div
         className={`
-          flex-col bg-white rounded-2xl overflow-y-auto shadow-sm p-6
+          flex-col bg-white rounded-2xl overflow-hidden shadow-sm p-6
           flex-1 h-full
           ${mobileDetailOpen ? "flex" : "hidden lg:flex"}
         `}
@@ -321,6 +349,7 @@ const MothersPage = () => {
           </div>
         ) : (
           <MotherDetail
+            key={selectedMotherId}
             mother={selectedMother}
             onWithdrawClick={() => setWithdrawModalOpen(true)}
             onLogVisitClick={
@@ -342,6 +371,7 @@ const MothersPage = () => {
             onClose={() => setWithdrawModalOpen(false)}
             onConfirm={handleWithdrawConfirm}
             motherName={selectedMother.name}
+            isPending={withdrawMutation.isPending}
           />
           <LogVisitModal
             isOpen={logVisitModalOpen}

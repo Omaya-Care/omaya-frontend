@@ -47,9 +47,9 @@ interface StaffRowProps {
 }
 
 const statusConfig: Record<StaffStatus, { className: string; label: string }> = {
-  active:    { className: "bg-green-50  border-green-200  text-green-700", label: "Active"    },
-  invited:   { className: "bg-blue-50   border-blue-200   text-blue-600",  label: "Invited"   },
-  suspended: { className: "bg-red-50    border-red-200    text-red-600",   label: "Suspended" },
+  active:    { className: "bg-primary-100 border-primary-100 text-primary-700", label: "Active"    },
+  invited:   { className: "bg-yellow-50   border-yellow-200   text-yellow-700",  label: "Invited"   },
+  suspended: { className: "bg-red-50      border-red-200      text-red-600",     label: "Suspended" },
 };
 
 const StaffRow = ({ member }: StaffRowProps) => {
@@ -98,8 +98,8 @@ const StaffRow = ({ member }: StaffRowProps) => {
       <div className="grid grid-cols-[1fr_160px_144px_160px_44px] items-center px-6 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
         {/* NAME */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-[#F7E8F0] text-[#93406B] font-semibold text-sm flex items-center justify-center flex-shrink-0">
-            {initials(member.name)}
+          <div className="w-9 h-9 rounded-full bg-primary-100 text-primary font-semibold text-sm flex items-center justify-center flex-shrink-0">
+            {initials(member.name || member.email)}
           </div>
           <div>
             <div className="flex items-center gap-1.5">
@@ -114,9 +114,9 @@ const StaffRow = ({ member }: StaffRowProps) => {
 
         {/* ROLE */}
         <div>
-          <span className="bg-gray-100 text-gray-700 rounded-md px-2.5 py-1 text-sm">
+          <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-100" size="sm">
             {member.role}
-          </span>
+          </Badge>
         </div>
 
         {/* STATUS */}

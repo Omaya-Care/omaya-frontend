@@ -10,7 +10,7 @@ const SectionHeader = ({ title, count, onViewAll }: SectionHeaderProps) => {
     <div className="flex justify-between items-center mb-4">
       <div>
         {count !== undefined ? (
-          <span className="inline-flex items-center bg-[#F7E8F0] text-[#93406B] text-sm font-medium px-3 py-1 rounded-full gap-2">
+          <span className="inline-flex items-center bg-primary-100 text-primary text-sm font-medium px-3 py-1 rounded-full gap-2">
             <span className="font-semibold">{count}</span>
             <span className="font-normal">{title}</span>
           </span>
@@ -22,7 +22,7 @@ const SectionHeader = ({ title, count, onViewAll }: SectionHeaderProps) => {
       {onViewAll && (
         <button
           onClick={onViewAll}
-          className="text-sm text-[#93406B] font-medium cursor-pointer hover:underline"
+          className="text-sm text-primary font-medium cursor-pointer hover:underline"
         >
           View all
         </button>

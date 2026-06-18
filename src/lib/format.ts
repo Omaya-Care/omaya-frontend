@@ -13,3 +13,23 @@ export function formatDate(value: string): string {
   const year = d.getUTCFullYear();
   return `${day}/${month}/${year}`;
 }
+
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/**
+ * Format an ISO datetime to a compact Ghana-locale (UTC) "DD Mon, HH:MM",
+ * e.g. "20 Jun, 09:00". Used for scheduled call times.
+ */
+export function formatDateTime(value: string): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = MONTHS_SHORT[d.getUTCMonth()];
+  const ampm = d.getUTCHours() >= 12 ? "PM" : "AM";
+  const h12 = d.getUTCHours() % 12 || 12;
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${day} ${month}, ${h12}:${mm} ${ampm}`;
+}
