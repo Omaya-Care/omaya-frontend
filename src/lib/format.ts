@@ -1,4 +1,17 @@
 /**
+ * Format a response time in minutes to a compact "Xh Ym" string.
+ * Returns "No data" when the value is null (no measurements yet).
+ */
+export function formatResponseMinutes(value: number | null | undefined): string {
+  if (value == null) return "—";
+  const hours = Math.floor(value / 60);
+  const minutes = Math.round(value % 60);
+  if (hours === 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
+/**
  * Format a date string to Ghana locale DD/MM/YYYY.
  * Accepts ISO-8601 strings from the API or pass-through for pre-formatted values.
  */

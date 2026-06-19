@@ -14,10 +14,12 @@ import {
 import { useMothers } from "../hooks/useMothers";
 import { useCalls } from "../hooks/useCalls";
 import { useEscalations } from "../hooks/useEscalations";
+import { useDashboardStats } from "../hooks/useDashboardStats";
 import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { getClinician } from "../lib/auth";
+import { formatResponseMinutes } from "../lib/format";
 import { Card, CardContent, CardHeader, Separator, Skeleton, Alert, AlertTitle, AlertDescription } from "../components/ui";
 
 const Dashboard = () => {
@@ -26,6 +28,7 @@ const Dashboard = () => {
   const { data: mothers = [], isLoading: mothersLoading } = useMothers();
   const { data: calls = [], isLoading: callsLoading, isError: callsError, refetch: refetchCalls } = useCalls();
   const { data: escalations = [], isLoading: escalationsLoading, isError: escalationsError, refetch: refetchEscalations } = useEscalations();
+  const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const acknowledgeMutation = useAcknowledgeAlert();
   const { can } = useAuth();
 
@@ -62,7 +65,7 @@ const Dashboard = () => {
   const firstName = clinician?.name?.split(/\s+/)[0] ?? "User";
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pb-6">
       {/* BLOCK 1: PAGE HEADER */}
       <PageHeader userName={firstName} onNewDischarge={can("create_discharges") ? handleNewDischarge : undefined} />
 
@@ -107,7 +110,7 @@ const Dashboard = () => {
             <StatCard
               label="Avg. response time"
               sublabel="To L3 & L4 alerts"
-              value="--"
+              value={stats ? formatResponseMinutes(stats.avgResponseMinutesL3L4) : "--"}
               tint={3}
             />
           </>
@@ -175,31 +178,48 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent className="px-3 md:px-5 pb-3">
-            <div className="flex flex-col">
-              {[
-                { label: "Calls completed", sub: "across the cohort", value: '--' },
-                { label: "Escalations resolved", sub: "L3 & L4 acknowledged", value: '--' },
-                { label: "New discharges", sub: "mothers enrolled", value: '--' },
-                { label: "Avg. response time", sub: "to L3 & L4 alerts", value: '--' },
-              ].map((row, idx) => (
-                <div key={idx}>
-                  {idx > 0 && <Separator className="bg-gray-100" />}
-                  <div className="flex justify-between items-start py-3">
-                    <div>
-                      <div className="text-sm font-normal text-gray-600">
-                        {row.label}
+            {statsLoading ? (
+              <div className="flex flex-col">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i}>
+                    {i > 0 && <Separator className="bg-gray-100" />}
+                    <div className="flex justify-between items-center py-3">
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-3.5 w-28" />
+                        <Skeleton className="h-3 w-20" />
                       </div>
-                      <div className="text-xs font-normal text-gray-400 mt-0.5">
-                        {row.sub}
-                      </div>
-                    </div>
-                    <div className={`text-xl font-bold ${row.value === '...' || row.value === '0' || row.value === '--' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {row.value}
+                      <Skeleton className="h-7 w-12" />
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {[
+                  { label: "Calls completed", sub: "across the cohort", value: stats?.thisWeek.callsCompleted ?? '--' },
+                  { label: "Escalations resolved", sub: "L3 & L4 acknowledged", value: stats?.thisWeek.escalationsResolved ?? '--' },
+                  { label: "New discharges", sub: "mothers enrolled", value: stats?.thisWeek.newDischarges ?? '--' },
+                  { label: "Avg. response time", sub: "to L3 & L4 alerts", value: stats ? formatResponseMinutes(stats.thisWeek.avgResponseMinutes) : '--' },
+                ].map((row, idx) => (
+                  <div key={idx}>
+                    {idx > 0 && <Separator className="bg-gray-100" />}
+                    <div className="flex justify-between items-start py-3">
+                      <div>
+                        <div className="text-sm font-normal text-gray-600">
+                          {row.label}
+                        </div>
+                        <div className="text-xs font-normal text-gray-400 mt-0.5">
+                          {row.sub}
+                        </div>
+                      </div>
+                      <div className={`text-xl font-bold ${row.value === '--' || row.value === '—' ? 'text-gray-300' : 'text-gray-900'}`}>
+                        {row.value}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

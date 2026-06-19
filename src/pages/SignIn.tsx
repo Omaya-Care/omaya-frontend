@@ -59,7 +59,7 @@ const SignIn = () => {
           <Input
             label="Email address"
             type="email"
-            placeholder="name@hospital.gov.gh"
+            placeholder="name@hospital.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"

@@ -19,17 +19,9 @@ import {
 } from "../ui/select";
 import { Alert, AlertDescription } from "../ui/alert";
 import { useUpdateClinician } from "../../hooks/useMutations";
+import { useRoles } from "../../hooks/useRoles";
 import { StaffMember, StaffRole } from "../../types";
 import { toast } from "sonner";
-
-const ROLES: StaffRole[] = [
-  "Physician",
-  "Midwife",
-  "Coordinator",
-  "Paediatrician",
-  "Psychologist",
-  "Administrator",
-];
 
 interface EditClinicianModalProps {
   isOpen: boolean;
@@ -43,6 +35,7 @@ const EditClinicianModal = ({ isOpen, onClose, member }: EditClinicianModalProps
   const [error, setError] = useState<string | null>(null);
 
   const updateClinician = useUpdateClinician();
+  const { data: roles = [], isLoading: rolesLoading } = useRoles();
 
   const hasChanges = name.trim() !== member.name || selectedRole !== member.role;
   const canSubmit = name.trim() !== "" && hasChanges && !updateClinician.isPending;
@@ -106,13 +99,13 @@ const EditClinicianModal = ({ isOpen, onClose, member }: EditClinicianModalProps
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700 ml-0.5">Role</label>
             <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as StaffRole)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" disabled={rolesLoading}>
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
-                {ROLES.map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {role}
+                {roles.map((r) => (
+                  <SelectItem key={r.id} value={r.name}>
+                    {r.name}
                   </SelectItem>
                 ))}
               </SelectContent>

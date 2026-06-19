@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   UserRound,
   Heart,
@@ -15,9 +16,12 @@ import {
 import { Mother } from "../../types";
 import { Badge } from "../ui/Badge";
 import {
-  getSeverityBadgeClass,
-  getSeverityTokens,
-} from "../../lib/badge-helpers";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
+import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { Alert, AlertDescription } from "../ui/alert";
@@ -46,6 +50,18 @@ const MotherDetail = ({
   onEditClick,
 }: MotherDetailProps) => {
   const triggerCall = useTriggerCall();
+  const [transcriptModal, setTranscriptModal] = useState<{ open: boolean; text: string }>({
+    open: false,
+    text: "",
+  });
+
+  const handleTranscriptClick = (transcript: string) => {
+    if (transcript.startsWith("http")) {
+      window.open(transcript, "_blank", "noopener,noreferrer");
+    } else {
+      setTranscriptModal({ open: true, text: transcript });
+    }
+  };
 
   if (!mother) {
     return (
@@ -174,25 +190,32 @@ const MotherDetail = ({
             {mother.checkIns.map((checkIn, index) => (
               <div
                 key={checkIn.id}
-                className={`flex items-center py-2.5 ${
-                  index !== mother.checkIns.length - 1 ? "border-b border-gray-100" : ""
-                }`}
+                className={`py-3 ${index !== mother.checkIns.length - 1 ? "border-b border-gray-100" : ""}`}
               >
-                <div className="flex flex-col w-14 flex-shrink-0">
-                  <span className="text-xs font-semibold text-gray-800">{checkIn.date}</span>
-                  <span className="text-xs text-gray-400 font-normal">Day {checkIn.day}</span>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-gray-800">{checkIn.date}</span>
+                    <span className="text-gray-200">·</span>
+                    <span className="text-xs text-gray-400 font-normal">Day {checkIn.day}</span>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={getSeverityBadgeClass(checkIn.severity)}
+                    size="sm"
+                    dot
+                  >
+                    {checkIn.severity.charAt(0).toUpperCase() + checkIn.severity.slice(1)}
+                  </Badge>
                 </div>
-                <div className="flex-1 px-3 flex items-center gap-2 min-w-0">
-                  <div
-                    className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${getSeverityTokens(checkIn.severity).dot}`}
-                  />
-                  <span className="text-sm text-gray-600 font-normal truncate">
-                    {checkIn.summary}
-                  </span>
-                </div>
+                <p className="text-sm text-gray-600 font-normal leading-snug line-clamp-2">
+                  {checkIn.summary}
+                </p>
                 {checkIn.transcript && (
-                  <button className="text-xs text-primary font-medium hover:underline whitespace-nowrap flex-shrink-0">
-                    Transcript
+                  <button
+                    onClick={() => handleTranscriptClick(checkIn.transcript!)}
+                    className="mt-1.5 text-xs text-primary font-medium hover:underline"
+                  >
+                    View transcript →
                   </button>
                 )}
               </div>
@@ -314,6 +337,22 @@ const MotherDetail = ({
         </AlertDescription>
       </Alert>
       </div>
+
+      <Dialog
+        open={transcriptModal.open}
+        onOpenChange={(open) => !open && setTranscriptModal({ open: false, text: "" })}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Call transcript</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto mt-2">
+            <pre className="whitespace-pre-wrap text-xs text-gray-700 font-mono leading-relaxed">
+              {transcriptModal.text}
+            </pre>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── ACTIONS (pinned footer) ────────────────────────── */}
       <div className="shrink-0 pt-4 border-t border-gray-100 flex justify-between items-center bg-white">

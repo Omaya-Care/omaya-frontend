@@ -69,15 +69,10 @@ export interface EscalationItem {
   dayPostpartum: number;
   severity: Severity;
   timeLeftMinutes: number;
+  createdAt: string;
 }
 
-export type StaffRole =
-  | "Administrator"
-  | "Physician"
-  | "Midwife"
-  | "Coordinator"
-  | "Paediatrician"
-  | "Psychologist";
+export type StaffRole = string;
 
 export type StaffStatus = "active" | "invited" | "suspended";
 

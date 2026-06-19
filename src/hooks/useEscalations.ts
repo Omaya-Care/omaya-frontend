@@ -9,6 +9,7 @@ export function toEscalation(raw: Record<string, unknown>): EscalationItem {
     dayPostpartum: (raw.day_postpartum as number) ?? 0,
     severity: (raw.severity as EscalationItem["severity"]) ?? "routine",
     timeLeftMinutes: (raw.time_left_minutes as number) ?? 0,
+    createdAt: (raw.created_at as string) ?? "",
   };
 }
 

@@ -265,11 +265,6 @@ const SettingsPage = () => {
     if (me) setName(me.name ?? '');
   }, [me]);
 
-  /* Notifications — static for now (no API) */
-  const [elevatedAlerts, setElevatedAlerts] = useState(true);
-  const [missedCheckIns, setMissedCheckIns] = useState(true);
-  const [dailySummary, setDailySummary] = useState(false);
-  const [weeklyReport, setWeeklyReport] = useState(true);
 
   const nameChanged = name.trim() !== (me?.name ?? '').trim() && name.trim() !== '';
   const canSave = nameChanged && !updateMe.isPending && !isLoading;
@@ -396,7 +391,7 @@ const SettingsPage = () => {
         {/* ── Section 3: Notifications ────────────────────────── */}
         <Section
           heading="Notifications"
-          subtitle="Choose what you're alerted about. Crisis alerts cannot be turned off."
+          subtitle="Notification preferences are coming soon. Crisis and elevated alerts are always active."
         >
           <NotifRow
             label="Crisis alerts (L4)"
@@ -407,28 +402,31 @@ const SettingsPage = () => {
           <NotifRow
             label="Elevated alerts (L3)"
             description="When a mother's check-in is flagged as elevated."
-            enabled={elevatedAlerts}
-            onToggle={() => setElevatedAlerts((v) => !v)}
+            enabled={false}
+            locked={true}
           />
           <NotifRow
             label="Missed check-ins"
             description="When a scheduled call goes unanswered."
-            enabled={missedCheckIns}
-            onToggle={() => setMissedCheckIns((v) => !v)}
+            enabled={false}
+            locked={true}
           />
           <NotifRow
             label="Daily summary email"
             description="A morning digest of your cohort."
-            enabled={dailySummary}
-            onToggle={() => setDailySummary((v) => !v)}
+            enabled={false}
+            locked={true}
           />
           <NotifRow
             label="Weekly report"
             description="Cohort trends and resolved escalations, every Monday."
-            enabled={weeklyReport}
-            onToggle={() => setWeeklyReport((v) => !v)}
+            enabled={false}
+            locked={true}
             last
           />
+          <p className="text-xs text-gray-400 pt-2">
+            Notification preferences will be configurable in a future update.
+          </p>
         </Section>
 
 

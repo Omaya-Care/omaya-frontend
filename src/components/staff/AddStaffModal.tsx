@@ -11,18 +11,11 @@ import {
 import { Button } from "../ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert, AlertDescription } from "../ui/alert";
+import { Skeleton } from "../ui/skeleton";
 import { useAddStaff } from "../../hooks/useMutations";
+import { useRoles } from "../../hooks/useRoles";
 import { StaffRole } from "../../types";
 import { toast } from "sonner";
-
-const ROLE_OPTIONS: Array<{ value: StaffRole; desc: string }> = [
-  { value: "Physician",     desc: "View and manage clinical records." },
-  { value: "Midwife",       desc: "Care delivery and escalation." },
-  { value: "Coordinator",   desc: "Scheduling and discharges." },
-  { value: "Paediatrician", desc: "Newborn assessments and reviews." },
-  { value: "Psychologist",  desc: "Mental health assessments and support." },
-  { value: "Administrator", desc: "Full access including staff management." },
-];
 
 interface AddStaffModalProps {
   isOpen: boolean;
@@ -37,6 +30,7 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
   const [inviteWarning, setInviteWarning] = useState(false);
 
   const addStaff = useAddStaff();
+  const { data: roles = [], isLoading: rolesLoading } = useRoles();
 
   const canSubmit =
     name.trim() !== "" &&
@@ -150,25 +144,33 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
         <div className="mt-5">
           <label className="text-sm font-medium text-gray-700">Role</label>
           <div className="grid grid-cols-2 gap-2.5 mt-2">
-            {ROLE_OPTIONS.map((r) => {
-              const selected = selectedRole === r.value;
-              return (
-                <div
-                  key={r.value}
-                  onClick={() => setSelectedRole(r.value)}
-                  className={`border rounded-xl p-3 cursor-pointer transition-all ${
-                    selected
-                      ? "border-primary bg-primary-100"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <span className={`text-sm font-semibold ${selected ? "text-primary" : "text-gray-900"}`}>
-                    {r.value}
-                  </span>
-                  <p className="text-xs text-gray-500 mt-0.5 font-normal">{r.desc}</p>
-                </div>
-              );
-            })}
+            {rolesLoading ? (
+              [1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-16 rounded-xl" />
+              ))
+            ) : (
+              roles.map((r) => {
+                const selected = selectedRole === r.name;
+                return (
+                  <div
+                    key={r.id}
+                    onClick={() => setSelectedRole(r.name as StaffRole)}
+                    className={`border rounded-xl p-3 cursor-pointer transition-all ${
+                      selected
+                        ? "border-primary bg-primary-100"
+                        : "border-gray-200 bg-white hover:border-gray-300"
+                    }`}
+                  >
+                    <span className={`text-sm font-semibold ${selected ? "text-primary" : "text-gray-900"}`}>
+                      {r.name}
+                    </span>
+                    <p className="text-xs text-gray-500 mt-0.5 font-normal">
+                      {r.description ?? "No description available."}
+                    </p>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
