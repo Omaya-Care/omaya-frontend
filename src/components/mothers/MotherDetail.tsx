@@ -151,7 +151,7 @@ const MotherDetail = ({
               <Clock size={13} className="text-gray-400" />
               <span className="text-xs text-gray-400 font-medium">Day in care</span>
             </div>
-            <span className="text-sm font-semibold text-gray-900">
+            <span className="text-sm font-bold text-gray-900">
               {mother.dayPostpartum != null ? `Day ${mother.dayPostpartum}` : "—"}
             </span>
           </div>
@@ -161,7 +161,7 @@ const MotherDetail = ({
               <ShieldCheck size={13} className="text-gray-400" />
               <span className="text-xs text-gray-400 font-medium">Consent</span>
             </div>
-            <span className={`text-xs font-semibold self-start px-2 py-0.5 rounded-full ${consent.className}`}>
+            <span className={`text-xs font-medium self-start px-2 py-0.5 rounded-full ${consent.className}`}>
               {consent.label}
             </span>
           </div>
@@ -171,7 +171,7 @@ const MotherDetail = ({
               <MessageCircle size={13} className="text-gray-400" />
               <span className="text-xs text-gray-400 font-medium">Last contact</span>
             </div>
-            <span className="text-sm font-semibold text-gray-900 truncate">
+            <span className="text-sm font-bold text-gray-900 truncate">
               {mother.lastInteraction || "None"}
             </span>
           </div>
@@ -180,7 +180,7 @@ const MotherDetail = ({
 
       {/* ── RECENT CHECK-INS ───────────────────────────────── */}
       <div className="py-4 border-b border-gray-100">
-        <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-3">
+        <h3 className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-3">
           Recent check-ins
         </h3>
         {mother.checkIns.length === 0 ? (
@@ -194,7 +194,7 @@ const MotherDetail = ({
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-gray-800">{checkIn.date}</span>
+                    <span className="text-xs font-bold text-gray-800">{checkIn.date}</span>
                     <span className="text-gray-200">·</span>
                     <span className="text-xs text-gray-400 font-normal">Day {checkIn.day}</span>
                   </div>
@@ -226,7 +226,7 @@ const MotherDetail = ({
 
       {/* ── DISCHARGE DETAILS ──────────────────────────────── */}
       <div className="py-4 border-b border-gray-100">
-        <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-3">
+        <h3 className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-3">
           Discharge
         </h3>
         <div className="grid grid-cols-3 gap-4">
@@ -240,7 +240,7 @@ const MotherDetail = ({
                 <item.icon size={12} className="text-gray-400" />
                 <span className="text-xs text-gray-400 uppercase tracking-wide font-medium">{item.label}</span>
               </div>
-              <span className="text-sm font-semibold text-gray-900">{item.value || "—"}</span>
+              <span className="text-sm font-bold text-gray-900">{item.value || "—"}</span>
             </div>
           ))}
         </div>
@@ -248,13 +248,13 @@ const MotherDetail = ({
 
       {/* ── PATIENT DETAILS ────────────────────────────────── */}
       <div className="py-5 border-b border-gray-100 flex flex-col gap-5">
-        <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase -mb-2">
+        <h3 className="text-xs font-medium tracking-widest text-gray-400 uppercase -mb-2">
           Patient
         </h3>
 
         {/* Contact */}
         <div className="flex flex-col gap-1.5">
-          <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-widest">Contact</p>
+          <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest">Contact</p>
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Phone",         value: mother.phone || "" },
@@ -262,7 +262,7 @@ const MotherDetail = ({
             ].map((item, idx) => (
               <div key={idx} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
                 <span className="text-xs text-gray-400 font-medium">{item.label}</span>
-                <span className="text-sm font-semibold text-gray-900">{item.value || "Not set"}</span>
+                <span className="text-sm font-bold text-gray-900">{item.value || "Not set"}</span>
               </div>
             ))}
           </div>
@@ -270,7 +270,7 @@ const MotherDetail = ({
 
         {/* Clinical */}
         <div className="flex flex-col gap-1.5">
-          <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-widest">Clinical</p>
+          <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest">Clinical</p>
           <div className="grid grid-cols-3 gap-2">
             {[
               {
@@ -294,7 +294,7 @@ const MotherDetail = ({
             ].map((item, idx) => (
               <div key={idx} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
                 <span className="text-xs text-gray-400 font-medium">{item.label}</span>
-                <span className="text-sm font-semibold text-gray-900">{item.value || "Not set"}</span>
+                <span className="text-sm font-bold text-gray-900">{item.value || "Not set"}</span>
               </div>
             ))}
           </div>
@@ -303,7 +303,7 @@ const MotherDetail = ({
         {/* Risk factors */}
         {mother.risks && mother.risks.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-widest">Risk factors</p>
+            <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest">Risk factors</p>
             <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
               {mother.risks.map((r) => (
                 <span key={r} className="px-2.5 py-1 rounded-full bg-white text-amber-700 text-xs font-medium border border-amber-100 shadow-sm">
@@ -317,7 +317,7 @@ const MotherDetail = ({
         {/* Medications */}
         {mother.medications && mother.medications.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-widest">Medications sent home</p>
+            <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest">Medications sent home</p>
             <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
               {mother.medications.map((m) => (
                 <span key={m} className="px-2.5 py-1 rounded-full bg-white text-gray-600 text-xs font-medium border border-gray-200 shadow-sm">

@@ -140,7 +140,7 @@ const MothersPage = () => {
     return (
       <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3">
         <UserRound size={48} className="text-primary" />
-        <span className="text-sm font-semibold text-gray-700">
+        <span className="text-sm font-medium text-gray-700">
           No mothers enrolled yet
         </span>
         <span className="text-xs text-gray-400 font-normal">
@@ -162,7 +162,7 @@ const MothersPage = () => {
       >
         {/* Top bar */}
         <div className="px-4 pt-5 pb-3 flex justify-between items-center flex-shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">Mothers</h2>
+          <h2 className="text-lg font-bold text-gray-900">Mothers</h2>
           <Tooltip>
             <TooltipTrigger asChild>
               <span
@@ -222,7 +222,7 @@ const MothersPage = () => {
             <PopoverContent align="start" className="w-56 p-3">
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
                     Severity
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -251,7 +251,7 @@ const MothersPage = () => {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
                     Status
                   </p>
                   <div className="flex flex-wrap gap-1.5">
