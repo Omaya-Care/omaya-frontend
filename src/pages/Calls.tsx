@@ -7,13 +7,14 @@ import { Skeleton } from "../components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 
 const CallsPage = () => {
-  const apiDate = dateFilter === "today" ? new Date().toISOString().slice(0, 10) : undefined;
-  const { data: calls = [], isLoading } = useCalls(apiDate);
   const [selectedCallId, setSelectedCallId] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+
+  const apiDate = dateFilter === "today" ? new Date().toISOString().slice(0, 10) : undefined;
+  const { data: calls = [], isLoading } = useCalls(apiDate);
 
   const { data: selectedCall = null, isLoading: isCallLoading } = useCall(selectedCallId);
 
