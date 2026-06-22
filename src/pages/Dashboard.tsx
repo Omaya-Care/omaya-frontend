@@ -86,7 +86,7 @@ const Dashboard = () => {
             <StatCard
               label="Mothers in care"
               sublabel="Active right now"
-              value={mothers.length}
+              value={mothers.filter((m) => m.consentStatus === "active").length}
               tint={3}
               onViewAll={() => navigate("/mothers")}
             />
