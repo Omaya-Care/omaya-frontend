@@ -19,11 +19,14 @@ function toCall(raw: Record<string, unknown>): Call {
   };
 }
 
-export const useCalls = () => {
+export const useCalls = (date?: string) => {
   return useQuery<Call[]>({
-    queryKey: ["calls"],
+    queryKey: ["calls", date ?? "all"],
     queryFn: async () => {
-      const response = await api.get("/calls");
+      const params: Record<string, string | boolean> = date
+        ? { date }
+        : { all_dates: true };
+      const response = await api.get("/calls", { params });
       const raw = (response.data.calls ?? []) as Record<string, unknown>[];
       return raw.map(toCall);
     },

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { Search, ArrowLeft, SlidersHorizontal, X } from "lucide-react";
-import { isToday, parseISO } from "date-fns";
 import { useCalls, useCall } from "../hooks/useCalls";
 import { CallListItem, CallDetail } from "../components/calls";
 import { Input } from "@/components/ui/Input";
@@ -8,7 +7,8 @@ import { Skeleton } from "../components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 
 const CallsPage = () => {
-  const { data: calls = [], isLoading } = useCalls();
+  const apiDate = dateFilter === "today" ? new Date().toISOString().slice(0, 10) : undefined;
+  const { data: calls = [], isLoading } = useCalls(apiDate);
   const [selectedCallId, setSelectedCallId] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
@@ -29,11 +29,7 @@ const CallsPage = () => {
     return calls.filter((call) => {
       if (statusFilter !== "all" && call.status !== statusFilter) return false;
 
-      if (dateFilter === "today") {
-        try { if (!isToday(parseISO(call.scheduledAt))) return false; } catch { return false; }
-      }
-
-      if (search.trim()) {
+if (search.trim()) {
         const q = search.toLowerCase();
         if (!call.motherName.toLowerCase().includes(q) && !call.callType.toLowerCase().includes(q)) {
           return false;

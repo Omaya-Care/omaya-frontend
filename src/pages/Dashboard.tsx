@@ -26,7 +26,8 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { openDrawer } = useDrawer();
   const { data: mothers = [], isLoading: mothersLoading } = useMothers();
-  const { data: calls = [], isLoading: callsLoading, isError: callsError, refetch: refetchCalls } = useCalls();
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const { data: calls = [], isLoading: callsLoading, isError: callsError, refetch: refetchCalls } = useCalls(todayISO);
   const { data: escalations = [], isLoading: escalationsLoading, isError: escalationsError, refetch: refetchEscalations } = useEscalations();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const acknowledgeMutation = useAcknowledgeAlert();
