@@ -23,7 +23,7 @@ import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { Alert, AlertDescription } from "../ui/alert";
-import { formatDate } from "../../lib/format";
+import { formatDate, formatDateTime } from "../../lib/format";
 import { useTriggerCall } from "../../hooks/useMutations";
 import { toast } from "sonner";
 
@@ -172,7 +172,7 @@ const MotherDetail = ({
               <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Last call</span>
             </div>
             <span className="text-sm font-medium text-gray-800 text-center leading-tight">
-              {mother.lastInteraction || "None"}
+              {mother.lastInteraction ? formatDateTime(mother.lastInteraction) : "None"}
             </span>
           </div>
         </div>
