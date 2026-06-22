@@ -23,7 +23,7 @@ import { getSeverityBadgeClass } from "../../lib/badge-helpers";
 import { Button } from "../ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { Alert, AlertDescription } from "../ui/alert";
-import { formatDate, formatDateTime } from "../../lib/format";
+import { formatDate, formatDateTime, formatPhone } from "../../lib/format";
 import { useTriggerCall } from "../../hooks/useMutations";
 import { toast } from "sonner";
 
@@ -225,7 +225,7 @@ const MotherDetail = ({
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200">Contact</p>
                 <div className="divide-y divide-gray-100">
                   {[
-                    { label: "Phone",         value: mother.phone || "" },
+                    { label: "Phone",         value: formatPhone(mother.phone) },
                     { label: "Call window",   value: mother.preferredCallWindow ? (callWindowLabels[mother.preferredCallWindow] ?? mother.preferredCallWindow) : "" },
                     { label: "Language",      value: mother.language ? mother.language.charAt(0).toUpperCase() + mother.language.slice(1) : "" },
                     { label: "Date of birth", value: formatDate(mother.dateOfBirth ?? "") },

@@ -27,6 +27,25 @@ export function formatDate(value: string): string {
   return `${day}/${month}/${year}`;
 }
 
+/**
+ * Format an E.164 phone number for display.
+ * +233XXXXXXXXX → +233 XX XXX XXXX
+ * 0XXXXXXXXX   → 0XX XXX XXXX
+ * Anything else is returned as-is.
+ */
+export function formatPhone(value: string): string {
+  if (!value) return value;
+  const digits = value.replace(/\D/g, "");
+  if (value.startsWith("+233") && digits.length === 12) {
+    const n = digits.slice(3); // 9 digits after 233
+    return `+233 ${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5)}`;
+  }
+  if (value.startsWith("0") && digits.length === 10) {
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  }
+  return value;
+}
+
 const MONTHS_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
