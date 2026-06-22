@@ -151,9 +151,9 @@ const MotherDetail = ({
           <div className="flex flex-col items-center py-3.5 gap-0.5">
             <div className="flex items-center gap-1 mb-0.5">
               <Clock size={11} className="text-gray-400" />
-              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Day</span>
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Day</span>
             </div>
-            <span className="text-sm font-bold text-gray-900">
+            <span className="text-sm font-medium text-gray-800">
               {mother.dayPostpartum != null ? `Day ${mother.dayPostpartum}` : "—"}
             </span>
           </div>
@@ -161,7 +161,7 @@ const MotherDetail = ({
           <div className="flex flex-col items-center py-3.5 gap-0.5 border-x border-gray-100">
             <div className="flex items-center gap-1 mb-0.5">
               <ShieldCheck size={11} className="text-gray-400" />
-              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Consent</span>
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Consent</span>
             </div>
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${consent.className}`}>
               {consent.label}
@@ -171,9 +171,9 @@ const MotherDetail = ({
           <div className="flex flex-col items-center py-3.5 gap-0.5">
             <div className="flex items-center gap-1 mb-0.5">
               <MessageCircle size={11} className="text-gray-400" />
-              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Last call</span>
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Last call</span>
             </div>
-            <span className="text-xs font-bold text-gray-900 text-center leading-tight">
+            <span className="text-sm font-medium text-gray-800 text-center leading-tight">
               {mother.lastInteraction || "None"}
             </span>
           </div>
@@ -224,15 +224,15 @@ const MotherDetail = ({
 
               {/* Contact */}
               <div>
-                <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Contact</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Contact</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { label: "Phone",         value: mother.phone || "" },
                     { label: "Date of birth", value: formatDate(mother.dateOfBirth ?? "") },
                   ].map((item) => (
                     <div key={item.label} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
-                      <span className="text-xs text-gray-400 font-medium">{item.label}</span>
-                      <span className="text-sm font-bold text-gray-900">{item.value || "Not set"}</span>
+                      <span className="text-xs text-gray-400 font-normal">{item.label}</span>
+                      <span className="text-sm font-medium text-gray-800">{item.value || "Not set"}</span>
                     </div>
                   ))}
                 </div>
@@ -240,7 +240,7 @@ const MotherDetail = ({
 
               {/* Discharge */}
               <div>
-                <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Discharge</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Discharge</p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { icon: Heart,    label: "Type",       value: mother.deliveryType ? mother.deliveryType.charAt(0).toUpperCase() + mother.deliveryType.slice(1) : "" },
@@ -248,8 +248,8 @@ const MotherDetail = ({
                     { icon: Calendar, label: "Discharged", value: formatDate(mother.dischargeDate) },
                   ].map((item) => (
                     <div key={item.label} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
-                      <span className="text-xs text-gray-400 font-medium">{item.label}</span>
-                      <span className="text-sm font-bold text-gray-900">{item.value || "—"}</span>
+                      <span className="text-xs text-gray-400 font-normal">{item.label}</span>
+                      <span className="text-sm font-medium text-gray-800">{item.value || "—"}</span>
                     </div>
                   ))}
                 </div>
@@ -257,7 +257,7 @@ const MotherDetail = ({
 
               {/* Clinical */}
               <div>
-                <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Clinical</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Clinical</p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     {
@@ -280,8 +280,8 @@ const MotherDetail = ({
                     },
                   ].map((item) => (
                     <div key={item.label} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
-                      <span className="text-xs text-gray-400 font-medium">{item.label}</span>
-                      <span className="text-sm font-bold text-gray-900">{item.value || "Not set"}</span>
+                      <span className="text-xs text-gray-400 font-normal">{item.label}</span>
+                      <span className="text-sm font-medium text-gray-800">{item.value || "Not set"}</span>
                     </div>
                   ))}
                 </div>
@@ -290,7 +290,7 @@ const MotherDetail = ({
               {/* Risk factors */}
               {mother.risks && mother.risks.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Risk factors</p>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Risk factors</p>
                   <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
                     {mother.risks.map((r) => (
                       <span key={r} className="px-2.5 py-1 rounded-full bg-white text-amber-700 text-xs font-medium border border-amber-100 shadow-sm">
@@ -304,7 +304,7 @@ const MotherDetail = ({
               {/* Medications */}
               {mother.medications && mother.medications.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Medications sent home</p>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Medications sent home</p>
                   <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
                     {mother.medications.map((m) => (
                       <span key={m} className="px-2.5 py-1 rounded-full bg-white text-gray-600 text-xs font-medium border border-gray-200 shadow-sm">
@@ -337,7 +337,7 @@ const MotherDetail = ({
                     <div key={checkIn.id} className="py-3.5 first:pt-0">
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-bold text-gray-800">{checkIn.date}</span>
+                          <span className="text-sm font-medium text-gray-800">{checkIn.date}</span>
                           <span className="text-gray-200">·</span>
                           <span className="text-xs text-gray-400 font-normal">Day {checkIn.day}</span>
                         </div>
