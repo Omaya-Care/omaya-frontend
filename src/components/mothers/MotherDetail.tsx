@@ -218,11 +218,11 @@ const MotherDetail = ({
         <div className="px-4 py-4">
 
           {activeTab === "details" && (
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
 
               {/* Contact */}
               <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-1">Contact</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-1">Contact</p>
                 <div className="divide-y divide-gray-100">
                   {[
                     { label: "Phone",         value: mother.phone || "" },
@@ -230,9 +230,9 @@ const MotherDetail = ({
                     { label: "Language",      value: mother.language ? mother.language.charAt(0).toUpperCase() + mother.language.slice(1) : "" },
                     { label: "Date of birth", value: formatDate(mother.dateOfBirth ?? "") },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between py-2.5">
-                      <span className="text-xs text-gray-400 font-normal">{item.label}</span>
-                      <span className="text-sm font-medium text-gray-800 text-right">{item.value || "—"}</span>
+                    <div key={item.label} className="flex items-center justify-between py-1.5">
+                      <span className="text-xs text-gray-500 font-normal">{item.label}</span>
+                      <span className="text-sm font-medium text-gray-900 text-right">{item.value || "—"}</span>
                     </div>
                   ))}
                 </div>
@@ -240,7 +240,7 @@ const MotherDetail = ({
 
               {/* Clinical */}
               <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-1">Clinical</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-1">Clinical</p>
                 <div className="divide-y divide-gray-100">
                   {[
                     { label: "Delivery",       value: mother.deliveryType ? mother.deliveryType.charAt(0).toUpperCase() + mother.deliveryType.slice(1) : "" },
@@ -248,9 +248,9 @@ const MotherDetail = ({
                     { label: "Delivered",      value: formatDate(mother.deliveryDate ?? "") },
                     { label: "Discharged",     value: formatDate(mother.dischargeDate) },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between py-2.5">
-                      <span className="text-xs text-gray-400 font-normal">{item.label}</span>
-                      <span className="text-sm font-medium text-gray-800 text-right">{item.value || "—"}</span>
+                    <div key={item.label} className="flex items-center justify-between py-1.5">
+                      <span className="text-xs text-gray-500 font-normal">{item.label}</span>
+                      <span className="text-sm font-medium text-gray-900 text-right">{item.value || "—"}</span>
                     </div>
                   ))}
                 </div>
@@ -261,7 +261,7 @@ const MotherDetail = ({
                 <div className="flex flex-col gap-3">
                   {mother.risks && mother.risks.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-2">Risk factors</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Risk factors</p>
                       <div className="flex flex-wrap gap-1.5">
                         {mother.risks.map((r) => (
                           <span key={r} className="px-2.5 py-1 rounded-full text-amber-700 text-xs font-medium border border-amber-200 bg-amber-50">
@@ -273,7 +273,7 @@ const MotherDetail = ({
                   )}
                   {mother.medications && mother.medications.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-2">Medications</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Medications</p>
                       <div className="flex flex-wrap gap-1.5">
                         {mother.medications.map((m) => (
                           <span key={m} className="px-2.5 py-1 rounded-full text-gray-600 text-xs font-medium border border-gray-200 bg-white">
