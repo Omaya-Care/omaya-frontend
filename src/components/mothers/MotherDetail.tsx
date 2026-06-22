@@ -36,12 +36,17 @@ interface MotherDetailProps {
   onEditClick?: () => void;
 }
 
-// Shades kept in lockstep with StaffRow's status badges (pink / amber / red).
 const consentConfig = {
   active:    { label: "Active",    className: "bg-primary-100 text-primary-700" },
   withdrawn: { label: "Withdrawn", className: "bg-red-50 text-red-600" },
   pending:   { label: "Pending",   className: "bg-yellow-50 text-yellow-700" },
 };
+
+const callWindowLabels: Record<string, string> = {
+  morning: "Morning", afternoon: "Afternoon", evening: "Evening", inbound: "Inbound",
+};
+
+type Tab = "details" | "checkins";
 
 const MotherDetail = ({
   mother,
@@ -50,6 +55,7 @@ const MotherDetail = ({
   onEditClick,
 }: MotherDetailProps) => {
   const triggerCall = useTriggerCall();
+  const [activeTab, setActiveTab] = useState<Tab>("details");
   const [transcriptModal, setTranscriptModal] = useState<{ open: boolean; text: string }>({
     open: false,
     text: "",
@@ -77,6 +83,13 @@ const MotherDetail = ({
   const isWithdrawn = mother.consentStatus === "withdrawn";
   const consent = consentConfig[mother.consentStatus] ?? { label: mother.consentStatus, className: "bg-gray-100 text-gray-500" };
 
+  const initials = mother.name
+    .split(" ")
+    .slice(0, 2)
+    .map((n) => n[0] ?? "")
+    .join("")
+    .toUpperCase();
+
   const handleCallNow = async () => {
     try {
       await triggerCall.mutateAsync(mother.id);
@@ -91,253 +104,274 @@ const MotherDetail = ({
 
   return (
     <div className="flex flex-1 flex-col min-h-0 animate-in fade-in-0 duration-200 motion-reduce:animate-none">
-      {/* Scrollable content — the actions bar below stays pinned (never overlaps). */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
 
-      {/* ── HEADER ─────────────────────────────────────────── */}
-      <div className="pb-4 border-b border-gray-100">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-xl font-bold text-gray-900">{mother.name}</h2>
-              <Badge variant="outline" className={getSeverityBadgeClass(mother.severity)} size="sm" dot>
-                {mother.severity.charAt(0).toUpperCase() + mother.severity.slice(1)}
-              </Badge>
-            </div>
-            <p className="text-xs text-gray-400 font-normal mt-0.5">{mother.hospital}</p>
+        {/* ── AVATAR HEADER ─────────────────────────────────── */}
+        <div className="flex flex-col items-center pt-6 pb-5 border-b border-gray-100">
+          <div className="w-20 h-20 rounded-full bg-primary-100 flex items-center justify-center text-2xl font-bold text-primary mb-3 ring-4 ring-white shadow-sm">
+            {initials}
           </div>
-          {!isWithdrawn && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span tabIndex={0} className={!onEditClick ? "cursor-not-allowed" : ""}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+
+          <div className="flex items-center gap-2 mb-1.5">
+            <h2 className="text-xl font-bold text-gray-900">{mother.name}</h2>
+            {!isWithdrawn && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
                     onClick={onEditClick}
                     disabled={!onEditClick}
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 -mt-1"
+                    className="text-gray-300 hover:text-gray-500 transition-colors disabled:cursor-not-allowed"
                   >
                     <Pencil size={14} />
-                    <span className="text-sm font-medium">Edit</span>
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{onEditClick ? "Edit mother details" : "You don't have permission to edit mother details"}</p>
-              </TooltipContent>
-            </Tooltip>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{onEditClick ? "Edit mother details" : "You don't have permission to edit"}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={getSeverityBadgeClass(mother.severity)} size="sm" dot>
+              {mother.severity.charAt(0).toUpperCase() + mother.severity.slice(1)}
+            </Badge>
+            <span className="text-xs text-gray-400">{mother.hospital}</span>
+          </div>
+
+          {isWithdrawn && (
+            <p className="text-xs text-red-400 mt-2 font-normal">
+              Record is read-only. Consent has been withdrawn.
+            </p>
           )}
         </div>
 
-        {isWithdrawn && (
-          <p className="text-xs text-red-400 mt-2 font-normal">
-            Record is read-only. Consent has been withdrawn.
-          </p>
-        )}
-
-        {mother.currentFlag && (
-          <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 flex gap-2.5 items-start">
-            <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-amber-700 font-normal leading-snug">{mother.currentFlag}</p>
-          </div>
-        )}
-      </div>
-
-      {/* ── STATUS STRIP ───────────────────────────────────── */}
-      <div className="py-4 border-b border-gray-100">
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <Clock size={13} className="text-gray-400" />
-              <span className="text-xs text-gray-400 font-medium">Day in care</span>
+        {/* ── STATUS STRIP ──────────────────────────────────── */}
+        <div className="grid grid-cols-3 border-b border-gray-100">
+          <div className="flex flex-col items-center py-3.5 gap-0.5">
+            <div className="flex items-center gap-1 mb-0.5">
+              <Clock size={11} className="text-gray-400" />
+              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Day</span>
             </div>
             <span className="text-sm font-bold text-gray-900">
               {mother.dayPostpartum != null ? `Day ${mother.dayPostpartum}` : "—"}
             </span>
           </div>
 
-          <div className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <ShieldCheck size={13} className="text-gray-400" />
-              <span className="text-xs text-gray-400 font-medium">Consent</span>
+          <div className="flex flex-col items-center py-3.5 gap-0.5 border-x border-gray-100">
+            <div className="flex items-center gap-1 mb-0.5">
+              <ShieldCheck size={11} className="text-gray-400" />
+              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Consent</span>
             </div>
-            <span className={`text-xs font-medium self-start px-2 py-0.5 rounded-full ${consent.className}`}>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${consent.className}`}>
               {consent.label}
             </span>
           </div>
 
-          <div className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <MessageCircle size={13} className="text-gray-400" />
-              <span className="text-xs text-gray-400 font-medium">Last contact</span>
+          <div className="flex flex-col items-center py-3.5 gap-0.5">
+            <div className="flex items-center gap-1 mb-0.5">
+              <MessageCircle size={11} className="text-gray-400" />
+              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Last call</span>
             </div>
-            <span className="text-sm font-bold text-gray-900 truncate">
+            <span className="text-xs font-bold text-gray-900 text-center leading-tight">
               {mother.lastInteraction || "None"}
             </span>
           </div>
         </div>
-      </div>
 
-      {/* ── RECENT CHECK-INS ───────────────────────────────── */}
-      <div className="py-4 border-b border-gray-100">
-        <h3 className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-3">
-          Recent check-ins
-        </h3>
-        {mother.checkIns.length === 0 ? (
-          <p className="text-sm text-gray-400 font-normal">No check-ins recorded yet.</p>
-        ) : (
-          <div className="flex flex-col">
-            {mother.checkIns.map((checkIn, index) => (
-              <div
-                key={checkIn.id}
-                className={`py-3 ${index !== mother.checkIns.length - 1 ? "border-b border-gray-100" : ""}`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-gray-800">{checkIn.date}</span>
-                    <span className="text-gray-200">·</span>
-                    <span className="text-xs text-gray-400 font-normal">Day {checkIn.day}</span>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={getSeverityBadgeClass(checkIn.severity)}
-                    size="sm"
-                    dot
-                  >
-                    {checkIn.severity.charAt(0).toUpperCase() + checkIn.severity.slice(1)}
-                  </Badge>
+        {/* ── FLAG ──────────────────────────────────────────── */}
+        {mother.currentFlag && (
+          <div className="mx-4 mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 flex gap-2.5 items-start">
+            <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-700 font-normal leading-snug">{mother.currentFlag}</p>
+          </div>
+        )}
+
+        {/* ── TABS ──────────────────────────────────────────── */}
+        <div className="flex gap-5 px-4 mt-4 border-b border-gray-100">
+          <button
+            onClick={() => setActiveTab("details")}
+            className={`pb-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === "details"
+                ? "border-primary text-primary"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            Details
+          </button>
+          <button
+            onClick={() => setActiveTab("checkins")}
+            className={`pb-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${
+              activeTab === "checkins"
+                ? "border-primary text-primary"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            Check-ins
+            {mother.checkIns.length > 0 && (
+              <span className="text-[10px] bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-medium">
+                {mother.checkIns.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* ── TAB CONTENT ───────────────────────────────────── */}
+        <div className="px-4 py-4">
+
+          {activeTab === "details" && (
+            <div className="flex flex-col gap-5">
+
+              {/* Contact */}
+              <div>
+                <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Contact</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Phone",         value: mother.phone || "" },
+                    { label: "Date of birth", value: formatDate(mother.dateOfBirth ?? "") },
+                  ].map((item) => (
+                    <div key={item.label} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
+                      <span className="text-xs text-gray-400 font-medium">{item.label}</span>
+                      <span className="text-sm font-bold text-gray-900">{item.value || "Not set"}</span>
+                    </div>
+                  ))}
                 </div>
-                <p className="text-sm text-gray-600 font-normal leading-snug line-clamp-2">
-                  {checkIn.summary}
-                </p>
-                {checkIn.transcript && (
-                  <button
-                    onClick={() => handleTranscriptClick(checkIn.transcript!)}
-                    className="mt-1.5 text-xs text-primary font-medium hover:underline"
-                  >
-                    View transcript →
-                  </button>
-                )}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* ── DISCHARGE DETAILS ──────────────────────────────── */}
-      <div className="py-4 border-b border-gray-100">
-        <h3 className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-3">
-          Discharge
-        </h3>
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { icon: Heart,    label: "Type",      value: mother.deliveryType ? mother.deliveryType.charAt(0).toUpperCase() + mother.deliveryType.slice(1) : "" },
-            { icon: Calendar, label: "Delivered",  value: formatDate(mother.deliveryDate ?? "") },
-            { icon: Calendar, label: "Discharged", value: formatDate(mother.dischargeDate) },
-          ].map((item, idx) => (
-            <div key={idx} className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1 mb-0.5">
-                <item.icon size={12} className="text-gray-400" />
-                <span className="text-xs text-gray-400 uppercase tracking-wide font-medium">{item.label}</span>
+              {/* Discharge */}
+              <div>
+                <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Discharge</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { icon: Heart,    label: "Type",       value: mother.deliveryType ? mother.deliveryType.charAt(0).toUpperCase() + mother.deliveryType.slice(1) : "" },
+                    { icon: Calendar, label: "Delivered",  value: formatDate(mother.deliveryDate ?? "") },
+                    { icon: Calendar, label: "Discharged", value: formatDate(mother.dischargeDate) },
+                  ].map((item) => (
+                    <div key={item.label} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
+                      <span className="text-xs text-gray-400 font-medium">{item.label}</span>
+                      <span className="text-sm font-bold text-gray-900">{item.value || "—"}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <span className="text-sm font-bold text-gray-900">{item.value || "—"}</span>
+
+              {/* Clinical */}
+              <div>
+                <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Clinical</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    {
+                      label: "Gravida / Para",
+                      value: mother.gravida != null && mother.para != null
+                        ? `G${mother.gravida} P${mother.para}`
+                        : "",
+                    },
+                    {
+                      label: "Language",
+                      value: mother.language
+                        ? mother.language.charAt(0).toUpperCase() + mother.language.slice(1)
+                        : "",
+                    },
+                    {
+                      label: "Call window",
+                      value: mother.preferredCallWindow
+                        ? (callWindowLabels[mother.preferredCallWindow] ?? mother.preferredCallWindow)
+                        : "",
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
+                      <span className="text-xs text-gray-400 font-medium">{item.label}</span>
+                      <span className="text-sm font-bold text-gray-900">{item.value || "Not set"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Risk factors */}
+              {mother.risks && mother.risks.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Risk factors</p>
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
+                    {mother.risks.map((r) => (
+                      <span key={r} className="px-2.5 py-1 rounded-full bg-white text-amber-700 text-xs font-medium border border-amber-100 shadow-sm">
+                        {r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Medications */}
+              {mother.medications && mother.medications.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest mb-2">Medications sent home</p>
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
+                    {mother.medications.map((m) => (
+                      <span key={m} className="px-2.5 py-1 rounded-full bg-white text-gray-600 text-xs font-medium border border-gray-200 shadow-sm">
+                        {m.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Alert className="border-gray-100 bg-gray-50">
+                <ShieldCheck className="h-4 w-4 text-gray-400" />
+                <AlertDescription className="text-gray-400 text-xs">
+                  Severity labels are system-set and read-only for audit integrity.
+                </AlertDescription>
+              </Alert>
             </div>
-          ))}
+          )}
+
+          {activeTab === "checkins" && (
+            <div>
+              {mother.checkIns.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-2">
+                  <PhoneCall size={32} className="text-gray-200" />
+                  <p className="text-sm text-gray-400 font-normal">No check-ins recorded yet.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col divide-y divide-gray-100">
+                  {mother.checkIns.map((checkIn) => (
+                    <div key={checkIn.id} className="py-3.5 first:pt-0">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-gray-800">{checkIn.date}</span>
+                          <span className="text-gray-200">·</span>
+                          <span className="text-xs text-gray-400 font-normal">Day {checkIn.day}</span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={getSeverityBadgeClass(checkIn.severity)}
+                          size="sm"
+                          dot
+                        >
+                          {checkIn.severity.charAt(0).toUpperCase() + checkIn.severity.slice(1)}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 font-normal leading-snug line-clamp-2">
+                        {checkIn.summary}
+                      </p>
+                      {checkIn.transcript && (
+                        <button
+                          onClick={() => handleTranscriptClick(checkIn.transcript!)}
+                          className="mt-1.5 text-xs text-primary font-medium hover:underline"
+                        >
+                          View transcript →
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
 
-      {/* ── PATIENT DETAILS ────────────────────────────────── */}
-      <div className="py-5 border-b border-gray-100 flex flex-col gap-5">
-        <h3 className="text-xs font-medium tracking-widest text-gray-400 uppercase -mb-2">
-          Patient
-        </h3>
-
-        {/* Contact */}
-        <div className="flex flex-col gap-1.5">
-          <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest">Contact</p>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: "Phone",         value: mother.phone || "" },
-              { label: "Date of birth", value: formatDate(mother.dateOfBirth ?? "") },
-            ].map((item, idx) => (
-              <div key={idx} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
-                <span className="text-xs text-gray-400 font-medium">{item.label}</span>
-                <span className="text-sm font-bold text-gray-900">{item.value || "Not set"}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Clinical */}
-        <div className="flex flex-col gap-1.5">
-          <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest">Clinical</p>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              {
-                label: "Gravida / Para",
-                value: mother.gravida != null && mother.para != null
-                  ? `G${mother.gravida} P${mother.para}`
-                  : "",
-              },
-              {
-                label: "Language",
-                value: mother.language
-                  ? mother.language.charAt(0).toUpperCase() + mother.language.slice(1)
-                  : "",
-              },
-              {
-                label: "Calling window",
-                value: mother.preferredCallWindow
-                  ? ({ morning: "Morning", afternoon: "Afternoon", evening: "Evening", inbound: "Inbound" }[mother.preferredCallWindow] ?? mother.preferredCallWindow)
-                  : "",
-              },
-            ].map((item, idx) => (
-              <div key={idx} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
-                <span className="text-xs text-gray-400 font-medium">{item.label}</span>
-                <span className="text-sm font-bold text-gray-900">{item.value || "Not set"}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Risk factors */}
-        {mother.risks && mother.risks.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest">Risk factors</p>
-            <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
-              {mother.risks.map((r) => (
-                <span key={r} className="px-2.5 py-1 rounded-full bg-white text-amber-700 text-xs font-medium border border-amber-100 shadow-sm">
-                  {r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Medications */}
-        {mother.medications && mother.medications.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest">Medications sent home</p>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
-              {mother.medications.map((m) => (
-                <span key={m} className="px-2.5 py-1 rounded-full bg-white text-gray-600 text-xs font-medium border border-gray-200 shadow-sm">
-                  {m.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── AUDIT NOTE ─────────────────────────────────────── */}
-      <Alert className="border-gray-100 bg-gray-50 mt-4">
-        <ShieldCheck className="h-4 w-4 text-gray-400" />
-        <AlertDescription className="text-gray-400 text-xs">
-          Severity labels are system-set and read-only for audit integrity.
-        </AlertDescription>
-      </Alert>
-      </div>
-
+      {/* ── TRANSCRIPT MODAL ──────────────────────────────── */}
       <Dialog
         open={transcriptModal.open}
         onOpenChange={(open) => !open && setTranscriptModal({ open: false, text: "" })}
