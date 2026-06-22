@@ -22,46 +22,39 @@ const CallListItem = ({ call, isSelected, onClick }: CallListItemProps) => {
   const initials = call.motherName?.charAt(0) ?? "?";
 
   return (
-    <div
+    <button
+      onClick={onClick}
       className={`
-        w-full px-4 py-3 transition-colors border-l-4
+        w-full px-4 py-3 text-left transition-colors border-l-4
         ${isSelected ? "border-l-primary bg-gray-50" : "border-l-transparent hover:bg-gray-50"}
       `}
     >
-      <div className="flex justify-between items-center">
-        <button
-          onClick={onClick}
-          className="flex-1 text-left min-w-0 flex items-center gap-3"
-        >
+      <div className="flex justify-between items-center gap-2">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
             {initials}
           </div>
-          <span className="text-sm font-semibold text-gray-900 truncate">
+          <span className="text-sm font-medium text-gray-900 truncate">
             {call.motherName}
           </span>
-        </button>
-        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-          <Badge
-            variant="outline"
-            className={getStatusBadgeClass(call.status)}
-            size="sm"
-            dot
-          >
-            {label}
-          </Badge>
         </div>
+        <Badge
+          variant="outline"
+          className={getStatusBadgeClass(call.status)}
+          size="sm"
+          dot
+        >
+          {label}
+        </Badge>
       </div>
 
-      <button
-        onClick={onClick}
-        className="w-full text-left pl-11 mt-1.5 flex items-center gap-1.5"
-      >
+      <div className="pl-11 mt-1.5 flex items-center gap-1.5">
         <Clock size={11} className="text-gray-400 shrink-0" />
         <span className="text-xs text-gray-500 font-normal truncate">
           {call.callType} · {formatDateTime(call.scheduledAt)}
         </span>
-      </button>
-    </div>
+      </div>
+    </button>
   );
 };
 

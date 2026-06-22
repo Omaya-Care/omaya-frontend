@@ -1,4 +1,3 @@
-import { format, parseISO } from "date-fns";
 import { PhoneCall, Clock, Heart, Calendar, Mic, Flag, Loader2, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Call } from "../../types";
@@ -7,6 +6,7 @@ import { getSeverityBadgeClass, getStatusBadgeClass } from "../../lib/badge-help
 import { Button } from "../ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { useTriggerCall } from "../../hooks/useMutations";
+import { formatDateTime } from "../../lib/format";
 import { toast } from "sonner";
 
 interface CallDetailProps {
@@ -22,19 +22,11 @@ const statusLabel: Record<string, string> = {
 };
 
 function formatDuration(seconds?: number): string {
-  if (seconds == null) return "";
+  if (seconds == null) return "—";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   if (m === 0) return `${s}s`;
   return s === 0 ? `${m}m` : `${m}m ${s}s`;
-}
-
-function formatScheduled(iso: string): string {
-  try {
-    return format(parseISO(iso), "d MMM yyyy · h:mm a");
-  } catch {
-    return iso;
-  }
 }
 
 const CallDetail = ({ call, isLoading }: CallDetailProps) => {
@@ -74,156 +66,121 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
   const isCompleted = call.status === "completed";
   const hasTranscript = (call.transcript ?? []).length > 0;
 
+  const initials = call.motherName
+    ?.split(" ")
+    .slice(0, 2)
+    .map((n) => n[0] ?? "")
+    .join("")
+    .toUpperCase() ?? "?";
+
   return (
     <div className="flex flex-1 flex-col min-h-0 animate-in fade-in-0 duration-200 motion-reduce:animate-none">
-      {/* Scrollable content — the actions bar below stays pinned (never overlaps). */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
 
-      {/* ── HEADER ─────────────────────────────────────────── */}
-      <div className="pb-4 border-b border-gray-100">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">{call.motherName}</h2>
-            <p className="text-sm text-gray-500 font-normal mt-0.5">{call.callType}</p>
+        {/* ── AVATAR HEADER ─────────────────────────────────── */}
+        <div className="flex flex-col items-center pt-6 pb-5 border-b border-gray-100">
+          <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center text-xl font-bold text-primary mb-3 ring-4 ring-white shadow-sm">
+            {initials}
           </div>
-          <Badge variant="outline" className={getStatusBadgeClass(call.status)} size="sm" dot>
-            {label}
-          </Badge>
-        </div>
-      </div>
-
-      {/* ── STATS STRIP ────────────────────────────────────── */}
-      <div className="py-4 border-b border-gray-100">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <Calendar size={13} className="text-gray-400" />
-              <span className="text-xs text-gray-400 font-medium">Scheduled</span>
-            </div>
-            <span className="text-sm font-semibold text-gray-900">
-              {formatScheduled(call.scheduledAt)}
-            </span>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <Mic size={13} className="text-gray-400" />
-              <span className="text-xs text-gray-400 font-medium">Duration</span>
-            </div>
-            <span className="text-sm font-semibold text-gray-900">
-              {formatDuration(call.durationSeconds) || (
-                <span className="text-gray-400 font-normal text-xs">
-                  {isCompleted ? "Not recorded" : "Pending"}
-                </span>
-              )}
-            </span>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <Clock size={13} className="text-gray-400" />
-              <span className="text-xs text-gray-400 font-medium">Day in care</span>
-            </div>
-            <span className="text-sm font-semibold text-gray-900">
-              {call.dayInCare != null ? `Day ${call.dayInCare}` : (
-                <span className="text-gray-400 font-normal text-xs">Not recorded</span>
-              )}
-            </span>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <Heart size={13} className="text-gray-400" />
-              <span className="text-xs text-gray-400 font-medium">Delivery type</span>
-            </div>
-            <span className="text-sm font-semibold text-gray-900 capitalize">
-              {call.deliveryType ?? (
-                <span className="text-gray-400 font-normal text-xs">Not recorded</span>
-              )}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── TRANSCRIPT ─────────────────────────────────────── */}
-      <div className="py-4 border-b border-gray-100">
-        <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-3">
-          Transcript
-        </h3>
-
-        {!hasTranscript ? (
-          <p className="text-sm text-gray-400 font-normal">
-            {call.status === "upcoming"
-              ? "Call has not happened yet."
-              : call.status === "missed"
-              ? "No answer — call was not connected."
-              : "No transcript available for this call."}
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {call.transcript!.map((row, idx) => {
-              const isOmaya = row.speaker === "omaya";
-              return (
-                <div
-                  key={idx}
-                  className={`flex gap-2.5 ${isOmaya ? "" : "flex-row-reverse"}`}
-                >
-                  <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5 ${
-                    isOmaya ? "bg-primary text-white" : "bg-gray-200 text-gray-600"
-                  }`}>
-                    {isOmaya ? "O" : "M"}
-                  </div>
-                  <div className={`max-w-[78%] px-3 py-2 rounded-xl text-sm font-normal leading-relaxed ${
-                    isOmaya
-                      ? "bg-primary-100 text-gray-800 rounded-tl-sm"
-                      : "bg-gray-100 text-gray-800 rounded-tr-sm"
-                  }`}>
-                    {row.text}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ── OUTCOME ────────────────────────────────────────── */}
-      {isCompleted && (
-        <div className="py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+          <h2 className="text-xl font-bold text-gray-900 mb-1">{call.motherName}</h2>
           <div className="flex items-center gap-2">
-            <Flag size={14} className={call.flagsRaised ? "text-amber-500" : "text-gray-300"} />
-            <span className="text-sm text-gray-500 font-normal">
-              {call.flagsRaised
-                ? `${call.flagsRaised} flag${call.flagsRaised > 1 ? "s" : ""} raised`
-                : "No flags raised"}
-            </span>
-          </div>
-          {call.severity && (
-            <Badge variant="outline" className={getSeverityBadgeClass(call.severity)} size="sm" dot>
-              {call.severity.charAt(0).toUpperCase() + call.severity.slice(1)}
+            <Badge variant="outline" className={getStatusBadgeClass(call.status)} size="sm" dot>
+              {label}
             </Badge>
-          )}
+            <span className="text-xs text-gray-400">{call.callType}</span>
+          </div>
         </div>
-      )}
+
+        {/* ── CALL DETAILS ──────────────────────────────────── */}
+        <div className="px-4 py-4">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200">Call info</p>
+          <div className="divide-y divide-gray-100">
+            {[
+              { icon: Calendar, label: "Scheduled",     value: formatDateTime(call.scheduledAt) },
+              { icon: Mic,      label: "Duration",      value: isCompleted ? formatDuration(call.durationSeconds) : "—" },
+              { icon: Clock,    label: "Day in care",   value: call.dayInCare != null ? `Day ${call.dayInCare}` : "—" },
+              { icon: Heart,    label: "Delivery type", value: call.deliveryType ? call.deliveryType.charAt(0).toUpperCase() + call.deliveryType.slice(1) : "—" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-1.5">
+                  <item.icon size={12} className="text-gray-400" />
+                  <span className="text-sm text-gray-500 font-normal">{item.label}</span>
+                </div>
+                <span className="text-sm font-medium text-gray-900">{item.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* ── OUTCOME ─────────────────────────────────────── */}
+          {isCompleted && (
+            <div className="mt-6">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200">Outcome</p>
+              <div className="flex items-center justify-between pt-3">
+                <div className="flex items-center gap-2">
+                  <Flag size={14} className={call.flagsRaised ? "text-amber-500" : "text-gray-300"} />
+                  <span className="text-sm text-gray-600 font-normal">
+                    {call.flagsRaised
+                      ? `${call.flagsRaised} flag${call.flagsRaised > 1 ? "s" : ""} raised`
+                      : "No flags raised"}
+                  </span>
+                </div>
+                {call.severity && (
+                  <Badge variant="outline" className={getSeverityBadgeClass(call.severity)} size="sm" dot>
+                    {call.severity.charAt(0).toUpperCase() + call.severity.slice(1)}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── TRANSCRIPT ──────────────────────────────────── */}
+          <div className="mt-6">
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200">Transcript</p>
+            {!hasTranscript ? (
+              <p className="text-sm text-gray-400 font-normal pt-3">
+                {call.status === "upcoming"
+                  ? "Call has not happened yet."
+                  : call.status === "missed"
+                  ? "No answer — call was not connected."
+                  : "No transcript available for this call."}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 pt-3">
+                {call.transcript!.map((row, idx) => {
+                  const isOmaya = row.speaker === "omaya";
+                  return (
+                    <div key={idx} className={`flex gap-2.5 ${isOmaya ? "" : "flex-row-reverse"}`}>
+                      <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5 ${
+                        isOmaya ? "bg-primary text-white" : "bg-gray-200 text-gray-600"
+                      }`}>
+                        {isOmaya ? "O" : "M"}
+                      </div>
+                      <div className={`max-w-[78%] px-3 py-2 rounded-xl text-sm font-normal leading-relaxed ${
+                        isOmaya
+                          ? "bg-primary-100 text-gray-800 rounded-tl-sm"
+                          : "bg-gray-100 text-gray-800 rounded-tr-sm"
+                      }`}>
+                        {row.text}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── ACTIONS (pinned footer) ────────────────────────── */}
       <div className="shrink-0 pt-4 border-t border-gray-100 flex justify-end items-center gap-2 bg-white">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-1.5"
-              onClick={handleViewMother}
-            >
+            <Button variant="outline" size="sm" className="flex items-center gap-1.5" onClick={handleViewMother}>
               <UserRound size={15} />
               <span className="font-medium">Mother record</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top">
-            <p>Go to this mother's profile.</p>
-          </TooltipContent>
+          <TooltipContent side="top"><p>Go to this mother's profile.</p></TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -234,15 +191,11 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
               disabled={triggerCall.isPending}
               onClick={handleCallNow}
             >
-              {triggerCall.isPending
-                ? <Loader2 size={15} className="animate-spin" />
-                : <PhoneCall size={15} />}
+              {triggerCall.isPending ? <Loader2 size={15} className="animate-spin" /> : <PhoneCall size={15} />}
               <span className="font-medium">Call now</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top">
-            <p>Trigger an immediate check-in call for this mother.</p>
-          </TooltipContent>
+          <TooltipContent side="top"><p>Trigger an immediate check-in call for this mother.</p></TooltipContent>
         </Tooltip>
       </div>
     </div>
