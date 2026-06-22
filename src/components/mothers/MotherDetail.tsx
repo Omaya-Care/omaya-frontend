@@ -186,7 +186,7 @@ const MotherDetail = ({
         )}
 
         {/* ── TABS ──────────────────────────────────────────── */}
-        <div className="flex gap-5 px-4 mt-4 border-b border-gray-100">
+        <div className="flex justify-center gap-8 px-4 mt-4 border-b border-gray-100">
           <button
             onClick={() => setActiveTab("details")}
             className={`pb-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
