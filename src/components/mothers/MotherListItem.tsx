@@ -50,35 +50,28 @@ const MotherListItem = ({
   const initials = mother.name?.charAt(0) ?? "?";
 
   return (
-    <div
+    <button
+      onClick={onClick}
+      aria-label={`View ${mother.name}`}
       className={`
-        w-full px-4 py-3 transition-colors border-l-4
+        w-full px-4 py-3 text-left transition-colors border-l-4
         ${isSelected ? `${borderColor} bg-gray-50` : "border-l-transparent hover:bg-gray-50"}
         ${isWithdrawn ? "text-gray-400" : ""}
       `}
     >
       <div className="flex items-center gap-3">
-        {/* Name icon — vertically centered against the whole 2-line block */}
-        <button
-          onClick={onClick}
-          aria-label={`View ${mother.name}`}
-          className="shrink-0"
-        >
-          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-bold text-primary">
-            {initials}
-          </div>
-        </button>
+        <div className="shrink-0 w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-bold text-primary">
+          {initials}
+        </div>
 
         <div className="flex-1 min-w-0">
           {/* Line 1: name + severity badge */}
           <div className="flex justify-between items-center gap-2">
-            <button onClick={onClick} className="min-w-0 flex-1 text-left">
-              <span
-                className={`block text-sm font-medium text-gray-900 truncate ${isWithdrawn ? "italic text-gray-400" : ""}`}
-              >
-                {mother.name}
-              </span>
-            </button>
+            <span
+              className={`block text-sm font-medium text-gray-900 truncate ${isWithdrawn ? "italic text-gray-400" : ""}`}
+            >
+              {mother.name}
+            </span>
             <Badge
               variant="outline"
               className={getSeverityBadgeClass(severity)}
@@ -91,7 +84,7 @@ const MotherListItem = ({
           </div>
 
           {/* Line 2: next call */}
-          <button onClick={onClick} className="w-full text-left mt-1">
+          <div className="mt-1">
             {mother.nextCallAt && !isWithdrawn ? (
               <div className="flex items-center gap-1.5">
                 <PhoneCall size={11} className="text-primary shrink-0" />
@@ -107,10 +100,10 @@ const MotherListItem = ({
                 </span>
               </div>
             )}
-          </button>
+          </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 };
 
