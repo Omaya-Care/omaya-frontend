@@ -218,7 +218,7 @@ const MotherDetail = ({
         <div className="px-4 py-4">
 
           {activeTab === "details" && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-7">
 
               {/* Contact */}
               <div>
@@ -230,7 +230,7 @@ const MotherDetail = ({
                     { label: "Language",      value: mother.language ? mother.language.charAt(0).toUpperCase() + mother.language.slice(1) : "" },
                     { label: "Date of birth", value: formatDate(mother.dateOfBirth ?? "") },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between py-1.5">
+                    <div key={item.label} className="flex items-center justify-between py-1">
                       <span className="text-xs text-gray-500 font-normal">{item.label}</span>
                       <span className="text-sm font-medium text-gray-900 text-right">{item.value || "—"}</span>
                     </div>
@@ -248,7 +248,7 @@ const MotherDetail = ({
                     { label: "Delivered",      value: formatDate(mother.deliveryDate ?? "") },
                     { label: "Discharged",     value: formatDate(mother.dischargeDate) },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between py-1.5">
+                    <div key={item.label} className="flex items-center justify-between py-1">
                       <span className="text-xs text-gray-500 font-normal">{item.label}</span>
                       <span className="text-sm font-medium text-gray-900 text-right">{item.value || "—"}</span>
                     </div>
