@@ -1,9 +1,7 @@
 import { useState } from "react";
 import {
   UserRound,
-  Heart,
   Clock,
-  Calendar,
   ShieldCheck,
   MessageCircle,
   AlertTriangle,
@@ -222,12 +220,14 @@ const MotherDetail = ({
           {activeTab === "details" && (
             <div className="flex flex-col gap-5">
 
-              {/* Contact */}
+              {/* Contact — everything needed to reach her */}
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Contact</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { label: "Phone",         value: mother.phone || "" },
+                    { label: "Call window",   value: mother.preferredCallWindow ? (callWindowLabels[mother.preferredCallWindow] ?? mother.preferredCallWindow) : "" },
+                    { label: "Language",      value: mother.language ? mother.language.charAt(0).toUpperCase() + mother.language.slice(1) : "" },
                     { label: "Date of birth", value: formatDate(mother.dateOfBirth ?? "") },
                   ].map((item) => (
                     <div key={item.label} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
@@ -238,14 +238,15 @@ const MotherDetail = ({
                 </div>
               </div>
 
-              {/* Discharge */}
+              {/* Clinical — her medical background */}
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Discharge</p>
-                <div className="grid grid-cols-3 gap-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Clinical</p>
+                <div className="grid grid-cols-2 gap-2">
                   {[
-                    { icon: Heart,    label: "Type",       value: mother.deliveryType ? mother.deliveryType.charAt(0).toUpperCase() + mother.deliveryType.slice(1) : "" },
-                    { icon: Calendar, label: "Delivered",  value: formatDate(mother.deliveryDate ?? "") },
-                    { icon: Calendar, label: "Discharged", value: formatDate(mother.dischargeDate) },
+                    { label: "Delivery",      value: mother.deliveryType ? mother.deliveryType.charAt(0).toUpperCase() + mother.deliveryType.slice(1) : "" },
+                    { label: "Gravida / Para", value: mother.gravida != null && mother.para != null ? `G${mother.gravida} P${mother.para}` : "" },
+                    { label: "Delivered",     value: formatDate(mother.deliveryDate ?? "") },
+                    { label: "Discharged",    value: formatDate(mother.dischargeDate) },
                   ].map((item) => (
                     <div key={item.label} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
                       <span className="text-xs text-gray-400 font-normal">{item.label}</span>
@@ -255,62 +256,35 @@ const MotherDetail = ({
                 </div>
               </div>
 
-              {/* Clinical */}
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Clinical</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    {
-                      label: "Gravida / Para",
-                      value: mother.gravida != null && mother.para != null
-                        ? `G${mother.gravida} P${mother.para}`
-                        : "",
-                    },
-                    {
-                      label: "Language",
-                      value: mother.language
-                        ? mother.language.charAt(0).toUpperCase() + mother.language.slice(1)
-                        : "",
-                    },
-                    {
-                      label: "Call window",
-                      value: mother.preferredCallWindow
-                        ? (callWindowLabels[mother.preferredCallWindow] ?? mother.preferredCallWindow)
-                        : "",
-                    },
-                  ].map((item) => (
-                    <div key={item.label} className="bg-gray-50 rounded-xl px-3 py-3 flex flex-col gap-0.5">
-                      <span className="text-xs text-gray-400 font-normal">{item.label}</span>
-                      <span className="text-sm font-medium text-gray-800">{item.value || "Not set"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Risk factors */}
-              {mother.risks && mother.risks.length > 0 && (
+              {/* Alerts — risks and medications together */}
+              {((mother.risks && mother.risks.length > 0) || (mother.medications && mother.medications.length > 0)) && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Risk factors</p>
-                  <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
-                    {mother.risks.map((r) => (
-                      <span key={r} className="px-2.5 py-1 rounded-full bg-white text-amber-700 text-xs font-medium border border-amber-100 shadow-sm">
-                        {r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Medications */}
-              {mother.medications && mother.medications.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Medications sent home</p>
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 flex flex-wrap gap-1.5">
-                    {mother.medications.map((m) => (
-                      <span key={m} className="px-2.5 py-1 rounded-full bg-white text-gray-600 text-xs font-medium border border-gray-200 shadow-sm">
-                        {m.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                      </span>
-                    ))}
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">Alerts</p>
+                  <div className="flex flex-col gap-2">
+                    {mother.risks && mother.risks.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-3">
+                        <p className="text-xs font-normal text-amber-600 mb-2">Risk factors</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {mother.risks.map((r) => (
+                            <span key={r} className="px-2.5 py-1 rounded-full bg-white text-amber-700 text-xs font-medium border border-amber-100 shadow-sm">
+                              {r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {mother.medications && mother.medications.length > 0 && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3">
+                        <p className="text-xs font-normal text-gray-400 mb-2">Medications sent home</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {mother.medications.map((m) => (
+                            <span key={m} className="px-2.5 py-1 rounded-full bg-white text-gray-600 text-xs font-medium border border-gray-200 shadow-sm">
+                              {m.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
