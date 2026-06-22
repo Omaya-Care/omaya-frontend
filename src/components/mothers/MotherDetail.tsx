@@ -308,7 +308,7 @@ const MotherDetail = ({
                     <div key={checkIn.id} className="py-3.5 first:pt-0">
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium text-gray-800">{checkIn.date}</span>
+                          <span className="text-sm font-medium text-gray-800">{formatDate(checkIn.date)}</span>
                           <span className="text-gray-200">·</span>
                           <span className="text-xs text-gray-400 font-normal">Day {checkIn.day}</span>
                         </div>
