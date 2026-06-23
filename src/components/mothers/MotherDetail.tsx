@@ -101,7 +101,7 @@ const MotherDetail = ({
   };
 
   return (
-    <div className="flex flex-1 flex-col min-h-0 animate-in fade-in-0 duration-200 motion-reduce:animate-none">
+    <div className="flex flex-1 flex-col min-h-0 animate-in fade-in-0 slide-in-from-right-3 duration-300 ease-out motion-reduce:animate-none">
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
 
         {/* ── AVATAR HEADER ─────────────────────────────────── */}
@@ -255,6 +255,51 @@ const MotherDetail = ({
                   ))}
                 </div>
               </div>
+
+              {/* Emergency contacts (1–3). Falls back to the deprecated single
+                  fields for records saved before the array existed. */}
+              {(() => {
+                const contacts =
+                  mother.emergencyContacts && mother.emergencyContacts.length > 0
+                    ? mother.emergencyContacts
+                    : mother.emergencyContactName
+                      ? [
+                          {
+                            name: mother.emergencyContactName,
+                            phone: mother.emergencyContactPhone ?? "",
+                            relationship: mother.emergencyContactRelationship ?? "",
+                          },
+                        ]
+                      : [];
+                if (contacts.length === 0) return null;
+                return (
+                  <div>
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200">
+                      Emergency contacts
+                    </p>
+                    <div className="divide-y divide-gray-100">
+                      {contacts.map((c, idx) => (
+                        <div key={idx} className="flex items-center justify-between py-2">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-gray-900">
+                              {c.name || "—"}
+                            </span>
+                            {c.relationship && (
+                              <span className="text-xs text-gray-400 font-normal capitalize">
+                                {c.relationship}
+                                {idx === 0 && contacts.length > 1 ? " · Primary" : ""}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">
+                            {c.phone ? formatPhone(c.phone) : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Alerts */}
               {((mother.risks && mother.risks.length > 0) || (mother.medications && mother.medications.length > 0)) && (

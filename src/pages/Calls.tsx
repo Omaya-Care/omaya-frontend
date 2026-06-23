@@ -83,7 +83,7 @@ if (search.trim()) {
         `}
       >
         <div className="px-4 pt-5 pb-3 flex-shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">Calls</h2>
+          <h2 className="text-lg font-bold text-gray-900">Calls</h2>
         </div>
 
         <div className="px-4 pb-3 flex-shrink-0">
@@ -112,7 +112,7 @@ if (search.trim()) {
             <PopoverContent align="start" className="w-56 p-3">
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</p>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Status</p>
                   <div className="flex flex-wrap gap-1.5">
                     {["all", "upcoming", "in_progress", "completed", "missed"].map((val) => (
                       <button
@@ -130,7 +130,7 @@ if (search.trim()) {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Date</p>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Date</p>
                   <div className="flex flex-wrap gap-1.5">
                     {["all", "today"].map((val) => (
                       <button

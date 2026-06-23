@@ -43,8 +43,9 @@ const OnboardingShell = ({
         />
       </div>
 
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 sm:py-10">
+      {/* Content area. overflow-x-hidden so the per-step slide animation can't
+          flash a horizontal scrollbar (dropdowns here are portalled). */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-8 py-6 sm:py-10">
         {children}
       </div>
 

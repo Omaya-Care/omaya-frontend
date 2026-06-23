@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { Mother, CheckIn } from "../types";
+import { Mother, CheckIn, EmergencyContact } from "../types";
 
 export function toMother(raw: Record<string, unknown>): Mother {
   return {
@@ -36,6 +36,16 @@ export function toMother(raw: Record<string, unknown>): Mother {
     medications: (raw.medications as string[]) ?? undefined,
     risks: (raw.risks as string[]) ?? undefined,
     preferredCallWindow: (raw.preferred_call_window as Mother["preferredCallWindow"]) ?? undefined,
+    emergencyContacts: ((raw.emergency_contacts as Record<string, unknown>[]) ?? []).map(
+      (ec): EmergencyContact => ({
+        name: (ec.name as string) ?? "",
+        phone: (ec.phone as string) ?? "",
+        relationship: (ec.relationship as string) ?? "",
+      }),
+    ),
+    emergencyContactName: (raw.emergency_contact_name as string) ?? undefined,
+    emergencyContactPhone: (raw.emergency_contact_phone as string) ?? undefined,
+    emergencyContactRelationship: (raw.emergency_contact_relationship as string) ?? undefined,
   };
 }
 

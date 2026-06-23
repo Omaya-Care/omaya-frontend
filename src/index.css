@@ -25,6 +25,21 @@
         }
     }
 
+    /* Notification bell — swings from the top like a real bell being rung,
+       not a generic bounce. Rotates about its top edge and settles back to
+       rest. Plays once per hover (see the hover rule under no-preference). */
+    @keyframes bell-swing {
+        0%   { transform: rotate(0deg); }
+        20%  { transform: rotate(14deg); }
+        40%  { transform: rotate(-12deg); }
+        60%  { transform: rotate(8deg); }
+        80%  { transform: rotate(-5deg); }
+        100% { transform: rotate(0deg); }
+    }
+    .bell-swing {
+        transform-origin: top center;
+    }
+
     /* Skeleton shimmer — a left-to-right sweep, premium feel on every loading
        state. Falls back to the plain pulse under reduced motion (below). */
     @keyframes shimmer {
@@ -51,6 +66,11 @@
         }
         .animate-soft-pulse {
             animation: soft-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        /* Swing the bell while its trigger button is hovered. One pass,
+           settling back to rest — re-runs each time the pointer re-enters. */
+        .bell-trigger:hover .bell-swing {
+            animation: bell-swing 0.68s ease-out;
         }
     }
 

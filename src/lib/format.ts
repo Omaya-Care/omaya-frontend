@@ -46,6 +46,22 @@ export function formatPhone(value: string): string {
   return value;
 }
 
+/**
+ * Group the local (national) part of a phone number for display as the user
+ * types — e.g. "551234567" → "55 123 4567" (the "xx xxx xxxx" shape after the
+ * +233 dial code). Display-only: callers still store the raw, space-free
+ * digits, so validation and payloads are unaffected.
+ */
+export function groupPhoneDigits(local: string): string {
+  const d = local.replace(/\D/g, "");
+  const parts: string[] = [];
+  if (d.length) parts.push(d.slice(0, 2));
+  if (d.length > 2) parts.push(d.slice(2, 5));
+  if (d.length > 5) parts.push(d.slice(5, 9));
+  if (d.length > 9) parts.push(d.slice(9));
+  return parts.join(" ");
+}
+
 const MONTHS_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

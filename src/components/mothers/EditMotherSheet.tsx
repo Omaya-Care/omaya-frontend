@@ -5,10 +5,19 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Alert, AlertDescription } from "../ui/alert";
-import { ChipSelect } from "../onboarding";
+import {
+  ChipSelect,
+  EmergencyContacts,
+  emptyEmergencyContact,
+  emergencyContactsValid,
+  toEmergencyContactsPayload,
+  RELATIONSHIP_OPTIONS,
+  type EmergencyContactForm,
+} from "../onboarding";
 import { Calendar } from "../ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useUpdateMother } from "../../hooks/useMutations";
+import { LANGUAGE_OPTIONS } from "../../lib/languages";
 import { Mother } from "../../types";
 import { toast } from "sonner";
 
@@ -17,13 +26,6 @@ interface EditMotherSheetProps {
   onClose: () => void;
   mother: Mother;
 }
-
-const LANGUAGE_OPTIONS = [
-  { value: "english", label: "English" },
-  { value: "twi", label: "Twi" },
-  { value: "ga", label: "Ga" },
-  { value: "ewe", label: "Ewe" },
-];
 
 const CALLING_WINDOW_OPTIONS = [
   { value: "morning", label: "Morning (8am–12pm)" },
@@ -36,6 +38,54 @@ const DELIVERY_TYPE_OPTIONS = [
   { value: "vaginal", label: "Vaginal" },
   { value: "caesarean", label: "Caesarean" },
 ];
+
+const KNOWN_COUNTRY_CODES = ["+233", "+234", "+225", "+228", "+221"];
+
+// Split a stored E.164 phone into { countryCode, localDigits } for the form.
+const splitPhone = (phone: string) => {
+  const code = KNOWN_COUNTRY_CODES.find((c) => phone.startsWith(c));
+  if (code) {
+    return { countryCode: code, phone: phone.slice(code.length).replace(/\D/g, "") };
+  }
+  return { countryCode: "+233", phone: phone.replace(/^\+/, "").replace(/\D/g, "") };
+};
+
+// A stored relationship maps to a known chip if it matches an option's value or
+// label (case-insensitive); otherwise it's treated as the free-text "other".
+const splitRelationship = (relationship: string) => {
+  const match = RELATIONSHIP_OPTIONS.find(
+    (o) =>
+      o.value !== "other" &&
+      (o.value === relationship.toLowerCase() ||
+        o.label.toLowerCase() === relationship.toLowerCase()),
+  );
+  return match
+    ? { relationship: match.value, relationshipCustom: "" }
+    : { relationship: "other", relationshipCustom: relationship };
+};
+
+// Seed the editable emergency-contact rows from a mother's stored contacts,
+// falling back to the deprecated single fields, then to one empty row.
+const buildEmergencyContacts = (mother: Mother): EmergencyContactForm[] => {
+  const source =
+    mother.emergencyContacts && mother.emergencyContacts.length > 0
+      ? mother.emergencyContacts
+      : mother.emergencyContactName
+        ? [
+            {
+              name: mother.emergencyContactName,
+              phone: mother.emergencyContactPhone ?? "",
+              relationship: mother.emergencyContactRelationship ?? "",
+            },
+          ]
+        : [];
+  if (source.length === 0) return [emptyEmergencyContact()];
+  return source.map((c) => ({
+    name: c.name,
+    ...splitPhone(c.phone),
+    ...splitRelationship(c.relationship),
+  }));
+};
 
 const buildForm = (mother: Mother) => ({
   phone: mother.phone,
@@ -52,6 +102,10 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
   const updateMutation = useUpdateMother();
 
   const [form, setForm] = useState(() => buildForm(mother));
+  const [emergencyContacts, setEmergencyContacts] = useState<
+    EmergencyContactForm[]
+  >(() => buildEmergencyContacts(mother));
+  const [emergencyTouched, setEmergencyTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Re-seed the form each time the sheet opens (or the mother changes while
@@ -63,6 +117,8 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
     setPrevSig(openSig);
     if (isOpen) {
       setForm(buildForm(mother));
+      setEmergencyContacts(buildEmergencyContacts(mother));
+      setEmergencyTouched(false);
       setError(null);
     }
   }
@@ -74,6 +130,10 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
 
   const handleSave = async () => {
     setError(null);
+    if (!emergencyContactsValid(emergencyContacts)) {
+      setEmergencyTouched(true);
+      return;
+    }
     try {
       await updateMutation.mutateAsync({
         motherId: mother.id,
@@ -86,6 +146,8 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
           preferred_call_window: form.preferredCallWindow || undefined,
           delivery_type: form.deliveryType || undefined,
           delivery_date: form.deliveryDate || undefined,
+          // Full-replacement list (1–3 contacts).
+          emergency_contacts: toEmergencyContactsPayload(emergencyContacts),
         },
       });
       toast.success("Details updated.");
@@ -227,6 +289,17 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
                 onChange={(val) => updateField("preferredCallWindow", val.length > 0 ? val[0] : "")}
               />
             </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-5">
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-4">
+              Emergency contacts
+            </p>
+            <EmergencyContacts
+              contacts={emergencyContacts}
+              onChange={setEmergencyContacts}
+              touched={emergencyTouched}
+            />
           </div>
         </div>
 

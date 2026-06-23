@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useDrawer } from "../contexts/DrawerContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -32,6 +32,8 @@ import {
   PopoverTrigger,
 } from "../components/ui/popover";
 import { Skeleton } from "../components/ui/skeleton";
+import { useSlideIndicator } from "../hooks/useSlideIndicator";
+import { getSeverityTokens } from "../lib/badge-helpers";
 import { toast } from "sonner";
 
 const MothersPage = () => {
@@ -64,6 +66,10 @@ const MothersPage = () => {
     if (navMotherId) setMobileDetailOpen(true);
   }, [mothers, selectedMotherId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sliding selection indicator for the mother list (gray block + severity
+  // accent bar that slide to the clicked row instead of jumping).
+  const listRef = useRef<HTMLDivElement>(null);
+
   const filteredMothers = useMemo(() => {
     return mothers.filter((mother) => {
       if (severityFilter !== "all" && mother.severity !== severityFilter)
@@ -81,6 +87,15 @@ const MothersPage = () => {
       return true;
     });
   }, [mothers, severityFilter, statusFilter, search]);
+
+  const motherIndicator = useSlideIndicator(listRef, '[data-slide-active="true"]', [
+    selectedMotherId,
+    filteredMothers,
+  ]);
+  const activeMother = filteredMothers.find((m) => m.id === selectedMotherId);
+  const activeAccent = activeMother
+    ? getSeverityTokens(activeMother.severity || "routine").dot
+    : "";
 
   const handleSelectMother = (id: string) => {
     // Viewing a profile is a read action — the /mothers route already requires
@@ -291,7 +306,32 @@ const MothersPage = () => {
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto border-t border-gray-200">
+        <div
+          ref={listRef}
+          className="relative flex-1 overflow-y-auto border-t border-gray-200"
+        >
+          {/* Sliding selection — a gray block + severity accent bar that
+              animate to the clicked row instead of jumping. */}
+          {motherIndicator && (
+            <>
+              <div
+                aria-hidden
+                className="absolute left-0 right-0 top-0 z-0 bg-gray-50 transition-all duration-300 ease-out pointer-events-none"
+                style={{
+                  height: motherIndicator.height,
+                  transform: `translateY(${motherIndicator.top}px)`,
+                }}
+              />
+              <div
+                aria-hidden
+                className={`absolute left-0 top-0 z-0 w-1 transition-all duration-300 ease-out pointer-events-none ${activeAccent}`}
+                style={{
+                  height: motherIndicator.height,
+                  transform: `translateY(${motherIndicator.top}px)`,
+                }}
+              />
+            </>
+          )}
           {filteredMothers.map((mother) => (
             <MotherListItem
               key={mother.id}

@@ -5,6 +5,12 @@ export type CallStatus = 'completed' | 'in_progress' | 'upcoming' | 'missed';
 export type DeliveryType = 'vaginal' | 'caesarean';
 export type ConsentStatus = 'active' | 'withdrawn' | 'pending';
 
+export interface EmergencyContact {
+  name: string;
+  phone: string;        // E.164, e.g. "+233564357975"
+  relationship: string; // free-text label (never the literal "other")
+}
+
 export interface CheckIn {
   id: string;
   date: string;          // "03 Jun"
@@ -41,6 +47,12 @@ export interface Mother {
   medications?: string[];
   risks?: string[];
   preferredCallWindow?: "morning" | "afternoon" | "evening" | "inbound";
+  // 1–3 emergency contacts (index 0 = primary). Empty for older records.
+  emergencyContacts?: EmergencyContact[];
+  // DEPRECATED singular mirrors of emergencyContacts[0] — fallback for old data.
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelationship?: string;
 }
 
 export interface CallTranscriptRow {

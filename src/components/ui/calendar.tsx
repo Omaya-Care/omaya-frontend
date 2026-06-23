@@ -7,6 +7,13 @@ import {
 } from "react-day-picker"
 import { cn } from "../../lib/utils"
 import { Button, buttonVariants } from "./Button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./select"
 import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react"
 
 function Calendar({
@@ -43,17 +50,20 @@ function Calendar({
         months: cn("relative flex flex-col gap-2 md:flex-row", defaultClassNames.months),
         month: cn("flex w-full flex-col gap-2", defaultClassNames.month),
         nav: cn(
-          "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
+          // pointer-events-none so the empty centre of this full-width
+          // absolute bar doesn't swallow clicks meant for the month/year
+          // dropdowns beneath it; the arrow buttons re-enable pointer events.
+          "pointer-events-none absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
           defaultClassNames.nav
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          "size-6 p-0 select-none aria-disabled:opacity-50",
+          "pointer-events-auto size-6 p-0 select-none aria-disabled:opacity-50",
           defaultClassNames.button_previous
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          "size-6 p-0 select-none aria-disabled:opacity-50",
+          "pointer-events-auto size-6 p-0 select-none aria-disabled:opacity-50",
           defaultClassNames.button_next
         ),
         month_caption: cn(
@@ -61,17 +71,13 @@ function Calendar({
           defaultClassNames.month_caption
         ),
         dropdowns: cn(
-          "flex h-7 w-full items-center justify-center gap-1 text-xs font-medium",
+          // relative z-10 so the dropdown triggers sit above the absolute nav
+          // bar and receive their clicks.
+          "relative z-10 flex h-7 w-full items-center justify-center gap-1 text-xs font-medium",
           defaultClassNames.dropdowns
         ),
-        dropdown_root: cn(
-          "relative rounded-md",
-          defaultClassNames.dropdown_root
-        ),
-        dropdown: cn(
-          "absolute inset-0 bg-white opacity-0",
-          defaultClassNames.dropdown
-        ),
+        dropdown_root: cn("rounded-md", defaultClassNames.dropdown_root),
+        dropdown: cn(defaultClassNames.dropdown),
         caption_label: cn(
           "font-medium select-none",
           captionLayout === "label"
@@ -134,6 +140,9 @@ function Calendar({
         DayButton: ({ ...props }) => (
           <CalendarDayButton locale={locale} {...props} />
         ),
+        // Themed month/year dropdown — replaces react-day-picker's native
+        // <select> with our shadcn Select so no native select is used.
+        Dropdown: CalendarDropdown,
         WeekNumber: ({ children, ...props }) => {
           return (
             <td {...props}>
@@ -147,6 +156,43 @@ function Calendar({
       }}
       {...props}
     />
+  )
+}
+
+function CalendarDropdown({
+  value,
+  onChange,
+  options,
+}: React.ComponentProps<"select"> & {
+  options?: { value: number; label: string; disabled?: boolean }[]
+}) {
+  // react-day-picker drives navigation through a native-select-style onChange;
+  // bridge our Radix Select's string value back into that shape.
+  const handleValueChange = (next: string) => {
+    onChange?.({
+      target: { value: next },
+    } as React.ChangeEvent<HTMLSelectElement>)
+  }
+
+  return (
+    <Select value={value?.toString()} onValueChange={handleValueChange}>
+      <SelectTrigger className="h-7 w-fit gap-1 border-0 bg-transparent px-2 py-0 text-xs font-medium shadow-none hover:bg-gray-100 focus:ring-0 [&>svg]:size-3 [&>svg]:text-gray-500">
+
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="max-h-60">
+        {options?.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value.toString()}
+            disabled={option.disabled}
+            className="text-xs"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 

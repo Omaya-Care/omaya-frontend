@@ -39,6 +39,8 @@ import {
   PopoverTrigger,
 } from "../components/ui/popover";
 import { api, extractApiError } from "../lib/api";
+import { groupPhoneDigits } from "../lib/format";
+import { LANGUAGE_OPTIONS } from "../lib/languages";
 import { useDrawer } from "../contexts/DrawerContext";
 import { toast } from "sonner";
 
@@ -93,9 +95,16 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
     { key: "language", label: "preferred language" },
   ] as const;
 
-  const step2Valid = step2Required.every(
-    (f) => !fieldIsEmpty(formData[f.key as keyof typeof formData] as string | unknown[]),
-  );
+  // Para (births) can never exceed gravida (pregnancies) — they're tied.
+  const paraExceedsGravida =
+    formData.gravida !== "" &&
+    formData.para !== "" &&
+    Number(formData.para) > Number(formData.gravida);
+
+  const step2Valid =
+    step2Required.every(
+      (f) => !fieldIsEmpty(formData[f.key as keyof typeof formData] as string | unknown[]),
+    ) && !paraExceedsGravida;
 
   const phoneLocal = formData.phone.replace(countryCode, "");
   const phoneDigits = phoneLocal.replace(/\D/g, "");
@@ -358,11 +367,12 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   <Input
                     type="tel"
                     placeholder="55 123 4567"
-                    value={formData.phone.replace(countryCode, "")}
+                    value={groupPhoneDigits(formData.phone.replace(countryCode, ""))}
                     onChange={(e) => {
                       const raw = e.target.value
                         .replace(/\D/g, "")
-                        .replace(/^0+/, "");
+                        .replace(/^0+/, "")
+                        .slice(0, 9);
                       updateField("phone", raw ? `${countryCode}${raw}` : "");
                     }}
                     className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
@@ -517,14 +527,20 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                       updateField("para", val);
                     }
                   }}
-                  className={showError("para") ? "border-red-400" : ""}
+                  className={
+                    showError("para") || paraExceedsGravida ? "border-red-400" : ""
+                  }
                   fullWidth
                 />
-                {showError("para") && (
+                {showError("para") ? (
                   <span className="text-xs text-red-500">
                     Please enter number of births
                   </span>
-                )}
+                ) : paraExceedsGravida ? (
+                  <span className="text-xs text-red-500">
+                    Births (para) can't exceed pregnancies (gravida)
+                  </span>
+                ) : null}
               </div>
             </div>
 
@@ -534,11 +550,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               </label>
               <ChipSelect
                 max={1}
-                options={[
-                  { value: "english", label: "English" },
-                  { value: "twi", label: "Twi" },
-                  { value: "ewe", label: "Ewe" },
-                ]}
+                options={LANGUAGE_OPTIONS}
                 selected={formData.language}
                 onChange={(val) => updateField("language", val)}
               />

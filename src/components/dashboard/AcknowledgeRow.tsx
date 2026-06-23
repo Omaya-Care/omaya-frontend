@@ -30,6 +30,7 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
   };
 
   const statusStyles = getTimeStatusStyles(item.timeLeftMinutes);
+  const canEscalate = can("escalate");
 
   return (
     <TableRow className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
@@ -51,23 +52,34 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
         <div className="text-xs font-normal opacity-80">left within SLA</div>
       </TableCell>
       <TableCell className="py-3 text-right">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span tabIndex={0} className={!can("escalate") ? "cursor-not-allowed inline-flex" : "inline-flex"}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onAcknowledge(item.id)}
-                disabled={!can("escalate")}
-              >
-                Acknowledge
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            <p>{can("escalate") ? "Acknowledge this alert" : "You don't have permission to acknowledge alerts"}</p>
-          </TooltipContent>
-        </Tooltip>
+        {canEscalate ? (
+          // Enabled: plain button, no tooltip. The label already reads
+          // "Acknowledge", so a hover hint here is pure noise — and a
+          // portalled Radix tooltip per row is what caused the laggy
+          // pop / flicker when the pointer lingered on a row.
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onAcknowledge(item.id)}
+          >
+            Acknowledge
+          </Button>
+        ) : (
+          // Disabled: keep the tooltip — it's the only way to explain WHY
+          // the button can't be clicked.
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0} className="cursor-not-allowed inline-flex">
+                <Button variant="outline" size="sm" disabled>
+                  Acknowledge
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>You don't have permission to acknowledge alerts</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </TableCell>
     </TableRow>
   );

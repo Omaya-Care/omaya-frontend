@@ -49,6 +49,31 @@ export interface ApiError {
 }
 
 /**
+ * Turn a FastAPI 422 `detail` list into a readable, field-qualified string,
+ * e.g. `emergency_contacts.0.phone: value is not a valid phone number;
+ * gravida: input should be greater than or equal to 0`. Lists every failing
+ * field so a form submit shows exactly what to fix.
+ */
+export function formatValidationErrors(detail: unknown): string {
+  if (!Array.isArray(detail)) return "";
+  return detail
+    .map((item) => {
+      const it = item as { loc?: unknown; msg?: string };
+      const path = Array.isArray(it.loc)
+        ? it.loc
+            // Drop the leading "body"/"query"/"path" scope marker.
+            .filter((p, i) => !(i === 0 && (p === "body" || p === "query" || p === "path")))
+            .map((p) => String(p))
+            .join(".")
+        : "";
+      const msg = it.msg ?? "invalid value";
+      return path ? `${path}: ${msg}` : msg;
+    })
+    .filter(Boolean)
+    .join("; ");
+}
+
+/**
  * Normalize an axios error into the backend's `{error_code, message}`
  * envelope (carried under `detail`). Falls back gracefully for 422
  * validation lists and non-HTTP failures (network/timeout).
@@ -72,12 +97,13 @@ export function extractApiError(
     return { error_code: d.error_code, message: d.message ?? fallback, status };
   }
 
-  // FastAPI request-validation error: detail = [{msg, ...}, ...]
+  // FastAPI request-validation error: detail = [{loc, msg, ...}, ...].
+  // Include the field path so the message says WHICH field failed, and list
+  // every failing field (not just the first) — far easier to debug.
   if (Array.isArray(detail) && detail.length > 0) {
-    const first = detail[0] as { msg?: string };
     return {
       error_code: "validation_error",
-      message: first.msg ?? fallback,
+      message: formatValidationErrors(detail) || fallback,
       status,
     };
   }

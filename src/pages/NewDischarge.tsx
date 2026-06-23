@@ -21,6 +21,12 @@ import {
   OnboardingShell,
   StepHeader,
   ChipSelect,
+  EmergencyContacts,
+  emptyEmergencyContact,
+  emergencyContactsValid,
+  toEmergencyContactsPayload,
+  RELATIONSHIP_OPTIONS,
+  type EmergencyContactForm,
 } from "../components/onboarding";
 import {
   Button,
@@ -43,14 +49,41 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "../components/ui/dialog";
 import { useDrawer } from "../contexts/DrawerContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { api, extractApiError } from "../lib/api";
+import { groupPhoneDigits } from "../lib/format";
+import { LANGUAGE_OPTIONS } from "../lib/languages";
 import { toast } from "sonner";
 
 interface NewDischargeProps {
   onClose?: () => void;
 }
+
+// Risk factors split into history (present before this pregnancy) vs. those
+// that arose during/because of this pregnancy. Both groups still write to the
+// single `formData.risks` array, so the payload is unchanged.
+const PRE_EXISTING_RISKS = [
+  { value: "prior_csection", label: "Previous C-section" },
+  { value: "prior_loss", label: "Previous pregnancy loss" },
+  { value: "sickle_cell", label: "Sickle cell disease" },
+  { value: "hiv_pmtct", label: "On HIV care (PMTCT)" },
+];
+const PREGNANCY_RISKS = [
+  { value: "hypertension", label: "High blood pressure or pre-eclampsia" },
+  { value: "diabetes", label: "Diabetes (including during pregnancy)" },
+  { value: "multiple", label: "Twins or more" },
+];
+const PRE_EXISTING_VALUES = PRE_EXISTING_RISKS.map((o) => o.value);
+const PREGNANCY_VALUES = PREGNANCY_RISKS.map((o) => o.value);
 
 interface MotherSearchResult {
   id: string;
@@ -62,17 +95,29 @@ interface MotherSearchResult {
 const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { openDrawer } = useDrawer();
+  const { openDrawer, setCloseHandler } = useDrawer();
+  // Raw close — used on successful submit (no prompt).
   const handleClose = onClose ?? (() => navigate("/dashboard"));
   const [searchPhase, setSearchPhase] = useState(true);
   const [foundMother, setFoundMother] = useState<MotherSearchResult | null>(
     null,
   );
   const [currentStep, setCurrentStep] = useState(1);
+  // Slide direction for the step transition: forward slides in from the right,
+  // back from the left.
+  const [direction, setDirection] = useState<"forward" | "back">("forward");
+  const [discardOpen, setDiscardOpen] = useState(false);
+  // Whether the free-text "Other" risk chip is toggled on (the typed value
+  // lives in formData.risksOther and is sent as `risks_other`, NOT in `risks`).
+  const [riskOtherOn, setRiskOtherOn] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [touched, setTouched] = useState(false);
   const [countryCode, setCountryCode] = useState("+233");
-  const [emergencyCountryCode, setEmergencyCountryCode] = useState("+233");
+  // 1–3 emergency contacts (index 0 = primary). Each carries its own country
+  // code since each phone is independent. Resets on unmount (drawer close).
+  const [emergencyContacts, setEmergencyContacts] = useState<
+    EmergencyContactForm[]
+  >([emptyEmergencyContact()]);
   const [motherId, setMotherId] = useState("");
   const [searchResults, setSearchResults] = useState<MotherSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -95,15 +140,31 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     gravida: "",
     para: "",
     risks: [] as string[],
+    risksOther: "",
     consentCalls: false,
     consentRecording: false,
-    emergencyName: "",
-    emergencyPhone: "",
-    emergencyRelationship: "",
-    emergencyRelationshipCustom: "",
   });
 
   const totalSteps = foundMother ? 5 : 6;
+
+  // "Progress" worth warning about = an existing mother has been selected, or
+  // the user has moved past the search screen into the actual form.
+  const isDirty = foundMother !== null || (!searchPhase && currentStep >= 1);
+
+  // Guarded close: used by the X, the intro Back, and overlay-click / Escape
+  // (registered with the drawer). Prompts before discarding when dirty. A
+  // successful submit calls handleClose() directly and skips this.
+  const requestClose = () => {
+    if (isDirty) setDiscardOpen(true);
+    else handleClose();
+  };
+
+  // Register the guard so the drawer's overlay-click / Escape route through it.
+  useEffect(() => {
+    setCloseHandler(requestClose);
+    return () => setCloseHandler(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty, setCloseHandler]);
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
@@ -163,6 +224,85 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     .replace(/\D/g, "");
   const phoneValid = phoneDigits.length >= 9;
 
+  const emergencyValid = emergencyContactsValid(emergencyContacts);
+
+  // Summary rows for the emergency contacts (one "name (relationship)" + phone
+  // pair per contact). Labels number the contacts when there's more than one.
+  const relationshipLabel = (c: EmergencyContactForm) => {
+    if (c.relationship === "other") return c.relationshipCustom.trim();
+    return (
+      RELATIONSHIP_OPTIONS.find((o) => o.value === c.relationship)?.label ??
+      c.relationship
+    );
+  };
+  const emergencySummaryRows = emergencyContacts.flatMap((c, idx) => {
+    const suffix =
+      emergencyContacts.length > 1 ? ` ${idx + 1}` : "";
+    return [
+      {
+        label: `Emergency contact${suffix}`,
+        value: c.name.trim()
+          ? `${c.name.trim()} (${relationshipLabel(c)})`
+          : "None recorded",
+      },
+      {
+        label: `Emergency phone${suffix}`,
+        value: c.phone
+          ? `${c.countryCode}${c.phone.replace(/\D/g, "")}`
+          : "None recorded",
+      },
+    ];
+  });
+
+  // Para (births) can never exceed gravida (pregnancies) — they're tied.
+  const paraExceedsGravida =
+    formData.gravida !== "" &&
+    formData.para !== "" &&
+    Number(formData.para) > Number(formData.gravida);
+
+  // Whether the current step is complete enough to advance. Mirrors the
+  // per-step guards in handleNext so the Continue button greys out until the
+  // required fields are filled. Optional steps (intro, medications) and the
+  // final review step are always allowed.
+  const canContinue = (() => {
+    if (currentStep === 0) return true;
+    if (foundMother) {
+      if (currentStep === 1)
+        return Boolean(
+          formData.deliveryDate &&
+            formData.dischargeDate &&
+            formData.callingWindow &&
+            formData.deliveryType,
+        );
+      if (currentStep === 2) return Boolean(formData.outcome);
+      if (currentStep === 3) return formData.medications.length > 0;
+      if (currentStep === 4) return emergencyValid;
+      return true;
+    }
+    if (currentStep === 1)
+      return Boolean(
+        formData.motherName &&
+          formData.phoneNumber &&
+          phoneValid &&
+          formData.dateOfBirth &&
+          formData.gravida !== "" &&
+          formData.para !== "" &&
+          !paraExceedsGravida &&
+          formData.deliveryDate &&
+          formData.dischargeDate &&
+          formData.language &&
+          formData.callingWindow &&
+          formData.deliveryType,
+      );
+    if (currentStep === 2) return Boolean(formData.outcome);
+    if (currentStep === 3)
+      // Optional step, but a toggled-on "Other" must be described.
+      return !riskOtherOn || formData.risksOther.trim() !== "";
+    if (currentStep === 4) return Boolean(formData.consentCalls);
+    if (currentStep === 5) return emergencyValid;
+    return true;
+  })();
+
   const handleNext = async () => {
     // Step 0 intro - no validation
     if (currentStep === 0) {
@@ -184,17 +324,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       } else if (currentStep === 2) {
         const step2Valid = formData.outcome;
         if (!step2Valid) return;
+      } else if (currentStep === 3) {
+        // Medications must be answered explicitly ("None sent home" counts).
+        if (formData.medications.length === 0) return;
       }
-      // Step 3 (Medications) is optional
       if (currentStep === 4) {
-        const relValid =
-          formData.emergencyRelationship &&
-          (formData.emergencyRelationship !== "other" || formData.emergencyRelationshipCustom);
-        const step4Valid =
-          formData.emergencyName &&
-          formData.emergencyPhone &&
-          relValid;
-        if (!step4Valid) return;
+        if (!emergencyValid) return;
       }
     } else {
       // 6-step flow validation for new patients
@@ -206,6 +341,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           formData.dateOfBirth &&
           formData.gravida !== "" &&
           formData.para !== "" &&
+          !paraExceedsGravida &&
           formData.deliveryDate &&
           formData.dischargeDate &&
           formData.language &&
@@ -215,23 +351,20 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       } else if (currentStep === 2) {
         const step2Valid = formData.outcome;
         if (!step2Valid) return;
+      } else if (currentStep === 3) {
+        // Optional step, but a toggled-on "Other" must be described.
+        if (riskOtherOn && formData.risksOther.trim() === "") return;
       } else if (currentStep === 4) {
         const step4Valid = formData.consentCalls;
         if (!step4Valid) return;
       } else if (currentStep === 5) {
-        const relValid =
-          formData.emergencyRelationship &&
-          (formData.emergencyRelationship !== "other" || formData.emergencyRelationshipCustom);
-        const step5Valid =
-          formData.emergencyName &&
-          formData.emergencyPhone &&
-          relValid;
-        if (!step5Valid) return;
+        if (!emergencyValid) return;
       }
     }
 
     setTouched(false);
     if (currentStep < totalSteps) {
+      setDirection("forward");
       setCurrentStep(currentStep + 1);
       return;
     }
@@ -257,12 +390,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               consent_calls: formData.consentCalls,
               consent_recording: formData.consentRecording,
             }),
-        emergency_contact_name: formData.emergencyName,
-        emergency_contact_phone: formData.emergencyPhone,
-        emergency_contact_relationship:
-          formData.emergencyRelationship === "other"
-            ? formData.emergencyRelationshipCustom
-            : formData.emergencyRelationship,
+        emergency_contacts: toEmergencyContactsPayload(emergencyContacts),
       };
       if (formData.phoneNumber) {
         dischargePayload.phone = formData.phoneNumber;
@@ -282,6 +410,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           para: parseInt(formData.para) || 0,
           language: formData.language,
           risks: formData.risks.filter((r) => r !== "none"),
+          risks_other: formData.risksOther.trim()
+            ? [formData.risksOther.trim()]
+            : [],
           consent_calls: formData.consentCalls,
           consent_recording: formData.consentRecording,
         });
@@ -303,14 +434,47 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       toast.success(successMsg);
       handleClose();
     } catch (err: unknown) {
-      const status = (err as { response?: { status?: number; data?: { error?: string } } })?.response?.status;
-      const code = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      if (status === 409 || code === "already_discharged") {
-        setSubmitError("This mother has already been discharged. Search for her record to view or update it.");
-      } else if (status === 403 || code === "insufficient_role") {
-        setSubmitError("You don't have permission to record discharges. Contact your administrator.");
+      const apiError = extractApiError(
+        err,
+        "Could not save discharge. Please try again.",
+      );
+      // Log the precise, field-level 422 detail (field + message + type only —
+      // we deliberately don't echo the submitted `input` values, which are PHI)
+      // so a validation failure is debuggable straight from the console.
+      const detail = (err as { response?: { data?: { detail?: unknown } } })
+        ?.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        console.error(
+          "Discharge rejected (422):",
+          detail.map((d) => {
+            const it = d as { loc?: unknown[]; msg?: string; type?: string };
+            return {
+              field: Array.isArray(it.loc) ? it.loc.join(".") : it.loc,
+              msg: it.msg,
+              type: it.type,
+            };
+          }),
+        );
+      }
+      if (apiError.status === 409 || apiError.error_code === "already_discharged") {
+        setSubmitError(
+          "This mother has already been discharged. Search for her record to view or update it.",
+        );
+      } else if (
+        apiError.status === 403 ||
+        apiError.error_code === "insufficient_role"
+      ) {
+        setSubmitError(
+          "You don't have permission to record discharges. Contact your administrator.",
+        );
+      } else if (
+        apiError.status === 422 ||
+        apiError.error_code === "validation_error"
+      ) {
+        // Show exactly which field(s) the backend rejected.
+        setSubmitError(`Some details were rejected — ${apiError.message}`);
       } else {
-        setSubmitError("Could not save discharge. Please try again.");
+        setSubmitError(apiError.message);
       }
     } finally {
       setSubmitting(false);
@@ -319,8 +483,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
 
   const handleBack = () => {
     setTouched(false);
+    setDirection("back");
     if (currentStep === 0) {
-      handleClose();
+      requestClose();
       return;
     }
     if (currentStep > 1) {
@@ -371,10 +536,38 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     return labels[value] || value.replace(/_/g, " ");
   };
 
+  const discardDialog = (
+    <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Discard this discharge?</DialogTitle>
+          <DialogDescription>
+            You'll lose the details you've entered so far. This can't be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button variant="ghost" onClick={() => setDiscardOpen(false)}>
+            Keep editing
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              setDiscardOpen(false);
+              handleClose();
+            }}
+          >
+            Discard
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (searchPhase) {
     return (
+      <>
       <OnboardingShell
-        onClose={handleClose}
+        onClose={requestClose}
         currentStep={0}
         totalSteps={totalSteps}
         stepLabel="Discharge"
@@ -427,6 +620,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                       motherName: result.name,
                       phoneNumber: result.phone,
                     }));
+                    setDirection("forward");
                     setSearchPhase(false);
                     setCurrentStep(1);
                   }}
@@ -496,6 +690,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           <div className="mt-8 grid grid-cols-2 gap-4">
             <div
               onClick={() => {
+                setDirection("forward");
                 setFoundMother(null);
                 setSearchPhase(false);
                 setCurrentStep(0);
@@ -533,12 +728,15 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           </div>
         </div>
       </OnboardingShell>
+      {discardDialog}
+      </>
     );
   }
 
   return (
+    <>
     <OnboardingShell
-      onClose={handleClose}
+      onClose={requestClose}
       currentStep={currentStep}
       totalSteps={totalSteps}
       stepLabel={
@@ -555,7 +753,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           variant="default"
           onClick={handleNext}
           className="gap-2"
-          disabled={submitting}
+          disabled={submitting || !canContinue}
         >
           {submitting && <Loader2 size={18} className="animate-spin" />}
           <span>
@@ -569,6 +767,16 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         </Button>
       }
     >
+      {/* Keyed per step so the block remounts and the directional slide replays
+          on every Continue / Back. */}
+      <div
+        key={currentStep}
+        className={`animate-in fade-in-0 duration-300 ease-out motion-reduce:animate-none ${
+          direction === "forward"
+            ? "slide-in-from-right-5"
+            : "slide-in-from-left-5"
+        }`}
+      >
       {currentStep === 0 && (
         <div className="flex flex-col mt-6">
           <StepHeader
@@ -848,8 +1056,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               {
                 id: "loss",
                 icon: Heart,
-                title: "There was a loss",
-                description: "Bereavement support flow will be activated",
+                title: "The baby passed away",
+                description:
+                  "Omaya switches to gentle bereavement support instead of routine check-in calls",
               },
             ].map((outcome) => (
               <div
@@ -904,6 +1113,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 selected={formData.medications}
                 onChange={(val) => updateField("medications", val)}
               />
+              {touched && formData.medications.length === 0 && (
+                <span className="text-xs text-red-500 mt-2">
+                  Please select what she was discharged with (or "None sent home")
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -913,150 +1127,14 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         <div className="flex flex-col mt-6">
           <StepHeader
             step={4}
-            title="Emergency contact"
-            description="Who should we call if we cannot reach her?"
+            title="Emergency contacts"
+            description="Who should we call if we cannot reach her? Add up to 3."
           />
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-1.5">
-              <Input
-                label="Full name"
-                placeholder="e.g. Kwame Asante"
-                value={formData.emergencyName}
-                onChange={(e) =>
-                  updateField("emergencyName", e.target.value)
-                }
-                className={
-                  touched && !formData.emergencyName ? "border-red-400" : ""
-                }
-                fullWidth
-              />
-              {touched && !formData.emergencyName && (
-                <span className="text-xs text-red-500">
-                  Please enter emergency contact name
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">
-                Phone number
-              </label>
-              <div
-                className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${touched && !formData.emergencyPhone ? "border-red-400" : "border-gray-200"}`}
-              >
-                <Select
-                  value={emergencyCountryCode}
-                  onValueChange={(val) => {
-                    setEmergencyCountryCode(val);
-                    const local = formData.emergencyPhone.replace(
-                      emergencyCountryCode,
-                      "",
-                    );
-                    updateField(
-                      "emergencyPhone",
-                      local ? `${val}${local}` : "",
-                    );
-                  }}
-                >
-                  <SelectTrigger className="h-auto w-fit border-0 bg-transparent px-2 py-2 text-sm font-medium text-gray-700 shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 [&>span]:line-clamp-none whitespace-nowrap shrink-0">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="min-w-[100px]">
-                    <SelectItem value="+233">🇬🇭 +233</SelectItem>
-                    <SelectItem value="+234">🇳🇬 +234</SelectItem>
-                    <SelectItem value="+225">🇨🇮 +225</SelectItem>
-                    <SelectItem value="+228">🇹🇬 +228</SelectItem>
-                    <SelectItem value="+221">🇸🇳 +221</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="h-6 w-px bg-gray-200" />
-                <Input
-                  type="tel"
-                  placeholder="55 123 4567"
-                  value={formData.emergencyPhone.replace(emergencyCountryCode, "")}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                      .replace(/\D/g, "")
-                      .replace(/^0+/, "");
-                    updateField(
-                      "emergencyPhone",
-                      raw ? `${emergencyCountryCode}${raw}` : "",
-                    );
-                  }}
-                  className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
-                />
-              </div>
-              {touched && !formData.emergencyPhone && (
-                <span className="text-xs text-red-500">
-                  Please enter emergency contact phone number
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">
-                Relationship
-              </label>
-              <ChipSelect
-                max={1}
-                options={[
-                  { value: "husband", label: "Husband" },
-                  { value: "wife", label: "Wife" },
-                  { value: "mother", label: "Mother" },
-                  { value: "father", label: "Father" },
-                  { value: "brother", label: "Brother" },
-                  { value: "sister", label: "Sister" },
-                  { value: "son", label: "Son" },
-                  { value: "daughter", label: "Daughter" },
-                  { value: "uncle", label: "Uncle" },
-                  { value: "aunt", label: "Aunt" },
-                  { value: "cousin", label: "Cousin" },
-                  { value: "grandmother", label: "Grandmother" },
-                  { value: "grandfather", label: "Grandfather" },
-                  { value: "friend", label: "Friend" },
-                  { value: "neighbour", label: "Neighbour" },
-                  { value: "colleague", label: "Colleague" },
-                  { value: "other", label: "Other" },
-                ]}
-                selected={formData.emergencyRelationship ? [formData.emergencyRelationship] : []}
-                onChange={(val) => {
-                  if (val.length === 0) {
-                    updateField("emergencyRelationship", "");
-                  } else {
-                    updateField("emergencyRelationship", val[0]);
-                  }
-                }}
-              />
-              {formData.emergencyRelationship === "other" && (
-                <div className="flex flex-col gap-1.5 mt-3">
-                  <Input
-                    placeholder="Please specify"
-                    value={formData.emergencyRelationshipCustom || ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        emergencyRelationshipCustom: e.target.value,
-                      }))
-                    }
-                    className={
-                      touched && !formData.emergencyRelationshipCustom
-                        ? "border-red-400"
-                        : ""
-                    }
-                    fullWidth
-                  />
-                  {touched && !formData.emergencyRelationshipCustom && (
-                    <span className="text-xs text-red-500">
-                      Please specify relationship
-                    </span>
-                  )}
-                </div>
-              )}
-              {touched && !formData.emergencyRelationship && (
-                <span className="text-xs text-red-500 mt-1">
-                  Please select a relationship
-                </span>
-              )}
-            </div>
-          </div>
+          <EmergencyContacts
+            contacts={emergencyContacts}
+            onChange={setEmergencyContacts}
+            touched={touched}
+          />
         </div>
       )}
 
@@ -1064,150 +1142,14 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         <div className="flex flex-col mt-6">
           <StepHeader
             step={5}
-            title="Emergency contact"
-            description="Who should we call if we cannot reach her?"
+            title="Emergency contacts"
+            description="Who should we call if we cannot reach her? Add up to 3."
           />
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-1.5">
-              <Input
-                label="Full name"
-                placeholder="e.g. Kwame Asante"
-                value={formData.emergencyName}
-                onChange={(e) =>
-                  updateField("emergencyName", e.target.value)
-                }
-                className={
-                  touched && !formData.emergencyName ? "border-red-400" : ""
-                }
-                fullWidth
-              />
-              {touched && !formData.emergencyName && (
-                <span className="text-xs text-red-500">
-                  Please enter emergency contact name
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">
-                Phone number
-              </label>
-              <div
-                className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${touched && !formData.emergencyPhone ? "border-red-400" : "border-gray-200"}`}
-              >
-                <Select
-                  value={emergencyCountryCode}
-                  onValueChange={(val) => {
-                    setEmergencyCountryCode(val);
-                    const local = formData.emergencyPhone.replace(
-                      emergencyCountryCode,
-                      "",
-                    );
-                    updateField(
-                      "emergencyPhone",
-                      local ? `${val}${local}` : "",
-                    );
-                  }}
-                >
-                  <SelectTrigger className="h-auto w-fit border-0 bg-transparent px-2 py-2 text-sm font-medium text-gray-700 shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 [&>span]:line-clamp-none whitespace-nowrap shrink-0">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="min-w-[100px]">
-                    <SelectItem value="+233">🇬🇭 +233</SelectItem>
-                    <SelectItem value="+234">🇳🇬 +234</SelectItem>
-                    <SelectItem value="+225">🇨🇮 +225</SelectItem>
-                    <SelectItem value="+228">🇹🇬 +228</SelectItem>
-                    <SelectItem value="+221">🇸🇳 +221</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="h-6 w-px bg-gray-200" />
-                <Input
-                  type="tel"
-                  placeholder="55 123 4567"
-                  value={formData.emergencyPhone.replace(emergencyCountryCode, "")}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                      .replace(/\D/g, "")
-                      .replace(/^0+/, "");
-                    updateField(
-                      "emergencyPhone",
-                      raw ? `${emergencyCountryCode}${raw}` : "",
-                    );
-                  }}
-                  className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
-                />
-              </div>
-              {touched && !formData.emergencyPhone && (
-                <span className="text-xs text-red-500">
-                  Please enter emergency contact phone number
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">
-                Relationship
-              </label>
-              <ChipSelect
-                max={1}
-                options={[
-                  { value: "husband", label: "Husband" },
-                  { value: "wife", label: "Wife" },
-                  { value: "mother", label: "Mother" },
-                  { value: "father", label: "Father" },
-                  { value: "brother", label: "Brother" },
-                  { value: "sister", label: "Sister" },
-                  { value: "son", label: "Son" },
-                  { value: "daughter", label: "Daughter" },
-                  { value: "uncle", label: "Uncle" },
-                  { value: "aunt", label: "Aunt" },
-                  { value: "cousin", label: "Cousin" },
-                  { value: "grandmother", label: "Grandmother" },
-                  { value: "grandfather", label: "Grandfather" },
-                  { value: "friend", label: "Friend" },
-                  { value: "neighbour", label: "Neighbour" },
-                  { value: "colleague", label: "Colleague" },
-                  { value: "other", label: "Other" },
-                ]}
-                selected={formData.emergencyRelationship ? [formData.emergencyRelationship] : []}
-                onChange={(val) => {
-                  if (val.length === 0) {
-                    updateField("emergencyRelationship", "");
-                  } else {
-                    updateField("emergencyRelationship", val[0]);
-                  }
-                }}
-              />
-              {formData.emergencyRelationship === "other" && (
-                <div className="flex flex-col gap-1.5 mt-3">
-                  <Input
-                    placeholder="Please specify"
-                    value={formData.emergencyRelationshipCustom || ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        emergencyRelationshipCustom: e.target.value,
-                      }))
-                    }
-                    className={
-                      touched && !formData.emergencyRelationshipCustom
-                        ? "border-red-400"
-                        : ""
-                    }
-                    fullWidth
-                  />
-                  {touched && !formData.emergencyRelationshipCustom && (
-                    <span className="text-xs text-red-500">
-                      Please specify relationship
-                    </span>
-                  )}
-                </div>
-              )}
-              {touched && !formData.emergencyRelationship && (
-                <span className="text-xs text-red-500 mt-1">
-                  Please select a relationship
-                </span>
-              )}
-            </div>
-          </div>
+          <EmergencyContacts
+            contacts={emergencyContacts}
+            onChange={setEmergencyContacts}
+            touched={touched}
+          />
         </div>
       )}
 
@@ -1289,17 +1231,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     : "Bereavement support flow",
                 highlight: true,
               },
-              {
-                label: "Emergency contact",
-                value:
-                  formData.emergencyName
-                    ? `${formData.emergencyName} (${formData.emergencyRelationship === "other" ? formData.emergencyRelationshipCustom : formData.emergencyRelationship})`
-                    : "None recorded",
-              },
-              {
-                label: "Emergency phone",
-                value: formData.emergencyPhone || "None recorded",
-              },
+              ...emergencySummaryRows,
             ].map((row, idx) => (
               <div
                 key={idx}
@@ -1309,7 +1241,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   {row.label}
                 </span>
                 <span
-                  className={`text-sm font-semibold ${row.highlight ? "text-primary" : "text-gray-900"}`}
+                  className={`text-sm font-semibold ${"highlight" in row && row.highlight ? "text-primary" : "text-gray-900"}`}
                 >
                   {row.value}
                 </span>
@@ -1380,11 +1312,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <Input
                     type="tel"
                     placeholder="55 123 4567"
-                    value={formData.phoneNumber.replace(countryCode, "")}
+                    value={groupPhoneDigits(formData.phoneNumber.replace(countryCode, ""))}
                     onChange={(e) => {
                       const raw = e.target.value
                         .replace(/\D/g, "")
-                        .replace(/^0+/, "");
+                        .replace(/^0+/, "")
+                        .slice(0, 9);
                       updateField(
                         "phoneNumber",
                         raw ? `${countryCode}${raw}` : "",
@@ -1494,15 +1427,21 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                       updateField("para", val);
                   }}
                   className={
-                    touched && formData.para === "" ? "border-red-400" : ""
+                    (touched && formData.para === "") || paraExceedsGravida
+                      ? "border-red-400"
+                      : ""
                   }
                   fullWidth
                 />
-                {touched && formData.para === "" && (
+                {touched && formData.para === "" ? (
                   <span className="text-xs text-red-500">
                     Please enter number of births
                   </span>
-                )}
+                ) : paraExceedsGravida ? (
+                  <span className="text-xs text-red-500">
+                    Births (para) can't exceed pregnancies (gravida)
+                  </span>
+                ) : null}
               </div>
             </div>
 
@@ -1625,12 +1564,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               </label>
               <ChipSelect
                 max={1}
-                options={[
-                  { value: "english", label: "English" },
-                  { value: "twi", label: "Twi" },
-                  { value: "ga", label: "Ga" },
-                  { value: "ewe", label: "Ewe" },
-                ]}
+                options={LANGUAGE_OPTIONS}
                 selected={formData.language ? [formData.language] : []}
                 onChange={(val) =>
                   updateField("language", val.length > 0 ? val[0] : "")
@@ -1735,8 +1669,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               {
                 id: "loss",
                 icon: Heart,
-                title: "There was a loss",
-                description: "Bereavement support flow will be activated",
+                title: "The baby passed away",
+                description:
+                  "Omaya switches to gentle bereavement support instead of routine check-in calls",
               },
             ].map((outcome) => (
               <div
@@ -1772,32 +1707,86 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           <StepHeader
             step={3}
             title="Clinical background"
-            description="Select anything that applies. This helps Omaya ask the right questions and know when to escalate faster."
+            description="Tap any that apply — this helps Omaya escalate sooner."
           />
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-6 mt-2">
+            {/* Pre-existing — present before this pregnancy */}
             <div className="flex flex-col">
-              <h4 className="text-xs font-semibold text-gray-400 tracking-wide uppercase mb-4">
-                Risk factors
+              <h4 className="text-xs font-semibold text-gray-400 tracking-wide uppercase mb-3">
+                Before this pregnancy
               </h4>
               <ChipSelect
-                options={[
-                  { value: "prior_csection", label: "Previous C-section" },
-                  {
-                    value: "hypertension",
-                    label: "High blood pressure or pre-eclampsia",
-                  },
-                  {
-                    value: "diabetes",
-                    label: "Diabetes (including during pregnancy)",
-                  },
-                  { value: "multiple", label: "Twins or more" },
-                  { value: "sickle_cell", label: "Sickle cell disease" },
-                  { value: "prior_loss", label: "Previous pregnancy loss" },
-                  { value: "hiv_pmtct", label: "On HIV care (PMTCT)" },
-                ]}
-                selected={formData.risks}
-                onChange={(val) => updateField("risks", val)}
+                options={PRE_EXISTING_RISKS}
+                selected={formData.risks.filter((r) =>
+                  PRE_EXISTING_VALUES.includes(r),
+                )}
+                onChange={(val) =>
+                  updateField("risks", [
+                    ...formData.risks.filter(
+                      (r) => !PRE_EXISTING_VALUES.includes(r),
+                    ),
+                    ...val,
+                  ])
+                }
               />
+            </div>
+
+            {/* Pregnancy-related — arose during/because of this pregnancy */}
+            <div className="flex flex-col">
+              <h4 className="text-xs font-semibold text-gray-400 tracking-wide uppercase mb-3">
+                From this pregnancy
+              </h4>
+              <ChipSelect
+                options={PREGNANCY_RISKS}
+                selected={formData.risks.filter((r) =>
+                  PREGNANCY_VALUES.includes(r),
+                )}
+                onChange={(val) =>
+                  updateField("risks", [
+                    ...formData.risks.filter(
+                      (r) => !PREGNANCY_VALUES.includes(r),
+                    ),
+                    ...val,
+                  ])
+                }
+              />
+            </div>
+
+            {/* Other — free-text risk, sent separately as `risks_other` */}
+            <div className="flex flex-col">
+              <h4 className="text-xs font-semibold text-gray-400 tracking-wide uppercase mb-3">
+                Something else
+              </h4>
+              <ChipSelect
+                options={[{ value: "other", label: "Other" }]}
+                selected={riskOtherOn ? ["other"] : []}
+                onChange={(val) => {
+                  const on = val.includes("other");
+                  setRiskOtherOn(on);
+                  if (!on) updateField("risksOther", "");
+                }}
+              />
+              {riskOtherOn && (
+                <div className="flex flex-col gap-1.5 mt-3">
+                  <Input
+                    placeholder="Describe the risk factor"
+                    value={formData.risksOther}
+                    maxLength={80}
+                    onChange={(e) => updateField("risksOther", e.target.value)}
+                    className={
+                      touched && formData.risksOther.trim() === ""
+                        ? "border-red-400"
+                        : ""
+                    }
+                    fullWidth
+                  />
+                  {touched && formData.risksOther.trim() === "" && (
+                    <span className="text-xs text-red-500">
+                      Describe the risk factor, or unselect "Other"
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1823,9 +1812,16 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           )}
           <div className="flex flex-col gap-4">
             <div
-              onClick={() =>
-                updateField("consentCalls", !formData.consentCalls)
-              }
+              onClick={() => {
+                const next = !formData.consentCalls;
+                // Recording consent can't stand without calls consent — clear
+                // it whenever calls is switched off.
+                setFormData((prev) => ({
+                  ...prev,
+                  consentCalls: next,
+                  consentRecording: next ? prev.consentRecording : false,
+                }));
+              }}
               className={`border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentCalls ? "border-primary bg-primary-100" : "border-gray-200 bg-white"} ${touched && !formData.consentCalls ? "border-red-400" : ""}`}
             >
               <div
@@ -1850,10 +1846,18 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
 
             <div
-              onClick={() =>
-                updateField("consentRecording", !formData.consentRecording)
-              }
-              className={`border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentRecording ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}`}
+              onClick={() => {
+                if (!formData.consentCalls) return;
+                updateField("consentRecording", !formData.consentRecording);
+              }}
+              aria-disabled={!formData.consentCalls || undefined}
+              className={`border rounded-xl px-5 py-4 flex items-start gap-4 transition-all ${
+                !formData.consentCalls
+                  ? "border-gray-200 bg-gray-50 opacity-60"
+                  : formData.consentRecording
+                    ? "border-primary bg-primary-100 cursor-pointer"
+                    : "border-gray-200 bg-white cursor-pointer"
+              }`}
             >
               <div
                 className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentRecording ? "bg-primary border-primary" : "bg-white border-gray-300"}`}
@@ -1871,7 +1875,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   stored securely and only used by her care team.
                 </p>
                 <span className="text-xs text-gray-400 font-semibold mt-2 uppercase tracking-wide">
-                  Optional
+                  {formData.consentCalls ? "Optional" : "Consent to calls first"}
                 </span>
               </div>
             </div>
@@ -1958,8 +1962,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               {
                 label: "Clinical risks",
                 value:
-                  formData.risks.length > 0
-                    ? formData.risks.map((r) => r.replace(/_/g, " ")).join(", ")
+                  formData.risks.length > 0 || formData.risksOther.trim()
+                    ? [
+                        ...formData.risks.map((r) => r.replace(/_/g, " ")),
+                        ...(formData.risksOther.trim()
+                          ? [formData.risksOther.trim()]
+                          : []),
+                      ].join(", ")
                     : "None recorded",
               },
               {
@@ -1979,17 +1988,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     : "Bereavement support flow",
                 highlight: true,
               },
-              {
-                label: "Emergency contact",
-                value:
-                  formData.emergencyName
-                    ? `${formData.emergencyName} (${formData.emergencyRelationship === "other" ? formData.emergencyRelationshipCustom : formData.emergencyRelationship})`
-                    : "None recorded",
-              },
-              {
-                label: "Emergency phone",
-                value: formData.emergencyPhone || "None recorded",
-              },
+              ...emergencySummaryRows,
             ].map((row, idx) => (
               <div
                 key={idx}
@@ -1999,7 +1998,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   {row.label}
                 </span>
                 <span
-                  className={`text-sm font-semibold ${row.highlight ? "text-primary" : "text-gray-900"}`}
+                  className={`text-sm font-semibold ${"highlight" in row && row.highlight ? "text-primary" : "text-gray-900"}`}
                 >
                   {row.value}
                 </span>
@@ -2008,7 +2007,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           </div>
         </div>
       )}
+      </div>
     </OnboardingShell>
+    {discardDialog}
+    </>
   );
 };
 
