@@ -43,4 +43,4 @@ function Badge({ className, variant, size, dot = false, children, ...props }: Ba
   )
 }
 
-export { Badge, badgeVariants }
+export { Badge }

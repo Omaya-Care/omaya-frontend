@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useCallback, useRef } from 'react';
+import React, { createContext, use, useState, useMemo, useCallback, useRef } from 'react';
 
 type DrawerType = 'add-mother' | 'discharge' | null;
 
@@ -45,7 +45,7 @@ export const DrawerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 };
 
 export const useDrawer = () => {
-  const ctx = useContext(DrawerContext);
+  const ctx = use(DrawerContext);
   if (!ctx) throw new Error('useDrawer must be used within DrawerProvider');
   return ctx;
 };

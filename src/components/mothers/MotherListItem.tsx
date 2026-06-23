@@ -50,6 +50,7 @@ const MotherListItem = ({
 
   return (
     <button
+      type="button"
       onClick={onClick}
       aria-label={`View ${mother.name}`}
       data-slide-active={isSelected ? "true" : undefined}

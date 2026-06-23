@@ -28,6 +28,7 @@ const OnboardingShell = ({
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex-shrink-0">
         <span className="text-sm font-medium text-gray-700">{stepLabel}</span>
         <button
+          type="button"
           onClick={onClose}
           className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-50"
         >

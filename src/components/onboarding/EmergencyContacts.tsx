@@ -9,79 +9,13 @@ import {
 } from "../ui/select";
 import { ChipSelect } from "./ChipSelect";
 import { groupPhoneDigits } from "../../lib/format";
-
-// One editable emergency-contact row. `phone` holds ONLY the local digits
-// (no dial code); `countryCode` is the dial code for that row's phone.
-export interface EmergencyContactForm {
-  name: string;
-  countryCode: string;
-  phone: string;
-  relationship: string;
-  relationshipCustom: string;
-}
-
-export const MAX_EMERGENCY_CONTACTS = 3;
-
-export const emptyEmergencyContact = (): EmergencyContactForm => ({
-  name: "",
-  countryCode: "+233",
-  phone: "",
-  relationship: "",
-  relationshipCustom: "",
-});
-
-// Unified relationship list (matches the set both discharge flows used). The
-// "other" option reveals a free-text input whose value is sent as the label.
-export const RELATIONSHIP_OPTIONS = [
-  { value: "husband", label: "Husband" },
-  { value: "wife", label: "Wife" },
-  { value: "mother", label: "Mother" },
-  { value: "father", label: "Father" },
-  { value: "brother", label: "Brother" },
-  { value: "sister", label: "Sister" },
-  { value: "son", label: "Son" },
-  { value: "daughter", label: "Daughter" },
-  { value: "uncle", label: "Uncle" },
-  { value: "aunt", label: "Aunt" },
-  { value: "cousin", label: "Cousin" },
-  { value: "grandmother", label: "Grandmother" },
-  { value: "grandfather", label: "Grandfather" },
-  { value: "friend", label: "Friend" },
-  { value: "neighbour", label: "Neighbour" },
-  { value: "colleague", label: "Colleague" },
-  { value: "other", label: "Other" },
-];
-
-// A single contact's local phone is valid once it has >=9 digits — mirrors the
-// mother's `phoneValid` check used elsewhere in the discharge flow.
-export const emergencyPhoneValid = (c: EmergencyContactForm) =>
-  c.phone.replace(/\D/g, "").length >= 9;
-
-// A contact is complete when name + a valid phone + relationship are present,
-// and (for "other") the custom relationship text is non-empty.
-export const emergencyContactComplete = (c: EmergencyContactForm) =>
-  Boolean(
-    c.name.trim() &&
-      emergencyPhoneValid(c) &&
-      c.relationship &&
-      (c.relationship !== "other" || c.relationshipCustom.trim()),
-  );
-
-// All contacts valid: between 1 and MAX, every one complete.
-export const emergencyContactsValid = (contacts: EmergencyContactForm[]) =>
-  contacts.length >= 1 &&
-  contacts.length <= MAX_EMERGENCY_CONTACTS &&
-  contacts.every(emergencyContactComplete);
-
-// Build the API payload (full-replacement list) from the form rows:
-//   phone = `${countryCode}${localDigits}`, relationship = custom text for "other".
-export const toEmergencyContactsPayload = (contacts: EmergencyContactForm[]) =>
-  contacts.map((c) => ({
-    name: c.name.trim(),
-    phone: `${c.countryCode}${c.phone.replace(/\D/g, "")}`,
-    relationship:
-      c.relationship === "other" ? c.relationshipCustom.trim() : c.relationship,
-  }));
+import {
+  type EmergencyContactForm,
+  MAX_EMERGENCY_CONTACTS,
+  emptyEmergencyContact,
+  RELATIONSHIP_OPTIONS,
+  emergencyPhoneValid,
+} from "./emergency-contacts";
 
 interface EmergencyContactsProps {
   contacts: EmergencyContactForm[];
@@ -114,7 +48,7 @@ const EmergencyContacts = ({
         const phoneInvalid = touched && !emergencyPhoneValid(contact);
         return (
           <div
-            key={index}
+            key={contact.id}
             className={
               index > 0 ? "flex flex-col gap-5 border-t border-gray-100 pt-6" : "flex flex-col gap-5"
             }
@@ -156,7 +90,10 @@ const EmergencyContacts = ({
 
             {/* Phone */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">
+              <label
+                htmlFor={`emergency-phone-${contact.id}`}
+                className="text-sm font-medium text-gray-700"
+              >
                 Phone number
               </label>
               <div
@@ -179,6 +116,7 @@ const EmergencyContacts = ({
                 </Select>
                 <div className="h-6 w-px bg-gray-200" />
                 <Input
+                  id={`emergency-phone-${contact.id}`}
                   type="tel"
                   placeholder="55 123 4567"
                   value={groupPhoneDigits(contact.phone)}
@@ -201,10 +139,14 @@ const EmergencyContacts = ({
 
             {/* Relationship */}
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">
+              <label
+                htmlFor={`emergency-relationship-${contact.id}`}
+                className="text-sm font-semibold text-gray-700 mb-3"
+              >
                 Relationship
               </label>
               <ChipSelect
+                id={`emergency-relationship-${contact.id}`}
                 max={1}
                 options={RELATIONSHIP_OPTIONS}
                 selected={contact.relationship ? [contact.relationship] : []}

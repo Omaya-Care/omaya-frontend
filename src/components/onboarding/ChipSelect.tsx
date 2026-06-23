@@ -11,9 +11,10 @@ interface ChipSelectProps {
   selected: string[];
   onChange: (selected: string[]) => void;
   max?: number;
+  id?: string;
 }
 
-const ChipSelect = ({ options, selected, onChange, max }: ChipSelectProps) => {
+const ChipSelect = ({ options, selected, onChange, max, id }: ChipSelectProps) => {
   const toggleOption = (value: string) => {
     const option = options.find((o) => o.value === value);
     if (option?.disabled) return;
@@ -29,16 +30,18 @@ const ChipSelect = ({ options, selected, onChange, max }: ChipSelectProps) => {
   };
 
   return (
-    <div className="flex flex-wrap gap-3">
+    <div id={id} className="flex flex-wrap gap-3">
       {options.map((option) => {
         const isSelected = selected.includes(option.value);
         return (
-          <div
+          <button
+            type="button"
             key={option.value}
             onClick={() => toggleOption(option.value)}
-            aria-disabled={option.disabled || undefined}
+            disabled={option.disabled}
+            aria-pressed={isSelected}
             className={`
-              px-4 py-2.5 rounded-xl border text-sm transition-all flex flex-col
+              px-4 py-2.5 rounded-xl border text-sm transition-all flex flex-col text-left
               ${
                 option.disabled
                   ? 'border-gray-200 bg-gray-50 text-gray-400 opacity-60'
@@ -54,7 +57,7 @@ const ChipSelect = ({ options, selected, onChange, max }: ChipSelectProps) => {
                 {option.description}
               </span>
             )}
-          </div>
+          </button>
         );
       })}
     </div>

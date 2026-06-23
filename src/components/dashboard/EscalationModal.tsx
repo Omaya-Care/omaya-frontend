@@ -37,15 +37,15 @@ interface EscalationModalProps {
   item: EscalationItem | null;
 }
 
+const formatTimeLeft = (totalMinutes: number) => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+};
+
 const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationModalProps) => {
   const { can } = useAuth();
   if (!item) return null;
-
-  const formatTimeLeft = (totalMinutes: number) => {
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  };
 
   const triggered = item.createdAt ? formatRelativeTime(item.createdAt) : null;
 
@@ -115,7 +115,7 @@ const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationMod
         <DialogFooter>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span tabIndex={0} className={!can("escalate") ? "w-full cursor-not-allowed" : "w-full"}>
+              <span className={!can("escalate") ? "w-full cursor-not-allowed" : "w-full"}>
                 <Button
                   variant="default"
                   size="lg"

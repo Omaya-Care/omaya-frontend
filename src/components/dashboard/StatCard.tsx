@@ -1,4 +1,4 @@
-import { Card, CardContent } from "../ui";
+import { Card, CardContent } from "../ui/card";
 
 interface StatCardProps {
   label: string;
@@ -62,6 +62,7 @@ const StatCard = ({
             </div>
             {onViewAll && (
               <button
+                type="button"
                 onClick={onViewAll}
                 className="text-sm font-medium text-primary hover:opacity-80 transition-opacity ml-auto"
               >

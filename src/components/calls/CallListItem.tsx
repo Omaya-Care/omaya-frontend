@@ -23,6 +23,7 @@ const CallListItem = ({ call, isSelected, onClick }: CallListItemProps) => {
 
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`
         w-full px-4 py-3 text-left transition-colors border-l-4

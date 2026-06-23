@@ -13,25 +13,20 @@ import {
   CalendarIcon,
 } from "lucide-react";
 import { format, parse } from "date-fns";
+import { OnboardingShell } from "../components/onboarding/OnboardingShell";
+import { StepHeader } from "../components/onboarding/StepHeader";
+import { ChipSelect } from "../components/onboarding/ChipSelect";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
 import {
-  OnboardingShell,
-  StepHeader,
-  ChipSelect,
-} from "../components/onboarding";
-import {
-  Button,
-  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Card,
-  CardContent,
-  Alert,
-  AlertTitle,
-  AlertDescription,
-} from "../components/ui";
+} from "../components/ui/select";
+import { Card, CardContent } from "../components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "../components/ui/alert";
 import { Calendar } from "../components/ui/calendar";
 import {
   Popover,
@@ -47,6 +42,49 @@ import { toast } from "sonner";
 interface AddMotherProps {
   onClose?: () => void;
 }
+
+const stepLabels = [
+  "Antenatal enrollment",
+  "Her details",
+  "Clinical background",
+  "Consent",
+  "Summary",
+];
+
+const step2Required = [
+  { key: "fullName", label: "full name" },
+  { key: "phone", label: "phone number" },
+  { key: "dob", label: "date of birth" },
+  { key: "edd", label: "expected delivery date" },
+  { key: "gravida", label: "gravida" },
+  { key: "para", label: "para" },
+  { key: "language", label: "preferred language" },
+] as const;
+
+const fieldIsEmpty = (val: string | unknown[]) =>
+  typeof val === "string" ? val.trim() === "" : val.length === 0;
+
+const getLanguageLabel = (val: string) => {
+  const labels: Record<string, string> = {
+    english: "English",
+    twi: "Twi",
+    ewe: "Ewe",
+  };
+  return labels[val] || val;
+};
+
+const getRiskLabel = (val: string) => {
+  const labels: Record<string, string> = {
+    prior_csection: "Previous C-section",
+    hypertension: "High blood pressure or pre-eclampsia",
+    diabetes: "Diabetes",
+    multiple: "Twins or more",
+    sickle_cell: "Sickle cell disease",
+    prior_loss: "Previous pregnancy loss",
+    hiv_pmtct: "On HIV care (PMTCT)",
+  };
+  return labels[val] || val;
+};
 
 const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const navigate = useNavigate();
@@ -73,27 +111,6 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
   });
 
   const totalSteps = 5;
-
-  const stepLabels = [
-    "Antenatal enrollment",
-    "Her details",
-    "Clinical background",
-    "Consent",
-    "Summary",
-  ];
-
-  const fieldIsEmpty = (val: string | unknown[]) =>
-    typeof val === "string" ? val.trim() === "" : val.length === 0;
-
-  const step2Required = [
-    { key: "fullName", label: "full name" },
-    { key: "phone", label: "phone number" },
-    { key: "dob", label: "date of birth" },
-    { key: "edd", label: "expected delivery date" },
-    { key: "gravida", label: "gravida" },
-    { key: "para", label: "para" },
-    { key: "language", label: "preferred language" },
-  ] as const;
 
   // Para (births) can never exceed gravida (pregnancies) — they're tied.
   const paraExceedsGravida =
@@ -122,7 +139,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
 
     // Advance to next step if not at the final summary step
     if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
+      setCurrentStep((prev) => prev + 1);
       setTouched(false);
       return;
     }
@@ -159,7 +176,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
 
   const handleBack = () => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+      setCurrentStep((prev) => prev - 1);
       setTouched(false);
     }
   };
@@ -186,28 +203,6 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
     const field = step2Required.find((f) => f.key === key);
     if (!field) return false;
     return fieldIsEmpty(formData[key as keyof typeof formData] as string | unknown[]);
-  };
-
-  const getLanguageLabel = (val: string) => {
-    const labels: Record<string, string> = {
-      english: "English",
-      twi: "Twi",
-      ewe: "Ewe",
-    };
-    return labels[val] || val;
-  };
-
-  const getRiskLabel = (val: string) => {
-    const labels: Record<string, string> = {
-      prior_csection: "Previous C-section",
-      hypertension: "High blood pressure or pre-eclampsia",
-      diabetes: "Diabetes",
-      multiple: "Twins or more",
-      sickle_cell: "Sickle cell disease",
-      prior_loss: "Previous pregnancy loss",
-      hiv_pmtct: "On HIV care (PMTCT)",
-    };
-    return labels[val] || val;
   };
 
   return (
@@ -280,8 +275,8 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 title: "You can stop anytime",
                 body: "If she changes her mind, you can withdraw her from the program in one click.",
               },
-            ].map((card, idx) => (
-              <Card key={idx} className="border-gray-100 shadow-none">
+            ].map((card) => (
+              <Card key={card.title} className="border-gray-100 shadow-none">
                 <CardContent className="p-4 flex items-start gap-3">
                   <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
                     <card.icon
@@ -338,7 +333,10 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="mother-phone"
+                  className="text-sm font-medium text-gray-700"
+                >
                   Phone number
                 </label>
                 <div
@@ -365,6 +363,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   </Select>
                   <div className="h-6 w-px bg-gray-200" />
                   <Input
+                    id="mother-phone"
                     type="tel"
                     placeholder="55 123 4567"
                     value={groupPhoneDigits(formData.phone.replace(countryCode, ""))}
@@ -393,12 +392,16 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="mother-dob"
+                  className="text-sm font-medium text-gray-700"
+                >
                   Date of birth
                 </label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
+                      id="mother-dob"
                       variant="ghost"
                       className={`justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${showError("dob") ? "border-red-400" : ""}`}
                     >
@@ -443,12 +446,16 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="mother-edd"
+                  className="text-sm font-medium text-gray-700"
+                >
                   Expected delivery date
                 </label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
+                      id="mother-edd"
                       variant="ghost"
                       className={`justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${showError("edd") ? "border-red-400" : ""}`}
                     >
@@ -545,10 +552,14 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">
+              <label
+                htmlFor="mother-language"
+                className="text-sm font-medium text-gray-700"
+              >
                 Preferred language for calls
               </label>
               <ChipSelect
+                id="mother-language"
                 max={1}
                 options={LANGUAGE_OPTIONS}
                 selected={formData.language}
@@ -630,12 +641,14 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
             </div>
           )}
           <div className="flex flex-col gap-4">
-            <div
+            <button
+              type="button"
+              aria-pressed={formData.consentCalls}
               onClick={() =>
                 updateField("consentCalls", !formData.consentCalls)
               }
               className={`
-                border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all
+                w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all
                 ${formData.consentCalls ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}
                 ${touched && !formData.consentCalls ? "border-red-400" : ""}
               `}
@@ -654,27 +667,29 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 <span className="text-sm font-semibold text-gray-900">
                   Check-in calls
                 </span>
-                <p className="text-sm text-gray-500 font-normal mt-1 leading-relaxed">
+                <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
                   Omaya will call her to check how she and her baby are doing
                   after she goes home. She can ask to stop at any time.
-                </p>
+                </span>
                 <span className="text-xs text-primary font-semibold mt-2 uppercase tracking-wide">
                   REQUIRED TO ENROLL
                 </span>
               </div>
-            </div>
+            </button>
             {touched && !formData.consentCalls && (
               <span className="text-xs text-red-500 -mt-3">
                 You must obtain consent to check-in calls before enrolling
               </span>
             )}
 
-            <div
+            <button
+              type="button"
+              aria-pressed={formData.consentRecording}
               onClick={() =>
                 updateField("consentRecording", !formData.consentRecording)
               }
               className={`
-                border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all
+                w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all
                 ${formData.consentRecording ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}
               `}
             >
@@ -692,15 +707,15 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 <span className="text-sm font-semibold text-gray-900">
                   Call recording
                 </span>
-                <p className="text-sm text-gray-500 font-normal mt-1 leading-relaxed">
+                <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
                   Calls may be recorded to improve care quality. Recordings are
                   stored securely and only used by her care team.
-                </p>
+                </span>
                 <span className="text-xs text-gray-400 font-semibold mt-2 uppercase tracking-wide">
                   OPTIONAL
                 </span>
               </div>
-            </div>
+            </button>
           </div>
           <p className="text-xs text-gray-400 font-normal mt-6">
             By tapping 'Enroll her', you confirm that you have explained this
@@ -775,7 +790,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               },
             ].map((row, idx) => (
               <div
-                key={idx}
+                key={row.label}
                 className={`flex justify-between items-center px-6 py-3 ${idx % 2 === 1 ? "bg-gray-50" : ""}`}
               >
                 <span className="text-sm text-gray-500 font-normal">

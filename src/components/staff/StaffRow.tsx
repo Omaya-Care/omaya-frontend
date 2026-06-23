@@ -180,6 +180,7 @@ const StaffRow = ({ member }: StaffRowProps) => {
       {/* EDIT MODAL */}
       {editOpen && (
         <EditClinicianModal
+          key={member.id}
           isOpen={editOpen}
           onClose={() => setEditOpen(false)}
           member={member}

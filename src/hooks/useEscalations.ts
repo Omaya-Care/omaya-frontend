@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { EscalationItem } from "../types";
 
-export function toEscalation(raw: Record<string, unknown>): EscalationItem {
+function toEscalation(raw: Record<string, unknown>): EscalationItem {
   return {
     id: raw.id as string,
     motherName: (raw.mother_name as string) ?? "",

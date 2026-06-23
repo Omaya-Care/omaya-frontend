@@ -17,32 +17,29 @@ import {
   Clock,
 } from "lucide-react";
 import { format, parse, addDays } from "date-fns";
+import { OnboardingShell } from "../components/onboarding/OnboardingShell";
+import { StepHeader } from "../components/onboarding/StepHeader";
+import { ChipSelect } from "../components/onboarding/ChipSelect";
 import {
-  OnboardingShell,
-  StepHeader,
-  ChipSelect,
-  EmergencyContacts,
   emptyEmergencyContact,
   emergencyContactsValid,
   toEmergencyContactsPayload,
   RELATIONSHIP_OPTIONS,
   type EmergencyContactForm,
-} from "../components/onboarding";
+} from "../components/onboarding/emergency-contacts";
+import { EmergencyContacts } from "../components/onboarding/EmergencyContacts";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
 import {
-  Button,
-  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
-  Alert,
-  AlertTitle,
-  AlertDescription,
-  Card,
-  CardContent,
-} from "../components/ui";
+} from "../components/ui/select";
+import { Skeleton } from "../components/ui/skeleton";
+import { Alert, AlertTitle, AlertDescription } from "../components/ui/alert";
+import { Card, CardContent } from "../components/ui/card";
 import { Calendar } from "../components/ui/calendar";
 import {
   Popover,
@@ -92,6 +89,26 @@ interface MotherSearchResult {
   edd: string;
 }
 
+const relationshipLabel = (c: EmergencyContactForm) => {
+  if (c.relationship === "other") return c.relationshipCustom.trim();
+  return (
+    RELATIONSHIP_OPTIONS.find((o) => o.value === c.relationship)?.label ??
+    c.relationship
+  );
+};
+
+const labelForMedication = (value: string) => {
+  const labels: Record<string, string> = {
+    pain_relief: "Pain relief",
+    antibiotics: "Antibiotics",
+    iron_folic: "Iron & folic acid",
+    wound_care: "Wound-care supplies",
+    none: "None",
+    not_sure: "Not sure",
+  };
+  return labels[value] || value.replace(/_/g, " ");
+};
+
 const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -118,7 +135,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const [emergencyContacts, setEmergencyContacts] = useState<
     EmergencyContactForm[]
   >([emptyEmergencyContact()]);
-  const [motherId, setMotherId] = useState("");
+  // Holds the mother's id once a record is selected/created. Read only inside
+  // submit handlers to choose the POST path — never rendered — so a ref keeps
+  // it out of the render cycle.
+  const motherIdRef = useRef("");
   const [searchResults, setSearchResults] = useState<MotherSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -163,10 +183,14 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   useEffect(() => {
     setCloseHandler(requestClose);
     return () => setCloseHandler(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDirty, setCloseHandler]);
+    // requestClose is intentionally re-bound only when isDirty changes.
+    // react-doctor-disable-next-line react-doctor/exhaustive-deps
+  }, [isDirty, setCloseHandler]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Intentional debounced-search flow: loading/error/results are set together
+  // as the query settles.
+  // react-doctor-disable-next-line react-doctor/no-cascading-set-state
   useEffect(() => {
     if (searchQuery.length < 2) {
       setSearchResults([]);
@@ -228,13 +252,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
 
   // Summary rows for the emergency contacts (one "name (relationship)" + phone
   // pair per contact). Labels number the contacts when there's more than one.
-  const relationshipLabel = (c: EmergencyContactForm) => {
-    if (c.relationship === "other") return c.relationshipCustom.trim();
-    return (
-      RELATIONSHIP_OPTIONS.find((o) => o.value === c.relationship)?.label ??
-      c.relationship
-    );
-  };
   const emergencySummaryRows = emergencyContacts.flatMap((c, idx) => {
     const suffix =
       emergencyContacts.length > 1 ? ` ${idx + 1}` : "";
@@ -365,7 +382,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     setTouched(false);
     if (currentStep < totalSteps) {
       setDirection("forward");
-      setCurrentStep(currentStep + 1);
+      setCurrentStep((prev) => prev + 1);
       return;
     }
 
@@ -397,9 +414,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       }
 
       let dischargeRes;
-      if (motherId) {
+      if (motherIdRef.current) {
         // existing patient OR new patient whose record was already created on a prior failed attempt
-        dischargeRes = await api.post(`/mothers/${motherId}/discharge`, dischargePayload);
+        dischargeRes = await api.post(`/mothers/${motherIdRef.current}/discharge`, dischargePayload);
       } else {
         const motherRes = await api.post("/mothers", {
           full_name: formData.motherName,
@@ -417,7 +434,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           consent_recording: formData.consentRecording,
         });
         const newId: string = motherRes.data.mother_id ?? motherRes.data.id;
-        setMotherId(newId);
+        motherIdRef.current = newId;
         dischargeRes = await api.post(`/mothers/${newId}/discharge`, dischargePayload);
       }
 
@@ -489,7 +506,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       return;
     }
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+      setCurrentStep((prev) => prev - 1);
     } else if (currentStep === 1) {
       if (foundMother) {
         setSearchPhase(true);
@@ -522,18 +539,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       }
     }
     setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const labelForMedication = (value: string) => {
-    const labels: Record<string, string> = {
-      pain_relief: "Pain relief",
-      antibiotics: "Antibiotics",
-      iron_folic: "Iron & folic acid",
-      wound_care: "Wound-care supplies",
-      none: "None",
-      not_sure: "Not sure",
-    };
-    return labels[value] || value.replace(/_/g, " ");
   };
 
   const discardDialog = (
@@ -589,7 +594,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
           )}
 
-          <label className="text-sm font-medium text-gray-700 mt-6">
+          <label
+            htmlFor="discharge-search"
+            className="text-sm font-medium text-gray-700 mt-6"
+          >
             Search for an existing patient
           </label>
 
@@ -599,6 +607,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
             />
             <Input
+              id="discharge-search"
               placeholder="Search by name or phone number"
               className="border-gray-200 placeholder:text-gray-400 h-10 pl-9"
               value={searchQuery}
@@ -610,10 +619,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             {!searching &&
               searchResults?.length > 0 &&
               searchResults.map((result) => (
-                <div
+                <button
+                  type="button"
                   key={result.id}
                   onClick={() => {
-                    setMotherId(result.id);
+                    motherIdRef.current = result.id;
                     setFoundMother(result);
                     setFormData((prev) => ({
                       ...prev,
@@ -624,7 +634,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     setSearchPhase(false);
                     setCurrentStep(1);
                   }}
-                  className="bg-white border border-gray-200 rounded-xl px-4 py-3.5 hover:border-primary cursor-pointer transition-all flex justify-between items-center group shadow-sm"
+                  className="w-full text-left bg-white border border-gray-200 rounded-xl px-4 py-3.5 hover:border-primary cursor-pointer transition-all flex justify-between items-center group shadow-sm"
                 >
                   <div className="flex flex-col">
                     <span className="text-sm font-semibold text-gray-900">
@@ -651,7 +661,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <span className="text-xs text-primary font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
                     Select →
                   </span>
-                </div>
+                </button>
               ))}
             {!searchError &&
               searchQuery.length >= 2 &&
@@ -688,7 +698,8 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           </div>
 
           <div className="mt-8 grid grid-cols-2 gap-4">
-            <div
+            <button
+              type="button"
               onClick={() => {
                 setDirection("forward");
                 setFoundMother(null);
@@ -708,8 +719,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   She has no antenatal record with us
                 </span>
               </div>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               onClick={() => openDrawer("add-mother")}
               className="bg-white border border-gray-200 rounded-xl px-5 py-6 cursor-pointer hover:border-primary hover:bg-primary-100/30 transition-all flex flex-col items-center text-center gap-3 shadow-sm"
             >
@@ -724,7 +736,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   She is still pregnant, not yet delivered
                 </span>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </OnboardingShell>
@@ -803,8 +815,8 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 description:
                   "If she changes her mind, you can withdraw her from the program in one click.",
               },
-            ].map((card, idx) => (
-              <Card key={idx} className="border-gray-100 shadow-sm">
+            ].map((card) => (
+              <Card key={card.title} className="border-gray-100 shadow-sm">
                 <CardContent className="p-4 flex items-start gap-4">
                   <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
                     <card.icon size={20} className="text-primary" />
@@ -853,9 +865,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700">
                   Delivery date
-                </label>
+                </span>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -908,9 +920,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700">
                   Discharge date
-                </label>
+                </span>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -965,17 +977,18 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">
+              <span className="text-sm font-semibold text-gray-700 mb-3 block">
                 Delivery type
-              </label>
+              </span>
               <div
-                className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>div]:border-red-400" : ""}`}
+                className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>button]:border-red-400" : ""}`}
               >
                 {[
                   { id: "vaginal", icon: Baby, title: "Vaginal delivery" },
                   { id: "caesarean", icon: Scissors, title: "C-section" },
                 ].map((type) => (
-                  <div
+                  <button
+                    type="button"
                     key={type.id}
                     onClick={() => updateField("deliveryType", type.id as (typeof formData)["deliveryType"])}
                     className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex flex-col items-center text-center gap-2 ${formData.deliveryType === type.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"}`}
@@ -991,7 +1004,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     <span className="text-sm font-semibold text-gray-900">
                       {type.title}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
               {touched && !formData.deliveryType && (
@@ -1002,9 +1015,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">
+              <span className="text-sm font-semibold text-gray-700 mb-3 block">
                 Preferred calling window
-              </label>
+              </span>
               <ChipSelect
                 options={[
                   { value: "morning", label: "Morning 8am-11am" },
@@ -1061,10 +1074,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   "Omaya switches to gentle bereavement support instead of routine check-in calls",
               },
             ].map((outcome) => (
-              <div
+              <button
+                type="button"
                 key={outcome.id}
                 onClick={() => updateField("outcome", outcome.id as (typeof formData)["outcome"])}
-                className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
+                className={`text-left border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
               >
                 <outcome.icon
                   size={24}
@@ -1078,7 +1092,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     {outcome.description}
                   </span>
                 </div>
-              </div>
+              </button>
             ))}
             {touched && !formData.outcome && (
               <span className="text-xs text-red-500">
@@ -1098,9 +1112,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           />
           <div className="flex flex-col gap-5">
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">
+              <span className="text-sm font-semibold text-gray-700 mb-3 block">
                 Medications sent home
-              </label>
+              </span>
               <ChipSelect
                 options={[
                   { value: "pain_relief", label: "Pain relief" },
@@ -1234,7 +1248,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               ...emergencySummaryRows,
             ].map((row, idx) => (
               <div
-                key={idx}
+                key={row.label}
                 className={`flex justify-between items-center px-6 py-3 ${idx % 2 === 1 ? "bg-gray-50" : ""}`}
               >
                 <span className="text-sm text-gray-500 font-normal">
@@ -1280,7 +1294,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="discharge-phone"
+                  className="text-sm font-medium text-gray-700"
+                >
                   Phone number
                 </label>
                 <div
@@ -1310,6 +1327,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   </Select>
                   <div className="h-6 w-px bg-gray-200" />
                   <Input
+                    id="discharge-phone"
                     type="tel"
                     placeholder="55 123 4567"
                     value={groupPhoneDigits(formData.phoneNumber.replace(countryCode, ""))}
@@ -1340,9 +1358,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">
+              <span className="text-sm font-medium text-gray-700">
                 Date of birth
-              </label>
+              </span>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -1447,9 +1465,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700">
                   Delivery date
-                </label>
+                </span>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -1502,9 +1520,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700">
                   Discharge date
-                </label>
+                </span>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -1559,9 +1577,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">
+              <span className="text-sm font-semibold text-gray-700 mb-3 block">
                 Preferred language for calls
-              </label>
+              </span>
               <ChipSelect
                 max={1}
                 options={LANGUAGE_OPTIONS}
@@ -1578,9 +1596,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">
+              <span className="text-sm font-semibold text-gray-700 mb-3 block">
                 Preferred calling window
-              </label>
+              </span>
               <ChipSelect
                 max={1}
                 options={[
@@ -1612,17 +1630,18 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-700 mb-3">
+              <span className="text-sm font-semibold text-gray-700 mb-3 block">
                 Delivery type
-              </label>
+              </span>
               <div
-                className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>div]:border-red-400" : ""}`}
+                className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>button]:border-red-400" : ""}`}
               >
                 {[
                   { id: "vaginal", icon: Baby, title: "Vaginal delivery" },
                   { id: "caesarean", icon: Scissors, title: "C-section" },
                 ].map((type) => (
-                  <div
+                  <button
+                    type="button"
                     key={type.id}
                     onClick={() => updateField("deliveryType", type.id as (typeof formData)["deliveryType"])}
                     className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex flex-col items-center text-center gap-2 ${formData.deliveryType === type.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"}`}
@@ -1638,7 +1657,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     <span className="text-sm font-semibold text-gray-900">
                       {type.title}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
               {touched && !formData.deliveryType && (
@@ -1674,10 +1693,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   "Omaya switches to gentle bereavement support instead of routine check-in calls",
               },
             ].map((outcome) => (
-              <div
+              <button
+                type="button"
                 key={outcome.id}
                 onClick={() => updateField("outcome", outcome.id as (typeof formData)["outcome"])}
-                className={`border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
+                className={`text-left border rounded-xl px-5 py-4 cursor-pointer transition-all flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
               >
                 <outcome.icon
                   size={24}
@@ -1691,7 +1711,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     {outcome.description}
                   </span>
                 </div>
-              </div>
+              </button>
             ))}
             {touched && !formData.outcome && (
               <span className="text-xs text-red-500">
@@ -1811,7 +1831,8 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             </div>
           )}
           <div className="flex flex-col gap-4">
-            <div
+            <button
+              type="button"
               onClick={() => {
                 const next = !formData.consentCalls;
                 // Recording consent can't stand without calls consent — clear
@@ -1822,7 +1843,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   consentRecording: next ? prev.consentRecording : false,
                 }));
               }}
-              className={`border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentCalls ? "border-primary bg-primary-100" : "border-gray-200 bg-white"} ${touched && !formData.consentCalls ? "border-red-400" : ""}`}
+              className={`w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-all ${formData.consentCalls ? "border-primary bg-primary-100" : "border-gray-200 bg-white"} ${touched && !formData.consentCalls ? "border-red-400" : ""}`}
             >
               <div
                 className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentCalls ? "bg-primary border-primary" : "bg-white border-gray-300"}`}
@@ -1835,23 +1856,25 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 <span className="text-sm font-semibold text-gray-900">
                   Check-in calls
                 </span>
-                <p className="text-sm text-gray-500 font-normal mt-1 leading-relaxed">
+                <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
                   Omaya will call her to check how she and her baby are doing
                   after she goes home. She can ask to stop at any time.
-                </p>
+                </span>
                 <span className="text-xs text-primary font-semibold mt-2 uppercase tracking-wide">
                   Required to enroll
                 </span>
               </div>
-            </div>
+            </button>
 
-            <div
+            <button
+              type="button"
+              disabled={!formData.consentCalls}
               onClick={() => {
                 if (!formData.consentCalls) return;
                 updateField("consentRecording", !formData.consentRecording);
               }}
               aria-disabled={!formData.consentCalls || undefined}
-              className={`border rounded-xl px-5 py-4 flex items-start gap-4 transition-all ${
+              className={`w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 transition-all ${
                 !formData.consentCalls
                   ? "border-gray-200 bg-gray-50 opacity-60"
                   : formData.consentRecording
@@ -1870,15 +1893,15 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 <span className="text-sm font-semibold text-gray-900">
                   Call recording
                 </span>
-                <p className="text-sm text-gray-500 font-normal mt-1 leading-relaxed">
+                <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
                   Calls may be recorded to improve care quality. Recordings are
                   stored securely and only used by her care team.
-                </p>
+                </span>
                 <span className="text-xs text-gray-400 font-semibold mt-2 uppercase tracking-wide">
                   {formData.consentCalls ? "Optional" : "Consent to calls first"}
                 </span>
               </div>
-            </div>
+            </button>
           </div>
           <p className="text-xs text-gray-400 font-normal mt-6">
             By tapping 'Confirm discharge', you confirm that you have explained
@@ -1991,7 +2014,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               ...emergencySummaryRows,
             ].map((row, idx) => (
               <div
-                key={idx}
+                key={row.label}
                 className={`flex justify-between items-center px-6 py-3 ${idx % 2 === 1 ? "bg-gray-50" : ""}`}
               >
                 <span className="text-sm text-gray-500 font-normal">

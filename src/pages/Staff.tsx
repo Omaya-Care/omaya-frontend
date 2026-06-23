@@ -3,12 +3,10 @@ import { Plus, Users, AlertCircle } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useStaff } from "../hooks/useStaff";
 import { useRoles } from "../hooks/useRoles";
-import {
-  StaffRow,
-  PermissionsMatrix,
-  AddStaffModal,
-  AddRoleModal,
-} from "../components/staff";
+import { StaffRow } from "../components/staff/StaffRow";
+import { PermissionsMatrix } from "../components/staff/PermissionsMatrix";
+import { AddStaffModal } from "../components/staff/AddStaffModal";
+import { AddRoleModal } from "../components/staff/AddRoleModal";
 import { Button } from "../components/ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip";
 import { Skeleton } from "../components/ui/skeleton";
@@ -98,7 +96,7 @@ const StaffPage = () => {
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span tabIndex={0} className={!can("manage_staff") ? "cursor-not-allowed" : ""}>
+            <span className={!can("manage_staff") ? "cursor-not-allowed" : ""}>
               <Button
                 variant="default"
                 className="flex items-center gap-1.5"
@@ -121,6 +119,7 @@ const StaffPage = () => {
         {filters.map((f) => (
           <button
             key={f.key}
+            type="button"
             onClick={() => setActiveFilter(f.key)}
             className={`rounded-full px-3 py-1 text-sm transition-colors border ${
               activeFilter === f.key
@@ -163,6 +162,7 @@ const StaffPage = () => {
                 </p>
                 {activeFilter !== "All" && (
                   <button
+                    type="button"
                     onClick={() => setActiveFilter("All")}
                     className="text-xs text-primary font-medium hover:underline mt-0.5"
                   >

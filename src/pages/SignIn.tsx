@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { Input, Button } from "../components/ui";
+import { Input } from "../components/ui/Input";
+import { Button } from "../components/ui/Button";
 import { AuthError } from "../components/auth/AuthCard";
 import { signIn } from "../lib/auth-api";
 import { extractApiError } from "../lib/api";

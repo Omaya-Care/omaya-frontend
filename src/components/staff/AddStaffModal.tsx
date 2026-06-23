@@ -142,8 +142,8 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
 
         {/* Role selector */}
         <div className="mt-5">
-          <label className="text-sm font-medium text-gray-700">Role</label>
-          <div className="grid grid-cols-2 gap-2.5 mt-2">
+          <span id="add-staff-role-label" className="text-sm font-medium text-gray-700">Role</span>
+          <div className="grid grid-cols-2 gap-2.5 mt-2" role="radiogroup" aria-labelledby="add-staff-role-label">
             {rolesLoading ? (
               [1, 2, 3, 4].map((i) => (
                 <Skeleton key={i} className="h-16 rounded-xl" />
@@ -152,10 +152,13 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
               roles.map((r) => {
                 const selected = selectedRole === r.name;
                 return (
-                  <div
+                  <button
                     key={r.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
                     onClick={() => setSelectedRole(r.name as StaffRole)}
-                    className={`border rounded-xl p-3 cursor-pointer transition-all ${
+                    className={`border rounded-xl p-3 cursor-pointer transition-all text-left ${
                       selected
                         ? "border-primary bg-primary-100"
                         : "border-gray-200 bg-white hover:border-gray-300"
@@ -167,7 +170,7 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
                     <p className="text-xs text-gray-500 mt-0.5 font-normal">
                       {r.description ?? "No description available."}
                     </p>
-                  </div>
+                  </button>
                 );
               })
             )}

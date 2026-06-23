@@ -6,7 +6,8 @@ import {
   type Locale,
 } from "react-day-picker"
 import { cn } from "../../lib/utils"
-import { Button, buttonVariants } from "./Button"
+import { Button } from "./Button"
+import { buttonVariants } from "./button-variants"
 import {
   Select,
   SelectContent,
@@ -206,7 +207,10 @@ function CalendarDayButton({
   const defaultClassNames = getDefaultClassNames()
 
   const ref = React.useRef<HTMLButtonElement>(null)
+  // Intentional focus management: shadcn moves DOM focus to the focused day so
+  // keyboard navigation works. Not derived state — must stay an effect.
   React.useEffect(() => {
+    // react-doctor-disable-next-line react-doctor/no-event-handler
     if (modifiers.focused) ref.current?.focus()
   }, [modifiers.focused])
 

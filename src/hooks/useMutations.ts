@@ -166,27 +166,6 @@ export const useAddRole = () => {
   });
 };
 
-export const useUpdateRole = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      roleId,
-      ...body
-    }: {
-      roleId: string;
-      name?: string;
-      description?: string | null;
-      permissions?: RolePermissions;
-    }) => {
-      const res = await api.patch(`/admin/roles/${roleId}`, body);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["roles"] });
-    },
-  });
-};
-
 export const useDeleteRole = () => {
   const queryClient = useQueryClient();
   return useMutation({

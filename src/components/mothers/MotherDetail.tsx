@@ -116,6 +116,7 @@ const MotherDetail = ({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
+                    type="button"
                     onClick={onEditClick}
                     disabled={!onEditClick}
                     className="text-gray-300 hover:text-gray-500 transition-colors disabled:cursor-not-allowed"
@@ -188,6 +189,7 @@ const MotherDetail = ({
         {/* ── TABS ──────────────────────────────────────────── */}
         <div className="flex justify-center gap-8 px-4 mt-4 border-b border-gray-100">
           <button
+            type="button"
             onClick={() => setActiveTab("details")}
             className={`pb-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
               activeTab === "details"
@@ -198,6 +200,7 @@ const MotherDetail = ({
             Details
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab("checkins")}
             className={`pb-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${
               activeTab === "checkins"
@@ -279,7 +282,7 @@ const MotherDetail = ({
                     </p>
                     <div className="divide-y divide-gray-100">
                       {contacts.map((c, idx) => (
-                        <div key={idx} className="flex items-center justify-between py-2">
+                        <div key={`${c.name}:${c.phone}`} className="flex items-center justify-between py-2">
                           <div className="flex flex-col">
                             <span className="text-sm font-medium text-gray-900">
                               {c.name || "—"}
@@ -371,6 +374,7 @@ const MotherDetail = ({
                       </p>
                       {checkIn.transcript && (
                         <button
+                          type="button"
                           onClick={() => handleTranscriptClick(checkIn.transcript!)}
                           className="mt-1.5 text-xs text-primary font-medium hover:underline"
                         >
@@ -411,6 +415,7 @@ const MotherDetail = ({
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
+                  type="button"
                   onClick={onWithdrawClick}
                   className="text-xs text-red-400 font-normal flex items-center gap-1.5 hover:text-red-600 transition-colors"
                 >
@@ -427,7 +432,7 @@ const MotherDetail = ({
         <div className="flex gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span tabIndex={0} className={!onLogVisitClick ? "cursor-not-allowed" : ""}>
+              <span className={!onLogVisitClick ? "cursor-not-allowed" : ""}>
                 <Button
                   variant="outline"
                   size="sm"

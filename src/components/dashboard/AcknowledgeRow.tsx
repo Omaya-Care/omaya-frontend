@@ -11,24 +11,24 @@ interface AcknowledgeRowProps {
   onAcknowledge: (id: string) => void;
 }
 
+const formatTimeLeft = (totalMinutes: number) => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+};
+
+const getTimeStatusStyles = (totalMinutes: number) => {
+  if (totalMinutes < 30) {
+    return "text-red-600 animate-soft-pulse";
+  }
+  if (totalMinutes <= 120) {
+    return "text-amber-600";
+  }
+  return "text-gray-400";
+};
+
 const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
   const { can } = useAuth();
-  const formatTimeLeft = (totalMinutes: number) => {
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-  };
-
-  const getTimeStatusStyles = (totalMinutes: number) => {
-    if (totalMinutes < 30) {
-      return "text-red-600 animate-soft-pulse";
-    }
-    if (totalMinutes <= 120) {
-      return "text-amber-600";
-    }
-    return "text-gray-400";
-  };
-
   const statusStyles = getTimeStatusStyles(item.timeLeftMinutes);
   const canEscalate = can("escalate");
 
@@ -69,7 +69,7 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
           // the button can't be clicked.
           <Tooltip>
             <TooltipTrigger asChild>
-              <span tabIndex={0} className="cursor-not-allowed inline-flex">
+              <span className="cursor-not-allowed inline-flex">
                 <Button variant="outline" size="sm" disabled>
                   Acknowledge
                 </Button>

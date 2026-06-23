@@ -13,12 +13,7 @@ import SignIn from "./pages/SignIn";
 import ForgotPassword from "./pages/ForgotPassword";
 import SetupPassword from "./pages/SetupPassword";
 import ChangePassword from "./pages/ChangePassword";
-import Dashboard from "./pages/Dashboard";
-import MothersPage from "./pages/Mothers";
-import CallsPage from "./pages/Calls";
-import StaffPage from "./pages/Staff";
-import SettingsPage from "./pages/Settings";
-import { AppShell } from "./components/layout";
+import { AppShell } from "./components/layout/AppShell";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { DocsGate } from "./components/auth/DocsGate";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -28,7 +23,24 @@ import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import DocsLoading from "./components/DocsLoading";
 
+// Authenticated dashboard pages are code-split: each loads on first navigation
+// instead of riding in the initial bundle, so sign-in stays light. The auth
+// pages (SignIn etc.) are kept eager — they're on the critical first-paint path.
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const MothersPage = lazy(() => import("./pages/Mothers"));
+const CallsPage = lazy(() => import("./pages/Calls"));
+const StaffPage = lazy(() => import("./pages/Staff"));
+const SettingsPage = lazy(() => import("./pages/Settings"));
 const Docs = lazy(() => import("./Docs"));
+
+// Loader shown in the content area while a code-split page chunk loads.
+function PageLoading() {
+  return (
+    <div className="flex flex-1 items-center justify-center py-24">
+      <Loader2 className="animate-spin text-muted-foreground" size={24} />
+    </div>
+  );
+}
 
 // The docs.* host (a Vercel alias of this same project) serves the API
 // reference. It's a separate origin, so it has its own session — users
@@ -78,17 +90,13 @@ function Protected({ children }: { children: ReactNode }) {
   // loader inside the shell instead of mounting the page — otherwise the page
   // fetches its data and 403s before the post-load redirect can fire.
   const content =
-    required && isLoading ? (
-      <div className="flex flex-1 items-center justify-center py-24">
-        <Loader2 className="animate-spin text-muted-foreground" size={24} />
-      </div>
-    ) : (
-      children
-    );
+    required && isLoading ? <PageLoading /> : children;
 
   return (
     <RequireAuth>
-      <AppShell>{content}</AppShell>
+      <AppShell>
+        <Suspense fallback={<PageLoading />}>{content}</Suspense>
+      </AppShell>
     </RequireAuth>
   );
 }

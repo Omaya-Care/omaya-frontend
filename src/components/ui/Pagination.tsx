@@ -34,23 +34,30 @@ export const Pagination: React.FC<PaginationProps> = ({
   // Helper to generate page numbers with ellipsis
   const getPageNumbers = () => {
     const pages: (number | string)[] = [];
+    const seen = new Set<number>();
+    const addPage = (n: number) => {
+      if (!seen.has(n)) {
+        seen.add(n);
+        pages.push(n);
+      }
+    };
     const maxVisible = 5;
 
     if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      for (let i = 1; i <= totalPages; i++) addPage(i);
     } else {
-      pages.push(1);
+      addPage(1);
       if (currentPage > 3) pages.push("...");
 
       const start = Math.max(2, currentPage - 1);
       const end = Math.min(totalPages - 1, currentPage + 1);
 
       for (let i = start; i <= end; i++) {
-        if (!pages.includes(i)) pages.push(i);
+        addPage(i);
       }
 
       if (currentPage < totalPages - 2) pages.push("...");
-      if (!pages.includes(totalPages)) pages.push(totalPages);
+      addPage(totalPages);
     }
     return pages;
   };
@@ -97,6 +104,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
+                  type="button"
                   onClick={() => onPageChange(currentPage - 1)}
                   disabled={currentPage === 1}
                   className="p-1 text-gray-400 hover:text-primary disabled:opacity-20 transition-all"
@@ -127,6 +135,7 @@ export const Pagination: React.FC<PaginationProps> = ({
                 const isActive = p === currentPage;
                 return (
                   <button
+                    type="button"
                     key={`page-${p}`}
                     onClick={() => onPageChange(p as number)}
                     className={`
@@ -144,6 +153,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
+                  type="button"
                   onClick={() => onPageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
                   className="p-1 text-gray-400 hover:text-primary disabled:opacity-20 transition-all"

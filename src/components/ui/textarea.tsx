@@ -6,8 +6,13 @@ export interface TextareaProps extends React.ComponentProps<"textarea"> {
   containerClassName?: string;
 }
 
-const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, label, containerClassName, ...props }, ref) => {
+function Textarea({
+  className,
+  label,
+  containerClassName,
+  ref,
+  ...props
+}: TextareaProps) {
     return (
       <div className={cn("flex flex-col", containerClassName)}>
         {label && (
@@ -25,9 +30,6 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         />
       </div>
     );
-  },
-);
-
-Textarea.displayName = "Textarea";
+}
 
 export { Textarea };

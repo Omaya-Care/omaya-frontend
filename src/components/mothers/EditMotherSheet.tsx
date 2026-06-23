@@ -1,19 +1,19 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, CalendarIcon, AlertCircle } from "lucide-react";
 import { format, parse } from "date-fns";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Alert, AlertDescription } from "../ui/alert";
+import { ChipSelect } from "../onboarding/ChipSelect";
 import {
-  ChipSelect,
-  EmergencyContacts,
   emptyEmergencyContact,
   emergencyContactsValid,
   toEmergencyContactsPayload,
   RELATIONSHIP_OPTIONS,
   type EmergencyContactForm,
-} from "../onboarding";
+} from "../onboarding/emergency-contacts";
+import { EmergencyContacts } from "../onboarding/EmergencyContacts";
 import { Calendar } from "../ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useUpdateMother } from "../../hooks/useMutations";
@@ -81,11 +81,56 @@ const buildEmergencyContacts = (mother: Mother): EmergencyContactForm[] => {
         : [];
   if (source.length === 0) return [emptyEmergencyContact()];
   return source.map((c) => ({
+    id: crypto.randomUUID(),
     name: c.name,
     ...splitPhone(c.phone),
     ...splitRelationship(c.relationship),
   }));
 };
+
+// A labelled date field. Extracted to a real component (not an inline
+// renderXxx() call) so React preserves the Popover's identity across renders.
+const DatePickerField = ({
+  id,
+  label,
+  field,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  field: "dateOfBirth" | "deliveryDate";
+  value: string;
+  onChange: (value: string) => void;
+}) => (
+  <div className="flex flex-col gap-1.5">
+    <label htmlFor={id} className="text-sm font-medium text-gray-700">{label}</label>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          variant="ghost"
+          className="justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50"
+        >
+          <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+          {value ? (
+            format(parse(value, "yyyy-MM-dd", new Date()), "dd/MM/yyyy")
+          ) : (
+            <span className="text-gray-400">Select date</span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          {...(field === "dateOfBirth" ? { captionLayout: "dropdown" as const, startMonth: new Date(1940, 0, 1), endMonth: new Date() } : {})}
+          selected={value ? parse(value, "yyyy-MM-dd", new Date()) : undefined}
+          onSelect={(date) => onChange(date ? format(date, "yyyy-MM-dd") : "")}
+        />
+      </PopoverContent>
+    </Popover>
+  </div>
+);
 
 const buildForm = (mother: Mother) => ({
   phone: mother.phone,
@@ -112,9 +157,9 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
   // open) by comparing against the previous open-signature during render —
   // avoids the extra render + stale-value flash of a useEffect.
   const openSig = isOpen ? mother.id : "__closed__";
-  const [prevSig, setPrevSig] = useState(openSig);
-  if (openSig !== prevSig) {
-    setPrevSig(openSig);
+  const prevSig = useRef(openSig);
+  if (openSig !== prevSig.current) {
+    prevSig.current = openSig;
     if (isOpen) {
       setForm(buildForm(mother));
       setEmergencyContacts(buildEmergencyContacts(mother));
@@ -165,35 +210,6 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
     }
   };
 
-  const renderDatePicker = (label: string, field: "dateOfBirth" | "deliveryDate") => (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            className="justify-start gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50"
-          >
-            <CalendarIcon size={16} className="text-gray-400 shrink-0" />
-            {form[field] ? (
-              format(parse(form[field], "yyyy-MM-dd", new Date()), "dd/MM/yyyy")
-            ) : (
-              <span className="text-gray-400">Select date</span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            {...(field === "dateOfBirth" ? { captionLayout: "dropdown" as const, startMonth: new Date(1940, 0, 1), endMonth: new Date() } : {})}
-            selected={form[field] ? parse(form[field], "yyyy-MM-dd", new Date()) : undefined}
-            onSelect={(date) => updateField(field, date ? format(date, "yyyy-MM-dd") : "")}
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
-
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className="w-full sm:max-w-md flex flex-col h-full p-0">
@@ -222,11 +238,18 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
             fullWidth
           />
 
-          {renderDatePicker("Date of birth", "dateOfBirth")}
+          <DatePickerField
+            id="edit-mother-dob"
+            label="Date of birth"
+            field="dateOfBirth"
+            value={form.dateOfBirth}
+            onChange={(value) => updateField("dateOfBirth", value)}
+          />
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Preferred language</label>
+            <label htmlFor="edit-mother-language" className="text-sm font-medium text-gray-700">Preferred language</label>
             <ChipSelect
+              id="edit-mother-language"
               max={1}
               options={LANGUAGE_OPTIONS}
               selected={form.language ? [form.language] : []}
@@ -265,8 +288,9 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
             </div>
 
             <div className="flex flex-col gap-1.5 mb-5">
-              <label className="text-sm font-medium text-gray-700">Delivery type</label>
+              <label htmlFor="edit-mother-delivery-type" className="text-sm font-medium text-gray-700">Delivery type</label>
               <ChipSelect
+                id="edit-mother-delivery-type"
                 max={1}
                 options={DELIVERY_TYPE_OPTIONS}
                 selected={form.deliveryType ? [form.deliveryType] : []}
@@ -274,15 +298,22 @@ const EditMotherSheet = ({ isOpen, onClose, mother }: EditMotherSheetProps) => {
               />
             </div>
 
-            {renderDatePicker("Delivery date", "deliveryDate")}
+            <DatePickerField
+              id="edit-mother-delivery-date"
+              label="Delivery date"
+              field="deliveryDate"
+              value={form.deliveryDate}
+              onChange={(value) => updateField("deliveryDate", value)}
+            />
           </div>
 
           <div className="border-t border-gray-100 pt-5">
             <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-4">Program settings</p>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Preferred calling window</label>
+              <label htmlFor="edit-mother-call-window" className="text-sm font-medium text-gray-700">Preferred calling window</label>
               <ChipSelect
+                id="edit-mother-call-window"
                 max={1}
                 options={CALLING_WINDOW_OPTIONS}
                 selected={form.preferredCallWindow ? [form.preferredCallWindow] : []}

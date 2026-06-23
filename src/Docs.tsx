@@ -5,7 +5,7 @@ import '@scalar/api-reference-react/style.css'
 import '@fontsource-variable/geist/index.css'
 import { api } from './lib/api'
 import { AuthCard } from './components/auth/AuthCard'
-import { Button } from './components/ui'
+import { Button } from './components/ui/Button'
 import DocsLoading from './components/DocsLoading'
 
 // The portal spec (/openapi.json) is team-gated — it's fetched WITH the

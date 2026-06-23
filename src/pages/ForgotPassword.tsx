@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, MailCheck, Loader2 } from "lucide-react";
-import { Input, Button } from "../components/ui";
+import { Input } from "../components/ui/Input";
+import { Button } from "../components/ui/Button";
 import { AuthError } from "../components/auth/AuthCard";
 import { forgotPassword } from "../lib/auth-api";
 import { extractApiError } from "../lib/api";

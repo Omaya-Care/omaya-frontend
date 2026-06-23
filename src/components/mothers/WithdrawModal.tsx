@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Loader2, XCircle } from 'lucide-react';
 import {
   Dialog,
@@ -21,19 +21,13 @@ interface WithdrawModalProps {
 const WithdrawModal = ({ isOpen, onClose, onConfirm, motherName, isPending = false }: WithdrawModalProps) => {
   const [reason, setReason] = useState("");
 
-  // Clear the field whenever the modal is closed (incl. the success path,
-  // which closes externally and bypasses handleClose).
-  useEffect(() => {
-    if (!isOpen) setReason("");
-  }, [isOpen]);
-
   const handleConfirm = () => {
     onConfirm(reason);
   };
 
   const handleClose = () => {
     if (isPending) return;
-    onClose(); // reason is cleared by the isOpen effect
+    onClose(); // reason resets via the `key` at the call site on the next open
   };
 
   return (
@@ -56,10 +50,11 @@ const WithdrawModal = ({ isOpen, onClose, onConfirm, motherName, isPending = fal
         </DialogHeader>
 
         <div className="mt-4">
-          <label className="text-sm font-medium text-gray-700 block mb-1.5">
+          <label htmlFor="withdraw-reason" className="text-sm font-medium text-gray-700 block mb-1.5">
             Reason for withdrawal <span className="text-gray-400 font-normal">(optional)</span>
           </label>
           <textarea
+            id="withdraw-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Mother requested no further calls."

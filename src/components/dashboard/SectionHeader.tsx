@@ -21,6 +21,7 @@ const SectionHeader = ({ title, count, onViewAll }: SectionHeaderProps) => {
 
       {onViewAll && (
         <button
+          type="button"
           onClick={onViewAll}
           className="text-sm text-primary font-medium cursor-pointer hover:underline"
         >

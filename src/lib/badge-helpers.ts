@@ -45,18 +45,6 @@ export function getSeverityBadgeClass(severity: string) {
   return `${t.bg} ${t.fg} ${t.border}`;
 }
 
-// Left-accent border for list rows (e.g. MotherListItem).
-export function getSeverityBorderClass(severity: string) {
-  const map: Record<string, string> = {
-    crisis: "border-l-severity-crisis-fg",
-    elevated: "border-l-severity-elevated-fg",
-    monitor: "border-l-severity-monitor-fg",
-    routine: "border-l-severity-routine-fg",
-    inactive: "border-l-severity-inactive-fg",
-  };
-  return map[severity] ?? "border-l-transparent";
-}
-
 export function getStatusBadgeClass(status: string) {
   switch (status) {
     case "completed":

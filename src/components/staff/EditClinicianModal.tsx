@@ -30,7 +30,12 @@ interface EditClinicianModalProps {
 }
 
 const EditClinicianModal = ({ isOpen, onClose, member }: EditClinicianModalProps) => {
+  // Seeding local edit state from `member` is correct here: the call site
+  // (StaffRow) passes key={member.id}, so this modal remounts per member and
+  // never holds a stale copy.
+  // react-doctor-disable-next-line react-doctor/no-derived-useState
   const [name, setName] = useState(member.name);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState
   const [selectedRole, setSelectedRole] = useState<StaffRole>(member.role);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,9 +102,11 @@ const EditClinicianModal = ({ isOpen, onClose, member }: EditClinicianModalProps
           />
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700 ml-0.5">Role</label>
+            <label htmlFor="edit-clinician-role" className="text-sm font-medium text-gray-700 ml-0.5">
+              Role
+            </label>
             <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as StaffRole)}>
-              <SelectTrigger className="w-full" disabled={rolesLoading}>
+              <SelectTrigger id="edit-clinician-role" className="w-full" disabled={rolesLoading}>
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>

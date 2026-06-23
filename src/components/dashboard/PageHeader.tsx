@@ -36,7 +36,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         </span>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span tabIndex={0} className={!onNewDischarge ? "cursor-not-allowed inline-flex" : "inline-flex"}>
+            <span className={!onNewDischarge ? "cursor-not-allowed inline-flex" : "inline-flex"}>
               <Button
                 variant="default"
                 onClick={onNewDischarge}

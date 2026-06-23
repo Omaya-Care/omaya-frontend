@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { Input, Button } from "../components/ui";
+import { Input } from "../components/ui/Input";
+import { Button } from "../components/ui/Button";
 import { AuthCard, AuthError } from "../components/auth/AuthCard";
 import {
   verifyToken,
@@ -31,6 +32,9 @@ const SetupPassword = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Intentional token-verify phase machine: verify-token drives the
+  // verifying → ready/invalid transition (sets info + phase together).
+  // react-doctor-disable-next-line react-doctor/no-cascading-set-state
   useEffect(() => {
     let active = true;
     if (!rawToken) {

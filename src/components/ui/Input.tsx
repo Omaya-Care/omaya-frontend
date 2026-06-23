@@ -9,11 +9,17 @@ export interface InputProps extends React.ComponentProps<"input"> {
   rightIcon?: React.ReactNode;
 }
 
-const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  (
-    { className, type, label, containerClassName, fullWidth, leftIcon, rightIcon, ...props },
-    ref,
-  ) => {
+function Input({
+  className,
+  type,
+  label,
+  containerClassName,
+  fullWidth,
+  leftIcon,
+  rightIcon,
+  ref,
+  ...props
+}: InputProps) {
     return (
       <div
         className={cn(
@@ -52,9 +58,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         </div>
       </div>
     );
-  },
-);
-
-Input.displayName = "Input";
+}
 
 export { Input };

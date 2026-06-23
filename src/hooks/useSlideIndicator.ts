@@ -50,8 +50,10 @@ export function useSlideIndicator(
     const ro = new ResizeObserver(measure);
     ro.observe(container);
     return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+    // Intentional: caller-supplied `deps` drive re-measurement; containerRef
+    // and activeSelector are stable for a given mount.
+    // react-doctor-disable-next-line react-doctor/exhaustive-deps
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
 
   return rect;
 }

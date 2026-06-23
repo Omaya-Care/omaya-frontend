@@ -149,7 +149,7 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
                 {call.transcript!.map((row, idx) => {
                   const isOmaya = row.speaker === "omaya";
                   return (
-                    <div key={idx} className={`flex gap-2.5 ${isOmaya ? "" : "flex-row-reverse"}`}>
+                    <div key={`${idx}-${row.speaker}-${row.text}`} className={`flex gap-2.5 ${isOmaya ? "" : "flex-row-reverse"}`}>
                       <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5 ${
                         isOmaya ? "bg-primary text-white" : "bg-gray-200 text-gray-600"
                       }`}>

@@ -22,15 +22,14 @@ import { getClinician, clearSession, initialsOf } from "../../lib/auth";
 import { useEscalations } from "../../hooks/useEscalations";
 import { useSlideIndicator } from "../../hooks/useSlideIndicator";
 import { getSeverityTokens } from "../../lib/badge-helpers";
+import { Sheet, SheetContent } from "../../components/ui/sheet";
 import {
-  Sheet,
-  SheetContent,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
   TooltipProvider,
-  Button,
-} from "../../components/ui";
+} from "../../components/ui/tooltip";
+import { Button } from "../../components/ui/Button";
 import {
   Popover,
   PopoverContent,
@@ -127,7 +126,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     <div className="h-screen w-screen overflow-hidden flex bg-white">
       {/* Mobile backdrop */}
       {mobileSidebarOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Close menu"
           className="fixed inset-0 bg-black/30 z-20 lg:hidden"
           onClick={() => setMobileSidebarOpen(false)}
         />
@@ -156,6 +157,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
           {/* Mobile close */}
           <button
+            type="button"
             className="lg:hidden text-gray-400 hover:text-gray-600 transition-colors"
             onClick={() => setMobileSidebarOpen(false)}
             aria-label="Close menu"
@@ -166,6 +168,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           {/* Desktop collapse toggle */}
           {!sidebarCollapsed && (
             <button
+              type="button"
               className="hidden lg:flex text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-md hover:bg-gray-100"
               onClick={() => setSidebarCollapsed(true)}
               aria-label="Collapse sidebar"
@@ -204,6 +207,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           {sidebarCollapsed && (
             <div className="hidden lg:flex justify-center mb-3">
               <button
+                type="button"
                 className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-md hover:bg-gray-100"
                 onClick={() => setSidebarCollapsed(false)}
                 aria-label="Expand sidebar"
@@ -273,6 +277,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <Popover open={notifOpen} onOpenChange={setNotifOpen}>
               <PopoverTrigger asChild>
                 <button
+                  type="button"
                   aria-label={
                     notifCount > 0
                       ? `Notifications, ${notifCount} needing attention`
@@ -327,6 +332,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       return (
                         <button
                           key={item.id}
+                          type="button"
                           onClick={handleNotifNavigate}
                           className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-start gap-2.5"
                         >
@@ -357,6 +363,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 )}
 
                 <button
+                  type="button"
                   onClick={handleNotifNavigate}
                   className="w-full px-4 py-2.5 border-t border-gray-100 text-xs font-medium text-primary hover:bg-gray-50 transition-colors text-center"
                 >
@@ -406,6 +413,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </Link>
               <div className="h-px bg-gray-100 my-1" />
               <button
+                type="button"
                 onClick={() => setSignOutOpen(true)}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
               >
@@ -422,6 +430,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         {/* Mobile top bar */}
         <div className="lg:hidden flex items-center gap-3 px-4 py-3 flex-shrink-0">
           <button
+            type="button"
             onClick={() => setMobileSidebarOpen(true)}
             className="text-gray-600 hover:text-gray-800 transition-colors"
           >

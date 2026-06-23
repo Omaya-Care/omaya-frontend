@@ -13,13 +13,15 @@ interface ToggleProps {
   enabled: boolean;
   onChange?: () => void;
   locked?: boolean;
+  label?: string;
 }
 
-const Toggle = ({ enabled, onChange, locked = false }: ToggleProps) => (
+const Toggle = ({ enabled, onChange, locked = false, label }: ToggleProps) => (
   <button
     role="switch"
     type="button"
     aria-checked={enabled}
+    aria-label={label ?? "Toggle setting"}
     onClick={locked ? undefined : onChange}
     className={`
       relative inline-flex w-11 h-6 rounded-full flex-shrink-0
@@ -78,7 +80,7 @@ const NotifRow = ({
       <p className="text-sm font-medium text-gray-900">{label}</p>
       <p className="text-sm text-gray-400 mt-0.5">{description}</p>
     </div>
-    <Toggle enabled={enabled} onChange={onToggle} locked={locked} />
+    <Toggle enabled={enabled} onChange={onToggle} locked={locked} label={label} />
   </div>
 );
 
@@ -296,6 +298,7 @@ const SettingsPage = () => {
               </p>
             </div>
             <button
+              type="button"
               onClick={() =>
                 passwordSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }

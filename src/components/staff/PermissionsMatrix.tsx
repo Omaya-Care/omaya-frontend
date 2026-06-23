@@ -74,10 +74,12 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
           api.patch(`/admin/roles/${r.id}`, { permissions: draft[r.id] }),
         ),
       );
-      await queryClient.invalidateQueries({ queryKey: ['roles'] });
       // The editing admin's own role permissions may have changed; refresh
       // /auth/me so can() reflects it without waiting for staleTime.
-      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['roles'] }),
+        queryClient.invalidateQueries({ queryKey: ['me'] }),
+      ]);
       toast.success('Permissions updated.');
       setIsEditing(false);
     } catch {
@@ -198,6 +200,7 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
                         </span>
                         {isEditing && !role.isSystem && (
                           <button
+                            type="button"
                             onClick={() => setDeleteTargetId(role.id)}
                             className="text-red-300 hover:text-red-500 transition-colors ml-0.5"
                             title="Delete role"
@@ -222,7 +225,11 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
                     return (
                       <td key={role.id} className="py-3 px-4 text-center">
                         {isEditing ? (
-                          <div
+                          <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={checked}
+                            aria-label={`${label} for ${role.name}`}
                             onClick={() => toggle(role.id, key)}
                             className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer mx-auto transition-colors ${
                               checked
@@ -231,7 +238,7 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
                             }`}
                           >
                             {checked && <Check size={12} className="text-white" strokeWidth={3} />}
-                          </div>
+                          </button>
                         ) : (
                           <span className={checked ? 'text-primary font-semibold' : 'text-gray-300'}>
                             {checked ? '✓' : '–'}

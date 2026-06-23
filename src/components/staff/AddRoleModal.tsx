@@ -116,15 +116,18 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
           />
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-gray-700 ml-0.5">Permissions</label>
+            <span className="text-sm font-medium text-gray-700 ml-0.5">Permissions</span>
             <div className="border border-gray-100 rounded-xl overflow-hidden">
               {PERMISSIONS.map(({ key, label }, idx) => {
                 const checked = permissions[key];
                 return (
-                  <div
+                  <button
                     key={key}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={checked}
                     onClick={() => togglePermission(key)}
-                    className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 ${
+                    className={`w-full flex items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 ${
                       idx !== PERMISSIONS.length - 1 ? 'border-b border-gray-100' : ''
                     }`}
                   >
@@ -138,7 +141,7 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
                     >
                       {checked && <Check size={12} className="text-white" strokeWidth={3} />}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

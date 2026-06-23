@@ -54,22 +54,25 @@ export interface ApiError {
  * gravida: input should be greater than or equal to 0`. Lists every failing
  * field so a form submit shows exactly what to fix.
  */
-export function formatValidationErrors(detail: unknown): string {
+function formatValidationErrors(detail: unknown): string {
   if (!Array.isArray(detail)) return "";
   return detail
-    .map((item) => {
+    .flatMap((item) => {
       const it = item as { loc?: unknown; msg?: string };
-      const path = Array.isArray(it.loc)
-        ? it.loc
-            // Drop the leading "body"/"query"/"path" scope marker.
-            .filter((p, i) => !(i === 0 && (p === "body" || p === "query" || p === "path")))
-            .map((p) => String(p))
-            .join(".")
-        : "";
+      let path = "";
+      if (Array.isArray(it.loc)) {
+        const parts: string[] = [];
+        it.loc.forEach((p, i) => {
+          // Drop the leading "body"/"query"/"path" scope marker.
+          if (i === 0 && (p === "body" || p === "query" || p === "path")) return;
+          parts.push(String(p));
+        });
+        path = parts.join(".");
+      }
       const msg = it.msg ?? "invalid value";
-      return path ? `${path}: ${msg}` : msg;
+      const line = path ? `${path}: ${msg}` : msg;
+      return line ? [line] : [];
     })
-    .filter(Boolean)
     .join("; ");
 }
 

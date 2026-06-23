@@ -4,13 +4,11 @@ import { CheckCircle2, Phone, RefreshCw, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useDrawer } from "../contexts/DrawerContext";
 import { PageHeader } from "../components/dashboard/PageHeader";
-import {
-  StatCard,
-  SectionHeader,
-  AlertsTable,
-  CallsTable,
-  EscalationModal,
-} from "../components/dashboard";
+import { StatCard } from "../components/dashboard/StatCard";
+import { SectionHeader } from "../components/dashboard/SectionHeader";
+import { AlertsTable } from "../components/dashboard/AlertsTable";
+import { CallsTable } from "../components/dashboard/CallsTable";
+import { EscalationModal } from "../components/dashboard/EscalationModal";
 import { useMothers } from "../hooks/useMothers";
 import { useCalls } from "../hooks/useCalls";
 import { useEscalations } from "../hooks/useEscalations";
@@ -20,7 +18,10 @@ import { EscalationItem } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { getClinician } from "../lib/auth";
 import { formatResponseMinutes } from "../lib/format";
-import { Card, CardContent, CardHeader, Separator, Skeleton, Alert, AlertTitle, AlertDescription } from "../components/ui";
+import { Card, CardContent, CardHeader } from "../components/ui/card";
+import { Separator } from "../components/ui/separator";
+import { Skeleton } from "../components/ui/skeleton";
+import { Alert, AlertTitle, AlertDescription } from "../components/ui/alert";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -148,7 +149,7 @@ const Dashboard = () => {
                     <AlertTitle>Error</AlertTitle>
                     <AlertDescription>Could not load alerts.</AlertDescription>
                   </Alert>
-                  <button onClick={() => refetchEscalations()} className="mt-3 text-xs text-primary hover:underline flex items-center gap-1">
+                  <button type="button" onClick={() => refetchEscalations()} className="mt-3 text-xs text-primary hover:underline flex items-center gap-1">
                     <RefreshCw size={12} /> Try again
                   </button>
                 </div>
@@ -202,7 +203,7 @@ const Dashboard = () => {
                   { label: "New discharges", sub: "mothers enrolled", value: stats?.thisWeek.newDischarges ?? '--' },
                   { label: "Avg. response time", sub: "to L3 & L4 alerts", value: stats ? formatResponseMinutes(stats.thisWeek.avgResponseMinutes) : '--' },
                 ].map((row, idx) => (
-                  <div key={idx}>
+                  <div key={row.label}>
                     {idx > 0 && <Separator className="bg-gray-100" />}
                     <div className="flex justify-between items-start py-3">
                       <div>
@@ -252,7 +253,7 @@ const Dashboard = () => {
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>Could not load calls.</AlertDescription>
               </Alert>
-              <button onClick={() => refetchCalls()} className="text-xs text-primary hover:underline flex items-center gap-1">
+              <button type="button" onClick={() => refetchCalls()} className="text-xs text-primary hover:underline flex items-center gap-1">
                 <RefreshCw size={12} /> Try again
               </button>
             </div>

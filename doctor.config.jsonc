@@ -1,0 +1,37 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "rules": {
+    // This is a client-only Vite SPA — there is NO server render, so a
+    // server/client time mismatch is physically impossible. Every `new Date()`
+    // in JSX hit is a false positive for a non-SSR app.
+    "react-doctor/rendering-hydration-mismatch-time": "off",
+
+    // Deliberate, project-wide convention: forms use multiple `useState` calls
+    // (idiomatic and readable here); we don't convert them to `useReducer`.
+    // Disabled globally so it isn't re-flagged on future code either.
+    "react-doctor/prefer-useReducer": "off",
+
+    // shadcn/ui-style components (e.g. alert.tsx → Alert/AlertTitle/
+    // AlertDescription) intentionally co-locate a small family of components in
+    // one file. This matches the team convention, so disable globally.
+    "react-doctor/no-multi-comp": "off"
+  },
+  "ignore": {
+    "overrides": [
+      {
+        // Deferred tech debt, NOT "fine": these five components are genuinely
+        // oversized and should be split in a future refactor. Grandfathered
+        // here only for these known files — the rule stays ACTIVE everywhere
+        // else so NEW giant components are still flagged.
+        "files": [
+          "src/components/layout/AppShell.tsx",
+          "src/components/mothers/MotherDetail.tsx",
+          "src/pages/AddMother.tsx",
+          "src/pages/Mothers.tsx",
+          "src/pages/NewDischarge.tsx"
+        ],
+        "rules": ["react-doctor/no-giant-component"]
+      }
+    ]
+  }
+}
