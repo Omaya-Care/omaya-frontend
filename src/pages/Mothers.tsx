@@ -130,7 +130,7 @@ const MothersPage = () => {
   if (isLoading && mothers.length === 0) {
     return (
       <div className="flex flex-1 min-h-0 flex-row gap-6">
-        <div className="w-full lg:w-72 bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3">
+        <div className="w-full lg:w-80 bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3">
           <Skeleton className="h-6 w-24" />
           <Skeleton className="h-9 w-full rounded-md" />
           <Skeleton className="h-8 w-20 rounded-md" />
@@ -176,7 +176,7 @@ const MothersPage = () => {
       <div
         className={`
           flex-shrink-0 flex-col bg-white rounded-2xl overflow-hidden shadow-sm
-          w-full lg:w-72 h-full
+          w-full lg:w-80 h-full
           ${mobileDetailOpen ? "hidden lg:flex" : "flex"}
         `}
       >
@@ -318,7 +318,7 @@ const MothersPage = () => {
         {/* List */}
         <div
           ref={listRef}
-          className="relative flex-1 overflow-y-auto border-t border-gray-200"
+          className="relative flex-1 overflow-y-auto overflow-x-hidden border-t border-gray-200"
         >
           {/* Sliding selection — a gray block + severity accent bar that
               animate to the clicked row instead of jumping. */}

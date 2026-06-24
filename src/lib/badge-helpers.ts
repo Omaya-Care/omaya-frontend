@@ -45,6 +45,16 @@ export function getSeverityBadgeClass(severity: string) {
   return `${t.bg} ${t.fg} ${t.border}`;
 }
 
+export function getStatusDotClass(status: string): string {
+  switch (status) {
+    case "completed":   return "bg-gray-400";
+    case "in_progress": return "bg-primary";
+    case "upcoming":    return "bg-yellow-500";
+    case "missed":      return "bg-red-500";
+    default:            return "bg-gray-400";
+  }
+}
+
 export function getStatusBadgeClass(status: string) {
   switch (status) {
     case "completed":

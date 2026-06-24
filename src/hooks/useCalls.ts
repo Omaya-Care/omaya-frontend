@@ -15,7 +15,9 @@ function toCall(raw: Record<string, unknown>): Call {
     deliveryType: raw.delivery_type as string | undefined,
     flagsRaised: raw.flags_raised as number | undefined,
     severity: raw.severity as Call["severity"],
+    summary: raw.summary as string | undefined,
     transcript: raw.transcript as Call["transcript"],
+    audioUrl: raw.audio_url as string | undefined,
   };
 }
 

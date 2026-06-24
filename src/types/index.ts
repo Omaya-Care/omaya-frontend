@@ -72,7 +72,9 @@ export interface Call {
   deliveryType?: string;
   flagsRaised?: number;
   severity?: Severity;
+  summary?: string;
   transcript?: CallTranscriptRow[];
+  audioUrl?: string;
 }
 
 export interface EscalationItem {

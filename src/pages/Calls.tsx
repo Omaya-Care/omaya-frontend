@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Search, ArrowLeft, SlidersHorizontal, X } from "lucide-react";
 import { useCalls, useCall } from "../hooks/useCalls";
 import { CallListItem } from "../components/calls/CallListItem";
@@ -6,6 +6,8 @@ import { CallDetail } from "../components/calls/CallDetail";
 import { Input } from "@/components/ui/Input";
 import { Skeleton } from "../components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
+import { useSlideIndicator } from "../hooks/useSlideIndicator";
+import { getStatusDotClass } from "../lib/badge-helpers";
 
 const CallsPage = () => {
   const [selectedCallId, setSelectedCallId] = useState<string>("");
@@ -31,6 +33,8 @@ const CallsPage = () => {
     }
   }, [calls, selectedCallId]);
 
+  const listRef = useRef<HTMLDivElement>(null);
+
   const activeFilterCount = (statusFilter !== "all" ? 1 : 0) + (dateFilter !== "all" ? 1 : 0);
 
   const filteredCalls = useMemo(() => {
@@ -50,6 +54,13 @@ if (search.trim()) {
     // react-doctor-disable-next-line react-doctor/exhaustive-deps
   }, [calls, statusFilter, dateFilter, search]);
 
+  const callIndicator = useSlideIndicator(listRef, '[data-slide-active="true"]', [
+    selectedCallId,
+    filteredCalls,
+  ]);
+  const activeCall = filteredCalls.find((c) => c.id === selectedCallId);
+  const activeAccent = activeCall ? getStatusDotClass(activeCall.status) : "";
+
   const handleSelectCall = (id: string) => {
     setSelectedCallId(id);
     setMobileDetailOpen(true);
@@ -58,7 +69,7 @@ if (search.trim()) {
   if (isLoading && calls.length === 0) {
     return (
       <div className="flex flex-1 min-h-0 flex-row gap-6">
-        <div className="w-full lg:w-72 bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3">
+        <div className="w-full lg:w-80 bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3">
           <Skeleton className="h-6 w-16" />
           <Skeleton className="h-9 w-full rounded-md" />
           <div className="flex gap-1.5">
@@ -87,7 +98,7 @@ if (search.trim()) {
       <div
         className={`
           flex-shrink-0 flex-col bg-white rounded-2xl overflow-hidden shadow-sm
-          w-full lg:w-72 h-full
+          w-full lg:w-80 h-full
           ${mobileDetailOpen ? "hidden lg:flex" : "flex"}
         `}
       >
@@ -177,7 +188,31 @@ if (search.trim()) {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto border-t border-gray-200">
+        <div
+          ref={listRef}
+          className="relative flex-1 overflow-y-auto overflow-x-hidden border-t border-gray-200"
+        >
+          {/* Sliding selection — background block + status accent bar */}
+          {callIndicator && (
+            <>
+              <div
+                aria-hidden
+                className="absolute left-0 right-0 top-0 z-0 bg-gray-50 transition-all duration-300 ease-out pointer-events-none"
+                style={{
+                  height: callIndicator.height,
+                  transform: `translateY(${callIndicator.top}px)`,
+                }}
+              />
+              <div
+                aria-hidden
+                className={`absolute left-0 top-0 z-0 w-1 transition-all duration-300 ease-out pointer-events-none ${activeAccent}`}
+                style={{
+                  height: callIndicator.height,
+                  transform: `translateY(${callIndicator.top}px)`,
+                }}
+              />
+            </>
+          )}
           {filteredCalls.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-1 px-4">
               <p className="text-sm text-gray-400 font-normal text-center">No calls match this filter.</p>
