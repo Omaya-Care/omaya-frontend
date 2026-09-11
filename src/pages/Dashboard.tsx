@@ -13,7 +13,8 @@ import { useMothers } from "../hooks/useMothers";
 import { useCalls } from "../hooks/useCalls";
 import { useEscalations } from "../hooks/useEscalations";
 import { useDashboardStats } from "../hooks/useDashboardStats";
-import { useExpertStats } from "../hooks/useExpertRequests";
+import { useExpertStats, useExpertQueue, useMyExpertRequests } from "../hooks/useExpertRequests";
+import { ExpertRequestListItem } from "../components/expert-requests/ExpertRequestListItem";
 import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
 import { useAuth } from "../contexts/AuthContext";
@@ -31,6 +32,8 @@ import { Alert, AlertTitle, AlertDescription } from "../components/ui/alert";
 const ExpertDashboard = () => {
   const navigate = useNavigate();
   const { data: stats, isLoading } = useExpertStats();
+  const { data: queue = [], isLoading: isQueueLoading } = useExpertQueue();
+  const { data: mine = [], isLoading: isMineLoading } = useMyExpertRequests();
   const clinician = getClinician();
   const firstName = clinician?.name?.split(/\s+/)[0] ?? "there";
   const ratingPct =
@@ -91,23 +94,82 @@ const ExpertDashboard = () => {
         )}
       </div>
 
-      <Card className="border-gray-200 shadow-sm rounded-2xl">
-        <CardContent className="p-5 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Unclaimed requests waiting</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Check the queue for mothers waiting to talk to someone in your category.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate("/expert-requests")}
-            className="text-sm font-medium text-primary hover:opacity-80 transition-opacity whitespace-nowrap"
-          >
-            Go to queue
-          </button>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col lg:flex-row gap-4">
+        <Card className="border-gray-200 shadow-sm rounded-2xl flex-1 flex flex-col min-h-[200px]">
+          <CardHeader className="px-3 md:px-5 pt-4 md:pt-5 pb-0">
+            <SectionHeader
+              title="Waiting in your queue"
+              count={queue.length > 0 ? queue.length : undefined}
+              onViewAll={() => navigate("/expert-requests")}
+            />
+          </CardHeader>
+          <CardContent className="px-3 md:px-5 pb-3 flex-1 flex flex-col">
+            {isQueueLoading ? (
+              <div className="flex flex-col gap-3 py-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-[64px] w-full rounded-lg" />
+                ))}
+              </div>
+            ) : queue.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
+                <CheckCircle2 size={32} className="text-primary" />
+                <span className="text-sm font-semibold text-gray-700 mt-1">All caught up</span>
+                <span className="text-xs text-gray-400 font-normal text-center max-w-[220px]">
+                  No unclaimed requests in your category right now.
+                </span>
+              </div>
+            ) : (
+              <div className="-mx-3 md:-mx-5">
+                {queue.slice(0, 5).map((item) => (
+                  <ExpertRequestListItem
+                    key={item.id}
+                    item={item}
+                    isSelected={false}
+                    onClick={() => navigate("/expert-requests")}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-200 shadow-sm rounded-2xl flex-1 flex flex-col min-h-[200px]">
+          <CardHeader className="px-3 md:px-5 pt-4 md:pt-5 pb-0">
+            <SectionHeader
+              title="Your active conversations"
+              count={mine.length > 0 ? mine.length : undefined}
+              onViewAll={() => navigate("/expert-requests")}
+            />
+          </CardHeader>
+          <CardContent className="px-3 md:px-5 pb-3 flex-1 flex flex-col">
+            {isMineLoading ? (
+              <div className="flex flex-col gap-3 py-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-[64px] w-full rounded-lg" />
+                ))}
+              </div>
+            ) : mine.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
+                <span className="text-sm font-semibold text-gray-700 mt-1">Nothing active</span>
+                <span className="text-xs text-gray-400 font-normal text-center max-w-[220px]">
+                  Claim a request from the queue to start a conversation.
+                </span>
+              </div>
+            ) : (
+              <div className="-mx-3 md:-mx-5">
+                {mine.slice(0, 5).map((item) => (
+                  <ExpertRequestListItem
+                    key={item.id}
+                    item={item}
+                    isSelected={false}
+                    onClick={() => navigate("/expert-requests")}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
