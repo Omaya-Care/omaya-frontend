@@ -59,14 +59,21 @@ const QueueDetail = ({ request, onClaimed }: QueueDetailProps) => {
           <h2 className="text-xl font-bold text-gray-900 mb-1">
             {getExpertCategoryLabel(request.category)}
           </h2>
-          <Badge
-            variant="outline"
-            className={getExpertRequestStatusBadgeClass(request.status)}
-            size="sm"
-            dot
-          >
-            {getExpertRequestStatusLabel(request.status)}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            {request.urgent && (
+              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200" size="sm">
+                Urgent
+              </Badge>
+            )}
+            <Badge
+              variant="outline"
+              className={getExpertRequestStatusBadgeClass(request.status)}
+              size="sm"
+              dot
+            >
+              {getExpertRequestStatusLabel(request.status)}
+            </Badge>
+          </div>
         </div>
 
         <div className="px-4 py-4">

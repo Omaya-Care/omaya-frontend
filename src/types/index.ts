@@ -193,6 +193,9 @@ export interface ExpertRequestItem {
   respondedAt: string | null;
   reported: boolean;
   rating: ExpertRating | null;
+  // Sorts to the front of the queue — set only by the self-harm auto-queue
+  // path today, never by a mother's ordinary request.
+  urgent: boolean;
 }
 
 export interface MyExpertRequestItem extends ExpertRequestItem {

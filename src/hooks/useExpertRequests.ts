@@ -28,6 +28,7 @@ function toExpertRequestItem(raw: Record<string, unknown>): ExpertRequestItem {
     respondedAt: (raw.responded_at as string | null) ?? null,
     reported: (raw.reported as boolean) ?? false,
     rating: (raw.rating as ExpertRequestItem["rating"]) ?? null,
+    urgent: (raw.urgent as boolean) ?? false,
   };
 }
 

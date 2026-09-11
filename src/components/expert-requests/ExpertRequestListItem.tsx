@@ -47,6 +47,11 @@ const ExpertRequestListItem = ({ item, isSelected, onClick }: ExpertRequestListI
               {getExpertCategoryLabel(item.category)}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
+              {item.urgent && (
+                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200" size="sm">
+                  Urgent
+                </Badge>
+              )}
               {hasThreadPreview(item) && item.messageCount > 0 && (
                 <span className="text-[11px] text-gray-400 font-normal">
                   {item.messageCount}
