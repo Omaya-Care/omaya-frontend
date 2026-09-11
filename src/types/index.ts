@@ -138,6 +138,10 @@ export interface Me {
   // expert-roster account (null otherwise).
   bio: string | null;
   yearsOfExperience: number | null;
+  // Portal-visible only — not shown on the mother-facing card.
+  languages: string[];
+  // Shown on the consent card alongside category.
+  specialty: string | null;
 }
 
 export interface RolePermissions {

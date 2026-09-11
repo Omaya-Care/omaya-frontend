@@ -189,13 +189,19 @@ export const useUpdateMe = () => {
     mutationFn: async (
       input:
         | string
-        | { name: string; bio?: string | null; years_of_experience?: number | null },
+        | {
+            name: string;
+            bio?: string | null;
+            years_of_experience?: number | null;
+            languages?: string[] | null;
+            specialty?: string | null;
+          },
     ) => {
-      // bio/years_of_experience are OMA-341 additions — omitted keys (not
-      // sent at all, vs. an explicit null) leave the backend's existing
-      // value untouched; JSON.stringify already drops `undefined` keys, so
-      // a plain string call (every pre-existing caller) still sends
-      // exactly `{name}`.
+      // bio/years_of_experience/languages/specialty are OMA-341 additions —
+      // omitted keys (not sent at all, vs. an explicit null) leave the
+      // backend's existing value untouched; JSON.stringify already drops
+      // `undefined` keys, so a plain string call (every pre-existing
+      // caller) still sends exactly `{name}`.
       const body = typeof input === "string" ? { name: input } : input;
       const res = await api.patch("/auth/me", body);
       return toMe(res.data) as Me;

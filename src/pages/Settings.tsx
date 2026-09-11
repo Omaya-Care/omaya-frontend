@@ -299,6 +299,8 @@ const SettingsPage = () => {
   const isExpertAccount = me?.hospitalName === EXPERT_HOSPITAL_NAME;
   const [bio, setBio] = useState('');
   const [yearsOfExperience, setYearsOfExperience] = useState('');
+  const [specialty, setSpecialty] = useState('');
+  const [languages, setLanguages] = useState('');
   // In-app escalation alert sound — persisted per-browser in localStorage. This
   // chime is the de-facto real-time notifier, so it defaults ON; muting is an
   // explicit opt-out. Muting only silences the chime — OS notifications (when
@@ -327,6 +329,8 @@ const SettingsPage = () => {
     if (me) {
       setBio(me.bio ?? '');
       setYearsOfExperience(me.yearsOfExperience != null ? String(me.yearsOfExperience) : '');
+      setSpecialty(me.specialty ?? '');
+      setLanguages(me.languages.join(', '));
     }
   }, [me]);
 
@@ -363,8 +367,17 @@ const SettingsPage = () => {
   const trimmedYears = yearsOfExperience.trim();
   const parsedYears = trimmedYears === '' ? null : Number(trimmedYears);
   const yearsValid = trimmedYears === '' || (Number.isInteger(parsedYears) && parsedYears! >= 0 && parsedYears! <= 80);
+  const parsedLanguages = languages
+    .split(',')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  const languagesChanged =
+    parsedLanguages.join(' ') !== (me?.languages ?? []).join(' ');
   const expertProfileChanged =
-    bio.trim() !== (me?.bio ?? '').trim() || parsedYears !== (me?.yearsOfExperience ?? null);
+    bio.trim() !== (me?.bio ?? '').trim() ||
+    parsedYears !== (me?.yearsOfExperience ?? null) ||
+    specialty.trim() !== (me?.specialty ?? '').trim() ||
+    languagesChanged;
   const canSaveExpertProfile =
     expertProfileChanged && yearsValid && !updateMe.isPending && !isLoading;
 
@@ -375,6 +388,8 @@ const SettingsPage = () => {
         name: (me?.name ?? '').trim() || (me?.email ?? ''),
         bio: bio.trim() || null,
         years_of_experience: parsedYears,
+        specialty: specialty.trim() || null,
+        languages: parsedLanguages,
       });
       toast.success('Expert profile updated.');
     } catch (err) {
@@ -497,18 +512,37 @@ const SettingsPage = () => {
                 rows={3}
                 maxLength={2000}
               />
-              <Input
-                label="Years of experience"
-                type="number"
-                min={0}
-                max={80}
-                value={yearsOfExperience}
-                onChange={(e) => setYearsOfExperience(e.target.value)}
-                className="max-w-[200px]"
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Years of experience"
+                  type="number"
+                  min={0}
+                  max={80}
+                  value={yearsOfExperience}
+                  onChange={(e) => setYearsOfExperience(e.target.value)}
+                />
+                <Input
+                  label="Specialty / focus"
+                  value={specialty}
+                  onChange={(e) => setSpecialty(e.target.value)}
+                  placeholder="e.g. Postpartum depression"
+                  maxLength={200}
+                  fullWidth
+                />
+              </div>
               {!yearsValid && (
                 <p className="text-xs text-red-500 -mt-2">Enter a whole number between 0 and 80.</p>
               )}
+              <Input
+                label="Languages spoken"
+                value={languages}
+                onChange={(e) => setLanguages(e.target.value)}
+                placeholder="e.g. English, Twi, Ga"
+                fullWidth
+              />
+              <p className="text-xs text-gray-400 -mt-3">
+                Separate languages with commas. Shown in the portal only, not to mothers.
+              </p>
             </div>
             <div className="flex justify-end mt-5">
               <Button
