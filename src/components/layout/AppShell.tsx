@@ -13,6 +13,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  HeartHandshake,
 } from "lucide-react";
 import { useDrawer } from "../../contexts/DrawerContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -22,6 +23,7 @@ import {
   clearSession,
   initialsOf,
   SESSION_STORAGE_KEY,
+  EXPERT_HOSPITAL_NAME,
 } from "../../lib/auth";
 import { logout } from "../../lib/auth-api";
 import { useSlideIndicator } from "../../hooks/useSlideIndicator";
@@ -58,18 +60,29 @@ interface AppShellProps {
 }
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", route: "/dashboard" },
-  { icon: Users,           label: "Mothers",   route: "/mothers" },
-  { icon: Phone,           label: "Calls",     route: "/calls" },
-  { icon: UserCog,         label: "Staff",     route: "/staff" },
+  { icon: LayoutDashboard,  label: "Dashboard",       route: "/dashboard" },
+  { icon: Users,            label: "Mothers",         route: "/mothers" },
+  { icon: Phone,            label: "Calls",           route: "/calls" },
+  { icon: HeartHandshake,   label: "Expert requests", route: "/expert-requests" },
+  { icon: UserCog,          label: "Staff",           route: "/staff" },
 ];
 
 const navItemPermissions: Record<string, keyof RolePermissions | null> = {
   "/dashboard": null,
   "/mothers": "view_mothers",
   "/calls": "view_mothers",
+  "/expert-requests": "view_mothers",
   "/staff": "manage_staff",
 };
+
+// Mother-cohort pages (Dashboard/Mothers/Calls/Staff) are meaningless for an
+// expert-roster account — it has no mothers of its own, RLS returns nothing
+// for all of them. /expert-requests is the inverse: it's THE page for an
+// expert account and pure noise for an ordinary hospital clinician (even one
+// with view_mothers). Both directions are hospital-name-gated on top of the
+// permission filter below, not permission-gated — see EXPERT_HOSPITAL_NAME.
+const EXPERT_ONLY_ROUTES = new Set(["/expert-requests"]);
+const NON_EXPERT_ROUTES = new Set(["/dashboard", "/mothers", "/calls", "/staff"]);
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigate = useNavigate();
@@ -81,7 +94,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
 
+  const clinician = getClinician();
+  const isExpertAccount = clinician?.hospital_name === EXPERT_HOSPITAL_NAME;
+
   const visibleNavItems = navItems.filter((item) => {
+    if (isExpertAccount && NON_EXPERT_ROUTES.has(item.route)) return false;
+    if (!isExpertAccount && EXPERT_ONLY_ROUTES.has(item.route)) return false;
     const required = navItemPermissions[item.route];
     return required === null || can(required);
   });
@@ -95,7 +113,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     visibleNavItems.length,
   ]);
 
-  const clinician = getClinician();
   const displayName = clinician?.name ?? clinician?.email ?? "";
   const roleLabel = clinician?.role ?? "";
   const hospitalName = clinician?.hospital_name ?? "";

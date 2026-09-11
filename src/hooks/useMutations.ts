@@ -186,8 +186,18 @@ export const useDeleteRole = () => {
 export const useUpdateMe = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (name: string) => {
-      const res = await api.patch("/auth/me", { name });
+    mutationFn: async (
+      input:
+        | string
+        | { name: string; bio?: string | null; years_of_experience?: number | null },
+    ) => {
+      // bio/years_of_experience are OMA-341 additions — omitted keys (not
+      // sent at all, vs. an explicit null) leave the backend's existing
+      // value untouched; JSON.stringify already drops `undefined` keys, so
+      // a plain string call (every pre-existing caller) still sends
+      // exactly `{name}`.
+      const body = typeof input === "string" ? { name: input } : input;
+      const res = await api.patch("/auth/me", body);
       return toMe(res.data) as Me;
     },
     onSuccess: (data) => {
@@ -197,6 +207,63 @@ export const useUpdateMe = () => {
       if (stored) {
         setSession({ ...stored, name: data.name }, data.mustChangePassword);
       }
+    },
+  });
+};
+
+// OMA-341 — expert requests: claim / reply / complete.
+
+export const useClaimExpertRequest = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const res = await api.post(`/expert-requests/${requestId}/claim`);
+      // status lands 'assigned' — the consent card was sent (or attempted,
+      // see `sent`); she has to answer it before /reply will accept
+      // anything (409 `awaiting_mother_consent` until then).
+      return res.data as { id: string; status: string; sent: boolean; detail: string | null };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expert-requests", "queue"] });
+      queryClient.invalidateQueries({ queryKey: ["expert-requests", "mine"] });
+    },
+  });
+};
+
+export const useSendExpertTyping = () => {
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const res = await api.post(`/expert-requests/${requestId}/typing`);
+      return res.data as { sent: boolean };
+    },
+    // No cache invalidation — this is a fire-and-forget UX signal, not
+    // state the rest of the app reads back.
+  });
+};
+
+export const useReplyToExpertRequest = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ requestId, body }: { requestId: string; body: string }) => {
+      const res = await api.post(`/expert-requests/${requestId}/reply`, { body });
+      return res.data as { id: string; status: string; sent: boolean; detail: string | null };
+    },
+    onSuccess: (_data, { requestId }) => {
+      queryClient.invalidateQueries({ queryKey: ["expert-requests", "thread", requestId] });
+      queryClient.invalidateQueries({ queryKey: ["expert-requests", "mine"] });
+    },
+  });
+};
+
+export const useCompleteExpertRequest = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const res = await api.post(`/expert-requests/${requestId}/complete`);
+      return res.data as { id: string; status: string; rating_prompt_sent: boolean };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expert-requests", "mine"] });
     },
   });
 };
