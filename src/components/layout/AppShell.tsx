@@ -65,6 +65,7 @@ const navItems = [
   { icon: Phone,            label: "Calls",           route: "/calls" },
   { icon: HeartHandshake,   label: "Expert requests", route: "/expert-requests" },
   { icon: UserCog,          label: "Staff",           route: "/staff" },
+  { icon: Settings,         label: "Settings",        route: "/settings" },
 ];
 
 const navItemPermissions: Record<string, keyof RolePermissions | null> = {
@@ -73,16 +74,20 @@ const navItemPermissions: Record<string, keyof RolePermissions | null> = {
   "/calls": "view_mothers",
   "/expert-requests": "view_mothers",
   "/staff": "manage_staff",
+  "/settings": null,
 };
 
-// Mother-cohort pages (Dashboard/Mothers/Calls/Staff) are meaningless for an
+// Mother-cohort pages (Mothers/Calls/Staff) are meaningless for an
 // expert-roster account — it has no mothers of its own, RLS returns nothing
-// for all of them. /expert-requests is the inverse: it's THE page for an
-// expert account and pure noise for an ordinary hospital clinician (even one
-// with view_mothers). Both directions are hospital-name-gated on top of the
-// permission filter below, not permission-gated — see EXPERT_HOSPITAL_NAME.
+// for all of them. Dashboard is NOT one of these: it renders a completely
+// different, expert-specific view (see Dashboard.tsx's ExpertDashboard), so
+// it stays visible for both account types. /expert-requests is the inverse
+// of the mother-cohort pages: it's THE page for an expert account and pure
+// noise for an ordinary hospital clinician (even one with view_mothers).
+// Both directions are hospital-name-gated on top of the permission filter
+// below, not permission-gated — see EXPERT_HOSPITAL_NAME.
 const EXPERT_ONLY_ROUTES = new Set(["/expert-requests"]);
-const NON_EXPERT_ROUTES = new Set(["/dashboard", "/mothers", "/calls", "/staff"]);
+const NON_EXPERT_ROUTES = new Set(["/mothers", "/calls", "/staff"]);
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigate = useNavigate();
