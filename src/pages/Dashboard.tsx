@@ -13,20 +13,114 @@ import { useMothers } from "../hooks/useMothers";
 import { useCalls } from "../hooks/useCalls";
 import { useEscalations } from "../hooks/useEscalations";
 import { useDashboardStats } from "../hooks/useDashboardStats";
+import { useExpertStats } from "../hooks/useExpertRequests";
 import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
 import { useAuth } from "../contexts/AuthContext";
-import { getClinician } from "../lib/auth";
+import { EXPERT_HOSPITAL_NAME, getClinician } from "../lib/auth";
 import { formatResponseMinutes } from "../lib/format";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Separator } from "../components/ui/separator";
 import { Skeleton } from "../components/ui/skeleton";
 import { Alert, AlertTitle, AlertDescription } from "../components/ui/alert";
 
+// OMA-341: an expert-roster account has no mothers of its own — the
+// mother-cohort dashboard below would just be four empty stat cards and a
+// "no calls" table. This is a completely different, much lighter view for
+// that account type, not a variant of the same one.
+const ExpertDashboard = () => {
+  const navigate = useNavigate();
+  const { data: stats, isLoading } = useExpertStats();
+  const clinician = getClinician();
+  const firstName = clinician?.name?.split(/\s+/)[0] ?? "there";
+  const ratingPct =
+    stats && stats.ratingTotalCount > 0
+      ? Math.round((stats.ratingGoodCount / stats.ratingTotalCount) * 100)
+      : null;
+
+  return (
+    <div className="flex flex-col gap-6 pb-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}</h1>
+        <p className="text-sm text-gray-400 mt-0.5">Here's how your requests are going.</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="border-0 shadow-none rounded-2xl bg-surface-tint-3">
+              <CardContent className="p-3 md:p-4 space-y-2">
+                <Skeleton className="h-4 w-24 bg-primary-200" />
+                <Skeleton className="h-3 w-32 bg-primary-200" />
+                <Skeleton className="h-9 w-16 bg-primary-200" />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <>
+            <StatCard
+              label="Requests this week"
+              sublabel="Claimed by you"
+              value={stats?.requestsThisWeek ?? 0}
+              tint={3}
+            />
+            <StatCard
+              label="Active conversations"
+              sublabel="Open right now"
+              value={stats?.activeConversations ?? 0}
+              tint={3}
+              onViewAll={() => navigate("/expert-requests")}
+            />
+            <StatCard
+              label="Completed this week"
+              sublabel="Marked done"
+              value={stats?.completedThisWeek ?? 0}
+              tint={3}
+            />
+            <StatCard
+              label="Your rating"
+              sublabel={
+                stats && stats.ratingTotalCount > 0
+                  ? `From ${stats.ratingTotalCount} rated conversation${stats.ratingTotalCount === 1 ? "" : "s"}`
+                  : "No ratings yet"
+              }
+              value={ratingPct != null ? `${ratingPct}% good` : "—"}
+              tint={3}
+            />
+          </>
+        )}
+      </div>
+
+      <Card className="border-gray-200 shadow-sm rounded-2xl">
+        <CardContent className="p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Unclaimed requests waiting</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Check the queue for mothers waiting to talk to someone in your category.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/expert-requests")}
+            className="text-sm font-medium text-primary hover:opacity-80 transition-opacity whitespace-nowrap"
+          >
+            Go to queue
+          </button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { openDrawer } = useDrawer();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+
+  // Hook order must stay unconditional regardless of which branch renders
+  // below, so this check happens AFTER every hook call in this component —
+  // see the early return just before the mother-cohort JSX.
+  const isExpertAccount = user?.hospitalName === EXPERT_HOSPITAL_NAME;
   const { data: mothers = [], isLoading: mothersLoading } = useMothers();
   const todayISO = new Date().toISOString().slice(0, 10);
   const { data: calls = [], isLoading: callsLoading, isError: callsError, refetch: refetchCalls } = useCalls(todayISO);
@@ -68,6 +162,10 @@ const Dashboard = () => {
 
   const clinician = getClinician();
   const firstName = clinician?.name?.split(/\s+/)[0] ?? "User";
+
+  // Every hook above has already run unconditionally — this only decides
+  // which JSX comes back, so Rules of Hooks holds regardless of account type.
+  if (isExpertAccount) return <ExpertDashboard />;
 
   return (
     <div className="flex flex-col gap-6 pb-6">

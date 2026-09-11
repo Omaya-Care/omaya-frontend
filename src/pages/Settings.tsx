@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { Loader2, Lock, Eye, EyeOff, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Input } from '../components/ui/Input';
+import { Textarea } from '../components/ui/textarea';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
 import { Alert, AlertDescription } from '../components/ui/alert';
@@ -10,6 +11,7 @@ import { useUpdateMe, useChangePassword } from '../hooks/useMutations';
 import { useEscalationSound } from '../hooks/useEscalationSound';
 import { isAlertSoundEnabled, setAlertSoundEnabled } from '../lib/alert-prefs';
 import { extractApiError } from '../lib/api';
+import { EXPERT_HOSPITAL_NAME } from '../lib/auth';
 import { toast } from 'sonner';
 
 /* ─── Toggle ─────────────────────────────────────────────────── */
@@ -291,6 +293,12 @@ const SettingsPage = () => {
   const notificationsSectionRef = useRef<HTMLDivElement>(null);
 
   const [name, setName] = useState('');
+  // OMA-341: expert-roster-only fields — what a mother sees on the consent
+  // card before she agrees to talk. Separate save action from the name
+  // field above (different section, different "changed" gate).
+  const isExpertAccount = me?.hospitalName === EXPERT_HOSPITAL_NAME;
+  const [bio, setBio] = useState('');
+  const [yearsOfExperience, setYearsOfExperience] = useState('');
   // In-app escalation alert sound — persisted per-browser in localStorage. This
   // chime is the de-facto real-time notifier, so it defaults ON; muting is an
   // explicit opt-out. Muting only silences the chime — OS notifications (when
@@ -313,6 +321,13 @@ const SettingsPage = () => {
 
   useEffect(() => {
     if (me) setName(me.name ?? '');
+  }, [me]);
+
+  useEffect(() => {
+    if (me) {
+      setBio(me.bio ?? '');
+      setYearsOfExperience(me.yearsOfExperience != null ? String(me.yearsOfExperience) : '');
+    }
   }, [me]);
 
   // Deep-link from the notifications bell's alert-sound link
@@ -342,6 +357,28 @@ const SettingsPage = () => {
       toast.success('Profile updated.');
     } catch {
       toast.error('Failed to save changes. Please try again.');
+    }
+  };
+
+  const trimmedYears = yearsOfExperience.trim();
+  const parsedYears = trimmedYears === '' ? null : Number(trimmedYears);
+  const yearsValid = trimmedYears === '' || (Number.isInteger(parsedYears) && parsedYears! >= 0 && parsedYears! <= 80);
+  const expertProfileChanged =
+    bio.trim() !== (me?.bio ?? '').trim() || parsedYears !== (me?.yearsOfExperience ?? null);
+  const canSaveExpertProfile =
+    expertProfileChanged && yearsValid && !updateMe.isPending && !isLoading;
+
+  const handleSaveExpertProfile = async () => {
+    if (!canSaveExpertProfile) return;
+    try {
+      await updateMe.mutateAsync({
+        name: (me?.name ?? '').trim() || (me?.email ?? ''),
+        bio: bio.trim() || null,
+        years_of_experience: parsedYears,
+      });
+      toast.success('Expert profile updated.');
+    } catch (err) {
+      toast.error(extractApiError(err, 'Failed to save your expert profile.').message);
     }
   };
 
@@ -444,6 +481,48 @@ const SettingsPage = () => {
             </>
           )}
         </Section>
+
+        {/* ── Expert profile (OMA-341, expert-roster accounts only) ── */}
+        {!isLoading && isExpertAccount && (
+          <Section
+            heading="My expert profile"
+            subtitle="What a mother sees when you claim her request, before she agrees to talk."
+          >
+            <div className="flex flex-col gap-4">
+              <Textarea
+                label="Short bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="A sentence or two about how you help mothers."
+                rows={3}
+                maxLength={2000}
+              />
+              <Input
+                label="Years of experience"
+                type="number"
+                min={0}
+                max={80}
+                value={yearsOfExperience}
+                onChange={(e) => setYearsOfExperience(e.target.value)}
+                className="max-w-[200px]"
+              />
+              {!yearsValid && (
+                <p className="text-xs text-red-500 -mt-2">Enter a whole number between 0 and 80.</p>
+              )}
+            </div>
+            <div className="flex justify-end mt-5">
+              <Button
+                variant="default"
+                onClick={handleSaveExpertProfile}
+                disabled={!canSaveExpertProfile}
+                className="flex items-center gap-2"
+              >
+                {updateMe.isPending && <Loader2 size={16} className="animate-spin" />}
+                {updateMe.isPending ? 'Saving...' : 'Save changes'}
+              </Button>
+            </div>
+          </Section>
+        )}
 
         {/* ── Section 2: Change password ───────────────────────── */}
         <div ref={passwordSectionRef}>
