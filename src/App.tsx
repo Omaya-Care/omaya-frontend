@@ -12,6 +12,7 @@ import {
 } from "react-router-dom";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import SetupPassword from "./pages/SetupPassword";
 import ChangePassword from "./pages/ChangePassword";
 import { AppShell } from "./components/layout/AppShell";
@@ -158,6 +159,7 @@ export default function App() {
                   <Route path="/" element={<Navigate to="/login" replace />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/change-password" element={<ChangePassword />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
                   <Route path="/docs" element={gatedDocs} />
                   <Route path="*" element={<Navigate to="/docs" replace />} />
                 </SentryRoutes>
@@ -169,6 +171,7 @@ export default function App() {
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/activate" element={<SetupPassword />} />
                   <Route path="/reset" element={<SetupPassword />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
                   <Route path="/change-password" element={<ChangePassword />} />
 
                   {/* Protected app */}
