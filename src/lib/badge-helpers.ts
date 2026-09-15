@@ -72,3 +72,51 @@ export function getStatusBadgeClass(status: string) {
       return "bg-gray-100 text-gray-600 border-gray-100";
   }
 }
+
+// OMA-341 — expert_requests.status is a distinct vocabulary from Call's
+// (new/assigned/active/completed/cancelled, not completed/in_progress/
+// upcoming/missed), kept as its own named export rather than adding cases
+// to getStatusBadgeClass/getStatusDotClass above and risking a collision if
+// the two vocabularies ever both need a value the other already claimed.
+export function getExpertRequestStatusBadgeClass(status: string): string {
+  switch (status) {
+    case "new":
+      // unclaimed, waiting → soft amber (pending), same token as Call's "upcoming"
+      return "bg-yellow-50 text-yellow-700 border-yellow-200";
+    case "assigned":
+      return "bg-blue-50 text-blue-700 border-blue-200";
+    case "active":
+      // live conversation → brand pink, same token as Call's "in_progress"
+      return "bg-primary-100 text-primary-700 border-primary-100";
+    case "completed":
+      return "bg-gray-100 text-gray-600 border-gray-100";
+    case "cancelled":
+      return "bg-red-100 text-red-600 border-red-100";
+    default:
+      return "bg-gray-100 text-gray-600 border-gray-100";
+  }
+}
+
+export function getExpertRequestStatusLabel(status: string): string {
+  switch (status) {
+    case "new": return "Unclaimed";
+    case "assigned": return "Assigned";
+    case "active": return "Active";
+    case "completed": return "Completed";
+    case "cancelled": return "Cancelled";
+    default: return status;
+  }
+}
+
+// Matches the mother-facing category picker's row titles verbatim
+// (whatsapp_reply_engine.py's EXPERT_CATEGORY_ROWS) so a clinician sees the
+// same name the mother tapped.
+export function getExpertCategoryLabel(category: string): string {
+  switch (category) {
+    case "psychologist": return "Psychologist";
+    case "lactation_consultant": return "Lactation consultant";
+    case "postpartum_wellness_expert": return "Postpartum wellness";
+    case "other": return "Something else";
+    default: return category;
+  }
+}
