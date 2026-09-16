@@ -34,6 +34,17 @@ import {
   PopoverTrigger,
 } from "../components/ui/popover";
 import { api, extractApiError } from "../lib/api";
+import {
+  collectErrors,
+  dobError,
+  gravidaError,
+  localDigitsOf,
+  paraError,
+  phoneLocalDigitsValid,
+  requiredErrors,
+  type FieldErrors,
+} from "../lib/onboarding-validation";
+import { useErrorReveal } from "../lib/use-error-reveal";
 import { groupPhoneDigits } from "../lib/format";
 import { LANGUAGE_OPTIONS } from "../lib/languages";
 import { useDrawer } from "../contexts/DrawerContext";
@@ -61,9 +72,6 @@ const step2Required = [
   { key: "language", label: "preferred language" },
 ] as const;
 
-const fieldIsEmpty = (val: string | unknown[]) =>
-  typeof val === "string" ? val.trim() === "" : val.length === 0;
-
 const getLanguageLabel = (val: string) => {
   const labels: Record<string, string> = {
     english: "English",
@@ -86,6 +94,10 @@ const getRiskLabel = (val: string) => {
   return labels[val] || val;
 };
 
+// Births can't exceed pregnancies — a rule about the pair, so touching either
+// one reveals it. See `revealTogether`.
+const PARITY_PAIR = [["gravida", "para"]] as const;
+
 const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -94,7 +106,8 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [touched, setTouched] = useState(false);
+  // Which fields have earned an error message yet — see `useErrorReveal`.
+  const reveal = useErrorReveal(PARITY_PAIR);
   const [countryCode, setCountryCode] = useState("+233");
 
   const [formData, setFormData] = useState({
@@ -113,38 +126,53 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
 
   const totalSteps = 5;
 
-  // Para (births) can never exceed gravida (pregnancies) — they're tied.
-  const paraExceedsGravida =
-    formData.gravida !== "" &&
-    formData.para !== "" &&
-    Number(formData.para) > Number(formData.gravida);
+  const phoneDigits = localDigitsOf(formData.phone, countryCode);
+  const phoneValid = phoneLocalDigitsValid(phoneDigits);
 
-  const step2Valid =
-    step2Required.every(
-      (f) => !fieldIsEmpty(formData[f.key as keyof typeof formData] as string | unknown[]),
-    ) && !paraExceedsGravida;
+  // Per-step errors, from the same rules the discharge wizard and the API use
+  // (`lib/onboarding-validation`). One source, so the Continue button and the
+  // field messages can never disagree.
+  const stepErrors = (step: number): FieldErrors => {
+    if (step === 2)
+      return {
+        ...requiredErrors(
+          Object.fromEntries(
+            step2Required.map((f) => [
+              f.key,
+              {
+                value: formData[f.key as keyof typeof formData] as string | unknown[],
+                message: `Please enter her ${f.label}`,
+              },
+            ]),
+          ),
+        ),
+        ...collectErrors({
+          phone: formData.phone && !phoneValid ? "Enter at least 9 digits" : null,
+          dob: dobError(formData.dob),
+          gravida: gravidaError(formData.gravida),
+          para: paraError(formData.gravida, formData.para),
+        }),
+      };
+    if (step === 4)
+      return collectErrors({
+        consentCalls: formData.consentCalls ? null : "Call consent is required to enroll her",
+        whatsappOptIn: formData.whatsappOptIn ? null : "WhatsApp consent is required to enroll her",
+      });
+    return {};
+  };
 
-  const phoneLocal = formData.phone.replace(countryCode, "");
-  const phoneDigits = phoneLocal.replace(/\D/g, "");
-  const phoneValid = phoneDigits.length >= 9;
+  const currentErrors = stepErrors(currentStep);
+  const canContinue = Object.keys(currentErrors).length === 0;
 
   const handleNext = async () => {
-    if (currentStep === 2) {
-      setTouched(true);
-      if (!step2Valid || !phoneValid) return;
-    }
-    if (
-      currentStep === 4 &&
-      (!formData.consentCalls || !formData.whatsappOptIn)
-    ) {
-      setTouched(true);
-      return;
-    }
+    reveal.revealAll();
+    // Same check that greys out the button — no second copy to drift.
+    if (!canContinue) return;
 
     // Advance to next step if not at the final summary step
     if (currentStep < totalSteps) {
       setCurrentStep((prev) => prev + 1);
-      setTouched(false);
+      reveal.reset();
       return;
     }
 
@@ -182,7 +210,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep((prev) => prev - 1);
-      setTouched(false);
+      reveal.reset();
     }
   };
 
@@ -190,28 +218,14 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
     field: K,
     value: (typeof formData)[K],
   ) => {
+    // She has now had a say on this field, so its rule may speak.
+    reveal.touch(field as string);
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (touched) {
-      const fields = [
-        ...step2Required.map((f) => f.key),
-        "consentCalls" as const,
-        "whatsappOptIn" as const,
-      ];
-      if (fields.includes(field as never)) {
-        const isConsentField =
-          field === "consentCalls" || field === "whatsappOptIn";
-        setTouched(!isConsentField || value === true);
-      }
-    }
   };
 
-  const showError = (key: string) => {
-    if (!touched) return false;
-    if (key === "phone") return fieldIsEmpty(formData.phone) || !phoneValid;
-    const field = step2Required.find((f) => f.key === key);
-    if (!field) return false;
-    return fieldIsEmpty(formData[key as keyof typeof formData] as string | unknown[]);
-  };
+  /** The message to show under `key`, if any. */
+  const showError = (key: string): string | undefined =>
+    reveal.shows(key) ? currentErrors[key] : undefined;
 
   return (
     <OnboardingShell
@@ -236,7 +250,9 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
           variant="default"
           onClick={handleNext}
           className="gap-2"
-          disabled={submitting}
+          // Previously only ever disabled while submitting, so on an invalid
+          // step the button looked live but silently did nothing.
+          disabled={submitting || !canContinue}
         >
           {submitting && <Loader2 size={18} className="animate-spin" />}
           <span>
@@ -335,10 +351,8 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   fullWidth
                 />
                 {showError("fullName") && (
-                  <span className="text-xs text-red-500">
-                    Please enter her full name
-                  </span>
-                )}
+<span className="text-xs text-red-500">{showError("fullName")}</span>
+)}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label
@@ -448,10 +462,8 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   </PopoverContent>
                 </Popover>
                 {showError("dob") && (
-                  <span className="text-xs text-red-500">
-                    Please select her date of birth
-                  </span>
-                )}
+<span className="text-xs text-red-500">{showError("dob")}</span>
+)}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label
@@ -499,10 +511,8 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   </PopoverContent>
                 </Popover>
                 {showError("edd") && (
-                  <span className="text-xs text-red-500">
-                    Please select the expected delivery date
-                  </span>
-                )}
+<span className="text-xs text-red-500">{showError("edd")}</span>
+)}
               </div>
             </div>
 
@@ -515,20 +525,13 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   max="30"
                   placeholder="Number of pregnancies"
                   value={formData.gravida}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 30)) {
-                      updateField("gravida", val);
-                    }
-                  }}
+                  onChange={(e) => updateField("gravida", e.target.value)}
                   className={showError("gravida") ? "border-red-400" : ""}
                   fullWidth
                 />
                 {showError("gravida") && (
-                  <span className="text-xs text-red-500">
-                    Please enter number of pregnancies
-                  </span>
-                )}
+<span className="text-xs text-red-500">{showError("gravida")}</span>
+)}
               </div>
               <div className="flex flex-col gap-1.5">
                 <Input
@@ -538,26 +541,13 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                   max="30"
                   placeholder="Number of births"
                   value={formData.para}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 30)) {
-                      updateField("para", val);
-                    }
-                  }}
-                  className={
-                    showError("para") || paraExceedsGravida ? "border-red-400" : ""
-                  }
+                  onChange={(e) => updateField("para", e.target.value)}
+                  className={showError("para") ? "border-red-400" : ""}
                   fullWidth
                 />
-                {showError("para") ? (
-                  <span className="text-xs text-red-500">
-                    Please enter number of births
-                  </span>
-                ) : paraExceedsGravida ? (
-                  <span className="text-xs text-red-500">
-                    Births (para) can't exceed pregnancies (gravida)
-                  </span>
-                ) : null}
+                {showError("para") && (
+                  <span className="text-xs text-red-500">{showError("para")}</span>
+                )}
               </div>
             </div>
 
@@ -576,10 +566,8 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 onChange={(val) => updateField("language", val)}
               />
               {showError("language") && (
-                <span className="text-xs text-red-500">
-                  Please select a preferred language
-                </span>
-              )}
+<span className="text-xs text-red-500">{showError("language")}</span>
+)}
             </div>
           </div>
         </div>
@@ -660,7 +648,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               className={`
                 w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors
                 ${formData.consentCalls ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}
-                ${touched && !formData.consentCalls ? "border-red-400" : ""}
+                ${showError("consentCalls") ? "border-red-400" : ""}
               `}
             >
               <div
@@ -686,7 +674,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 </span>
               </div>
             </button>
-            {touched && !formData.consentCalls && (
+            {showError("consentCalls") && (
               <span className="text-xs text-red-500 -mt-3">
                 You must obtain consent to check-in calls before enrolling
               </span>
@@ -701,7 +689,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               className={`
                 w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors
                 ${formData.whatsappOptIn ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}
-                ${touched && !formData.whatsappOptIn ? "border-red-400" : ""}
+                ${showError("whatsappOptIn") ? "border-red-400" : ""}
               `}
             >
               <div
@@ -727,7 +715,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 </span>
               </div>
             </button>
-            {touched && !formData.whatsappOptIn && (
+            {showError("whatsappOptIn") && (
               <span className="text-xs text-red-500 -mt-3">
                 You must obtain consent to WhatsApp messages before enrolling
               </span>

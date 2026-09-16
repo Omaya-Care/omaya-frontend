@@ -56,7 +56,23 @@ import {
 } from "../components/ui/dialog";
 import { useDrawer } from "../contexts/DrawerContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, extractApiError } from "../lib/api";
+import { api, extractApiError, type ApiFieldError } from "../lib/api";
+import {
+  MIN_MATERNAL_AGE,
+  applyExclusiveChoice,
+  collectErrors,
+  deliveryVsDobError,
+  dischargeVsDeliveryError,
+  dobError,
+  gravidaError,
+  localDigitsOf,
+  paraError,
+  parseFormDate,
+  phoneLocalDigitsValid,
+  requiredErrors,
+  type FieldErrors,
+} from "../lib/onboarding-validation";
+import { useErrorReveal } from "../lib/use-error-reveal";
 import { groupPhoneDigits } from "../lib/format";
 import { LANGUAGE_OPTIONS } from "../lib/languages";
 import { toast } from "sonner";
@@ -87,7 +103,61 @@ interface MotherSearchResult {
   name: string;
   phone: string;
   edd: string;
+  /** Her already-recorded call consent. Forwarded on the discharge so
+   *  scheduling isn't silently suppressed by the server's fail-closed gate. */
+  consent_status: "active" | "pending" | "withdrawn";
 }
+
+/**
+ * Map a backend 422 `fields[].path` onto the wizard's own field name.
+ *
+ * The combined endpoint nests its body as `{mother, discharge}`, so paths
+ * arrive as `mother.gravida` / `discharge.discharge_date`. Both halves are
+ * collected on step 1, which is why almost everything lands there — the point
+ * is that the clinician is taken back to the input rather than left staring at
+ * a banner on the summary screen.
+ */
+const SERVER_FIELD_MAP: Record<string, { field: string; step: number }> = {
+  "mother.full_name": { field: "motherName", step: 1 },
+  "mother.phone": { field: "phoneNumber", step: 1 },
+  "mother.date_of_birth": { field: "dateOfBirth", step: 1 },
+  "mother.gravida": { field: "gravida", step: 1 },
+  "mother.para": { field: "para", step: 1 },
+  "mother.language": { field: "language", step: 1 },
+  "mother.edd": { field: "deliveryDate", step: 1 },
+  "mother.risks_other": { field: "risksOther", step: 4 },
+  "mother.consent_calls": { field: "consentCalls", step: 5 },
+  "mother.whatsapp_opt_in": { field: "whatsappOptIn", step: 5 },
+  "discharge.delivery_date": { field: "deliveryDate", step: 1 },
+  "discharge.discharge_date": { field: "dischargeDate", step: 1 },
+  "discharge.delivery_type": { field: "deliveryType", step: 1 },
+  "discharge.preferred_call_window": { field: "callingWindow", step: 1 },
+  "discharge.outcome": { field: "outcome", step: 2 },
+  "discharge.medications": { field: "medications", step: 3 },
+  "discharge.phone": { field: "phoneNumber", step: 1 },
+};
+
+const mapServerFields = (
+  fields: ApiFieldError[],
+): { errors: FieldErrors; step: number | null } => {
+  const errors: FieldErrors = {};
+  let earliest: number | null = null;
+  for (const f of fields) {
+    // Emergency contacts arrive indexed (`discharge.emergency_contacts.0.phone`);
+    // collapse them onto the one editor that owns them.
+    const key = f.path.startsWith("discharge.emergency_contacts")
+      ? "discharge.emergency_contacts"
+      : f.path;
+    const mapped =
+      key === "discharge.emergency_contacts"
+        ? { field: "emergencyContacts", step: 6 }
+        : SERVER_FIELD_MAP[key];
+    if (!mapped) continue;
+    errors[mapped.field] = f.message;
+    if (earliest === null || mapped.step < earliest) earliest = mapped.step;
+  }
+  return { errors, step: earliest };
+};
 
 const relationshipLabel = (c: EmergencyContactForm) => {
   if (c.relationship === "other") return c.relationshipCustom.trim();
@@ -109,6 +179,25 @@ const labelForMedication = (value: string) => {
   return labels[value] || value.replace(/_/g, " ");
 };
 
+// Multi-selects with an answer that rules out the others. `none` and
+// `not_sure` both mean "no specific medications", so they also rule out each
+// other. Both are stripped before the payload goes out (see `dischargePayload`)
+// — the API only wants real medications — but the clinician must not be able to
+// state two contradictory things on screen.
+const EXCLUSIVE_CHOICES: Record<string, readonly string[]> = {
+  risks: ["none"],
+  medications: ["none", "not_sure"],
+};
+
+// Rules that span two inputs, so touching either input reveals the message.
+// Pinned at module scope: a fresh array each render would needlessly re-create
+// the reveal callbacks.
+const DATE_AND_PARITY_PAIRS = [
+  ["deliveryDate", "dischargeDate"],
+  ["dateOfBirth", "deliveryDate"],
+  ["gravida", "para"],
+] as const;
+
 const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -128,17 +217,15 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   // lives in formData.risksOther and is sent as `risks_other`, NOT in `risks`).
   const [riskOtherOn, setRiskOtherOn] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [touched, setTouched] = useState(false);
+  // Which fields have earned an error message yet. Per field, not one flag —
+  // see `useErrorReveal`.
+  const reveal = useErrorReveal(DATE_AND_PARITY_PAIRS);
   const [countryCode, setCountryCode] = useState("+233");
   // 1–3 emergency contacts (index 0 = primary). Each carries its own country
   // code since each phone is independent. Resets on unmount (drawer close).
   const [emergencyContacts, setEmergencyContacts] = useState<
     EmergencyContactForm[]
   >([emptyEmergencyContact()]);
-  // Holds the mother's id once a record is selected/created. Read only inside
-  // submit handlers to choose the POST path — never rendered — so a ref keeps
-  // it out of the render cycle.
-  const motherIdRef = useRef("");
   const [searchResults, setSearchResults] = useState<MotherSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -234,6 +321,16 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   const dischargeDate = formData.dischargeDate
     ? parse(formData.dischargeDate, "yyyy-MM-dd", new Date())
     : null;
+  // Earliest plausible delivery given her date of birth — mirrors the API's
+  // `delivery_date >= date_of_birth + MIN_MATERNAL_AGE` rule.
+  const dobDate = parseFormDate(formData.dateOfBirth);
+  const earliestDeliveryDate = dobDate
+    ? new Date(
+        dobDate.getFullYear() + MIN_MATERNAL_AGE,
+        dobDate.getMonth(),
+        dobDate.getDate(),
+      )
+    : null;
   const firstCallDate =
     deliveryDate && dischargeDate
       ? deliveryDate >= today
@@ -241,13 +338,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         : format(addDays(new Date(), 1), "dd/MM/yyyy")
       : "";
 
-  // Mirror AddMother's country-code-aware check: strip the dial code + any
-  // separators, require >=9 local digits. (The old +233-only regex rejected
-  // the non-GH numbers enrollment accepts.)
-  const phoneDigits = formData.phoneNumber
-    .replace(countryCode, "")
-    .replace(/\D/g, "");
-  const phoneValid = phoneDigits.length >= 9;
+  // Country-code-aware: strip the dial code + any separators, require >=9
+  // local digits. Shared with AddMother and the emergency-contacts editor —
+  // this rule used to be written out four separate times.
+  const phoneDigits = localDigitsOf(formData.phoneNumber, countryCode);
+  const phoneValid = phoneLocalDigitsValid(phoneDigits);
 
   const emergencyValid = emergencyContactsValid(emergencyContacts);
 
@@ -272,56 +367,120 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     ];
   });
 
-  // Para (births) can never exceed gravida (pregnancies) — they're tied.
-  const paraExceedsGravida =
-    formData.gravida !== "" &&
-    formData.para !== "" &&
-    Number(formData.para) > Number(formData.gravida);
+  // ── Per-step validation ───────────────────────────────────────────
+  //
+  // ONE source of truth. This used to be written out twice — once as
+  // `canContinue` to grey out the button, once again as the same chain of
+  // conditionals inside `handleNext` — so the two could (and did) drift, and
+  // neither covered the cross-field date rules at all. Rules live in
+  // `lib/onboarding-validation` and mirror the API's validators.
+  const stepErrors = (step: number): FieldErrors => {
+    if (step === 0) return {};
 
-  // Whether the current step is complete enough to advance. Mirrors the
-  // per-step guards in handleNext so the Continue button greys out until the
-  // required fields are filled. Optional steps (intro, medications) and the
-  // final review step are always allowed.
-  const canContinue = (() => {
-    if (currentStep === 0) return true;
     if (foundMother) {
-      if (currentStep === 1)
-        return Boolean(
-          formData.deliveryDate &&
-            formData.dischargeDate &&
-            formData.callingWindow &&
-            formData.deliveryType,
-        );
-      if (currentStep === 2) return Boolean(formData.outcome);
-      if (currentStep === 3) return formData.medications.length > 0;
-      if (currentStep === 4) return emergencyValid;
-      return true;
+      if (step === 1)
+        return {
+          ...requiredErrors({
+            deliveryDate: { value: formData.deliveryDate, message: "Please select the delivery date" },
+            dischargeDate: { value: formData.dischargeDate, message: "Please select the discharge date" },
+            callingWindow: { value: formData.callingWindow, message: "Please pick a calling window" },
+            deliveryType: { value: formData.deliveryType, message: "Please select the delivery type" },
+          }),
+          ...collectErrors({
+            dischargeDate: dischargeVsDeliveryError(formData.dischargeDate, formData.deliveryDate),
+          }),
+        };
+      if (step === 2)
+        return requiredErrors({
+          outcome: { value: formData.outcome, message: "Please record the birth outcome" },
+        });
+      if (step === 3)
+        return requiredErrors({
+          medications: { value: formData.medications, message: "Please answer — 'None sent home' counts" },
+        });
+      if (step === 4)
+        return emergencyValid ? {} : { emergencyContacts: "Add at least one complete emergency contact" };
+      return {};
     }
-    if (currentStep === 1)
-      return Boolean(
-        formData.motherName &&
-          formData.phoneNumber &&
-          phoneValid &&
-          formData.dateOfBirth &&
-          formData.gravida !== "" &&
-          formData.para !== "" &&
-          !paraExceedsGravida &&
-          formData.deliveryDate &&
-          formData.dischargeDate &&
-          formData.language &&
-          formData.callingWindow &&
-          formData.deliveryType,
-      );
-    if (currentStep === 2) return Boolean(formData.outcome);
-    if (currentStep === 3) return formData.medications.length > 0;
-    if (currentStep === 4)
+
+    if (step === 1)
+      return {
+        ...requiredErrors({
+          motherName: { value: formData.motherName, message: "Please enter her full name" },
+          phoneNumber: { value: formData.phoneNumber, message: "Please enter her phone number" },
+          dateOfBirth: { value: formData.dateOfBirth, message: "Please select her date of birth" },
+          gravida: { value: formData.gravida, message: "Please enter number of pregnancies" },
+          para: { value: formData.para, message: "Please enter number of births" },
+          deliveryDate: { value: formData.deliveryDate, message: "Please select the delivery date" },
+          dischargeDate: { value: formData.dischargeDate, message: "Please select the discharge date" },
+          language: { value: formData.language, message: "Please pick her preferred language" },
+          callingWindow: { value: formData.callingWindow, message: "Please pick a calling window" },
+          deliveryType: { value: formData.deliveryType, message: "Please select the delivery type" },
+        }),
+        ...collectErrors({
+          phoneNumber: formData.phoneNumber && !phoneValid ? "Enter at least 9 digits" : null,
+          dateOfBirth: dobError(formData.dateOfBirth),
+          gravida: gravidaError(formData.gravida),
+          para: paraError(formData.gravida, formData.para),
+          deliveryDate: deliveryVsDobError(formData.deliveryDate, formData.dateOfBirth),
+          dischargeDate: dischargeVsDeliveryError(formData.dischargeDate, formData.deliveryDate),
+        }),
+      };
+    if (step === 2)
+      return requiredErrors({
+        outcome: { value: formData.outcome, message: "Please record the birth outcome" },
+      });
+    if (step === 3)
+      return requiredErrors({
+        medications: { value: formData.medications, message: "Please answer — 'None sent home' counts" },
+      });
+    if (step === 4)
       // Optional step, but a toggled-on "Other" must be described.
-      return !riskOtherOn || formData.risksOther.trim() !== "";
-    if (currentStep === 5)
-      return Boolean(formData.consentCalls && formData.whatsappOptIn);
-    if (currentStep === 6) return emergencyValid;
-    return true;
-  })();
+      return riskOtherOn && formData.risksOther.trim() === ""
+        ? { risksOther: "Please describe the other risk factor" }
+        : {};
+    if (step === 5)
+      return collectErrors({
+        consentCalls: formData.consentCalls ? null : "Call consent is required to enroll her",
+        whatsappOptIn: formData.whatsappOptIn ? null : "WhatsApp consent is required to enroll her",
+      });
+    if (step === 6)
+      return emergencyValid ? {} : { emergencyContacts: "Add at least one complete emergency contact" };
+    return {};
+  };
+
+  // Errors for the step on screen. Each is rendered once the clinician has
+  // touched that field, or once a failed Continue reveals the whole step.
+  const currentErrors = stepErrors(currentStep);
+  const canContinue = Object.keys(currentErrors).length === 0;
+
+  // Field-level errors surfaced by the SERVER on submit, keyed by the same
+  // form-field names. Merged into the display so a 422 lands on its input.
+  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
+
+  /** The message to show under `field`, if any. */
+  const showError = (field: string): string | undefined =>
+    serverErrors[field] ?? (reveal.shows(field) ? currentErrors[field] : undefined);
+
+  /**
+   * Why no check-in calls were queued, in the clinician's terms.
+   *
+   * The server returns `automated_calls_enabled: false` for several distinct
+   * reasons and this is the only place a human can act on any of them, so say
+   * which one it was rather than showing a generic "saved" toast.
+   */
+  const noCallsReason = (): string => {
+    if (formData.callingWindow === "inbound") {
+      return "Discharge recorded. No calls were scheduled — she's set to call in rather than be called.";
+    }
+    if (foundMother && foundMother.consent_status !== "active") {
+      return "Discharge recorded, but NO check-in calls were scheduled — she hasn't consented to calls. Update her consent on her profile to start them.";
+    }
+    if (!foundMother && !formData.consentCalls) {
+      return "Discharge recorded, but NO check-in calls were scheduled — call consent wasn't given.";
+    }
+    return "Discharge recorded, but NO check-in calls were scheduled. Please check her profile.";
+  };
 
   const handleNext = async () => {
     // Step 0 intro - no validation
@@ -330,62 +489,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
       return;
     }
 
-    setTouched(true);
+    reveal.revealAll();
+    // Same function that greys out the button — no second copy to drift.
+    if (!canContinue) return;
 
-    if (foundMother) {
-      // Shorter 4-step flow validation for existing patients
-      if (currentStep === 1) {
-        const step1Valid =
-          formData.deliveryDate &&
-          formData.dischargeDate &&
-          formData.callingWindow &&
-          formData.deliveryType;
-        if (!step1Valid) return;
-      } else if (currentStep === 2) {
-        const step2Valid = formData.outcome;
-        if (!step2Valid) return;
-      } else if (currentStep === 3) {
-        // Medications must be answered explicitly ("None sent home" counts).
-        if (formData.medications.length === 0) return;
-      }
-      if (currentStep === 4) {
-        if (!emergencyValid) return;
-      }
-    } else {
-      // 7-step flow validation for new patients
-      if (currentStep === 1) {
-        const step1Valid =
-          formData.motherName &&
-          formData.phoneNumber &&
-          phoneValid &&
-          formData.dateOfBirth &&
-          formData.gravida !== "" &&
-          formData.para !== "" &&
-          !paraExceedsGravida &&
-          formData.deliveryDate &&
-          formData.dischargeDate &&
-          formData.language &&
-          formData.callingWindow &&
-          formData.deliveryType;
-        if (!step1Valid) return;
-      } else if (currentStep === 2) {
-        const step2Valid = formData.outcome;
-        if (!step2Valid) return;
-      } else if (currentStep === 3) {
-        // Medications must be answered explicitly ("None sent home" counts).
-        if (formData.medications.length === 0) return;
-      } else if (currentStep === 4) {
-        // Optional step, but a toggled-on "Other" must be described.
-        if (riskOtherOn && formData.risksOther.trim() === "") return;
-      } else if (currentStep === 5) {
-        const step5Valid = formData.consentCalls && formData.whatsappOptIn;
-        if (!step5Valid) return;
-      } else if (currentStep === 6) {
-        if (!emergencyValid) return;
-      }
-    }
-
-    setTouched(false);
+    reveal.reset();
     if (currentStep < totalSteps) {
       setDirection("forward");
       setCurrentStep((prev) => prev + 1);
@@ -404,87 +512,87 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         ),
         outcome: formData.outcome,
         preferred_call_window: formData.callingWindow,
-        // Tells the backend which post-birth WhatsApp template to send: she
-        // was already antenatal-enrolled (found via search) vs. enrolled and
-        // discharged in this same flow — her first contact with Omaya.
-        already_enrolled: Boolean(foundMother),
-        // Existing mothers have no consent step in this flow — omit the keys so
-        // the backend keeps their originally-recorded consent (do NOT fabricate
-        // it as true). Only the new-patient flow below collects fresh consent.
-        ...(foundMother
-          ? {}
-          : {
-              consent_calls: formData.consentCalls,
-              consent_recording: formData.consentRecording,
-              whatsapp_opt_in: formData.whatsappOptIn,
-            }),
         emergency_contacts: toEmergencyContactsPayload(emergencyContacts),
       };
-      if (formData.phoneNumber) {
-        dischargePayload.phone = formData.phoneNumber;
-      }
 
-      let dischargeRes;
-      if (motherIdRef.current) {
-        // existing patient OR new patient whose record was already created on a prior failed attempt
-        dischargeRes = await api.post(`/mothers/${motherIdRef.current}/discharge`, dischargePayload);
+      let res;
+      if (foundMother) {
+        // Existing patient: she already went through onboarding and consent,
+        // so this flow has no consent step and must not invent one.
+        //
+        // It also must not stay SILENT about it. Discharge scheduling fails
+        // closed on a `consent_calls` it wasn't sent, so omitting the key
+        // returned a cheerful 201 with `automated_calls_enabled: false` — she
+        // was discharged, listed, and permanently call-less with nothing on
+        // screen saying so. Forward the consent she actually gave (carried on
+        // the search result) instead of omitting it or fabricating `true`.
+        dischargePayload.already_enrolled = true;
+        dischargePayload.consent_calls = foundMother.consent_status === "active";
+        if (formData.phoneNumber) dischargePayload.phone = formData.phoneNumber;
+        res = await api.post(
+          `/mothers/${foundMother.id}/discharge`,
+          dischargePayload,
+        );
       } else {
-        const motherRes = await api.post("/mothers", {
-          full_name: formData.motherName,
-          phone: formData.phoneNumber,
-          date_of_birth: formData.dateOfBirth,
-          edd: formData.deliveryDate,
-          gravida: parseInt(formData.gravida) || 0,
-          para: parseInt(formData.para) || 0,
-          language: formData.language,
-          risks: formData.risks.filter((r) => r !== "none"),
-          risks_other: formData.risksOther.trim()
-            ? [formData.risksOther.trim()]
-            : [],
-          consent_calls: formData.consentCalls,
-          consent_recording: formData.consentRecording,
-          whatsapp_opt_in: formData.whatsappOptIn,
+        // New patient: ONE atomic request. This used to be two — POST /mothers
+        // then POST /mothers/{id}/discharge — and the first one committed, so
+        // any failure on the second left her in the mothers list with no calls
+        // ever scheduled and no way to retry (re-enrolling 409s on her own
+        // phone number). The combined endpoint lands the mother, the discharge
+        // and the whole call journey under a single commit.
+        dischargePayload.consent_calls = formData.consentCalls;
+        dischargePayload.consent_recording = formData.consentRecording;
+        dischargePayload.whatsapp_opt_in = formData.whatsappOptIn;
+        res = await api.post("/mothers/enroll-with-discharge", {
+          mother: {
+            full_name: formData.motherName,
+            phone: formData.phoneNumber,
+            date_of_birth: formData.dateOfBirth,
+            edd: formData.deliveryDate,
+            gravida: parseInt(formData.gravida) || 0,
+            para: parseInt(formData.para) || 0,
+            language: formData.language,
+            risks: formData.risks.filter((r) => r !== "none"),
+            risks_other: formData.risksOther.trim()
+              ? [formData.risksOther.trim()]
+              : [],
+            consent_calls: formData.consentCalls,
+            consent_recording: formData.consentRecording,
+            whatsapp_opt_in: formData.whatsappOptIn,
+          },
+          discharge: dischargePayload,
         });
-        const newId: string = motherRes.data.mother_id ?? motherRes.data.id;
-        motherIdRef.current = newId;
-        dischargeRes = await api.post(`/mothers/${newId}/discharge`, dischargePayload);
       }
 
-      const firstCallAt: string | null = dischargeRes.data?.first_call_scheduled_at ?? null;
-      const successMsg =
-        formData.outcome === "loss"
-          ? "Discharge recorded. Bereavement support flow activated."
-          : firstCallAt
-            ? `Discharge recorded. First call scheduled for ${format(new Date(firstCallAt), "d MMM 'at' h:mm a")}.`
-            : "Discharge recorded. Her first call has been scheduled.";
+      const firstCallAt: string | null =
+        res.data?.first_call_scheduled_at ?? null;
+      const callsEnabled: boolean = res.data?.automated_calls_enabled ?? false;
+
       queryClient.invalidateQueries({ queryKey: ["mothers"] });
       queryClient.invalidateQueries({ queryKey: ["mother"] });
       queryClient.invalidateQueries({ queryKey: ["calls"] });
-      toast.success(successMsg);
+
+      if (formData.outcome === "loss") {
+        toast.success(
+          "Discharge recorded. Bereavement support flow activated.",
+        );
+      } else if (callsEnabled && firstCallAt) {
+        toast.success(
+          `Discharge recorded. First call scheduled for ${format(new Date(firstCallAt), "d MMM 'at' h:mm a")}.`,
+        );
+      } else {
+        // NOT a plain success. She is saved but no check-in calls were
+        // queued, and the clinician is the only person who can act on that —
+        // it used to pass by as an ordinary success toast.
+        toast.warning(noCallsReason(), { duration: 8000 });
+      }
       handleClose();
     } catch (err: unknown) {
       const apiError = extractApiError(
         err,
         "Could not save discharge. Please try again.",
       );
-      // Log the precise, field-level 422 detail (field + message + type only —
-      // we deliberately don't echo the submitted `input` values, which are PHI)
-      // so a validation failure is debuggable straight from the console.
-      const detail = (err as { response?: { data?: { detail?: unknown } } })
-        ?.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        console.error(
-          "Discharge rejected (422):",
-          detail.map((d) => {
-            const it = d as { loc?: unknown[]; msg?: string; type?: string };
-            return {
-              field: Array.isArray(it.loc) ? it.loc.join(".") : it.loc,
-              msg: it.msg,
-              type: it.type,
-            };
-          }),
-        );
-      }
+
       if (apiError.status === 409 || apiError.error_code === "already_discharged") {
         setSubmitError(
           "This mother has already been discharged. Search for her record to view or update it.",
@@ -496,11 +604,24 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         setSubmitError(
           "You don't have permission to record discharges. Contact your administrator.",
         );
+      } else if (apiError.fields?.length) {
+        // Field-attributed 422: put each message on the input that caused it
+        // and jump back to the earliest offending step, rather than showing
+        // one opaque banner on the summary screen.
+        const { errors, step } = mapServerFields(apiError.fields);
+        setServerErrors(errors);
+        reveal.revealAll();
+        if (step !== null && step !== currentStep) {
+          setDirection("back");
+          setCurrentStep(step);
+        }
+        setSubmitError(
+          "Some details need correcting — see the highlighted fields.",
+        );
       } else if (
         apiError.status === 422 ||
         apiError.error_code === "validation_error"
       ) {
-        // Show exactly which field(s) the backend rejected.
         setSubmitError(`Some details were rejected — ${apiError.message}`);
       } else {
         setSubmitError(apiError.message);
@@ -511,7 +632,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   };
 
   const handleBack = () => {
-    setTouched(false);
+    reveal.reset();
     setDirection("back");
     if (currentStep === 0) {
       requestClose();
@@ -528,27 +649,38 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     }
   };
 
+  /** Contacts change like any other field, so they reveal like one too. */
+  const updateEmergencyContacts = (contacts: EmergencyContactForm[]) => {
+    reveal.touch("emergencyContacts");
+    setEmergencyContacts(contacts);
+  };
+
   const updateField = <K extends keyof typeof formData>(
     field: K,
     value: (typeof formData)[K],
   ) => {
-    if (field === "risks") {
-      const newRisks = value as string[];
-      const prevRisks = formData.risks;
-
-      // If 'none' was just added, clear others
-      if (newRisks.includes("none") && !prevRisks.includes("none")) {
-        setFormData((prev) => ({ ...prev, risks: ["none"] }));
-        return;
-      }
-      // If something else was added while 'none' was present, remove 'none'
-      if (newRisks.length > 1 && newRisks.includes("none")) {
-        setFormData((prev) => ({
-          ...prev,
-          risks: newRisks.filter((r) => r !== "none"),
-        }));
-        return;
-      }
+    // She has now had a say on this field, so its rule may speak.
+    reveal.touch(field as string);
+    // A server-side rejection is only true of the value that was submitted.
+    // Once she edits the field, drop it and let the local rules take over —
+    // otherwise a stale 422 message sits under a field she has already fixed.
+    setServerErrors((prev) => {
+      if (!(field in prev)) return prev;
+      const rest = { ...prev };
+      delete rest[field as string];
+      return rest;
+    });
+    // Answers that speak for the whole list can't sit alongside its items —
+    // "Not sure" plus Antibiotics is not an answer. One rule, both chip groups.
+    const exclusive = EXCLUSIVE_CHOICES[field as string];
+    if (exclusive) {
+      const resolved = applyExclusiveChoice(
+        value as string[],
+        formData[field] as string[],
+        exclusive,
+      );
+      setFormData((prev) => ({ ...prev, [field]: resolved }));
+      return;
     }
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -635,7 +767,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   type="button"
                   key={result.id}
                   onClick={() => {
-                    motherIdRef.current = result.id;
                     setFoundMother(result);
                     setFormData((prev) => ({
                       ...prev,
@@ -884,7 +1015,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.deliveryDate ? "border-red-400" : "border-gray-200"}`}
+                      className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${showError("deliveryDate") ? "border-red-400" : "border-gray-200"}`}
                     >
                       <CalendarIcon
                         size={16}
@@ -907,6 +1038,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
+                      // She cannot have delivered before her own plausible
+                      // childbearing age.
+                      disabled={
+                        earliestDeliveryDate
+                          ? { before: earliestDeliveryDate }
+                          : undefined
+                      }
                       selected={
                         formData.deliveryDate
                           ? parse(
@@ -925,11 +1063,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     />
                   </PopoverContent>
                 </Popover>
-                {touched && !formData.deliveryDate && (
-                  <span className="text-xs text-red-500">
-                    Please select a delivery date
-                  </span>
-                )}
+                {showError("deliveryDate") && (
+<span className="text-xs text-red-500">{showError("deliveryDate")}</span>
+)}
               </div>
               <div className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium text-gray-700">
@@ -939,7 +1075,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.dischargeDate ? "border-red-400" : "border-gray-200"}`}
+                      className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${showError("dischargeDate") ? "border-red-400" : "border-gray-200"}`}
                     >
                       <CalendarIcon
                         size={16}
@@ -962,6 +1098,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
+                      // Discharge before delivery is invalid — grey those days
+                      // out so the error state is mostly unreachable by mouse.
+                      // The typed/loaded case is still caught by stepErrors.
+                      disabled={deliveryDate ? { before: deliveryDate } : undefined}
                       selected={
                         formData.dischargeDate
                           ? parse(
@@ -980,11 +1120,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     />
                   </PopoverContent>
                 </Popover>
-                {touched && !formData.dischargeDate && (
-                  <span className="text-xs text-red-500">
-                    Please select a discharge date
-                  </span>
-                )}
+                {showError("dischargeDate") && (
+<span className="text-xs text-red-500">{showError("dischargeDate")}</span>
+)}
               </div>
             </div>
 
@@ -993,7 +1131,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 Delivery type
               </span>
               <div
-                className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>button]:border-red-400" : ""}`}
+                className={`grid grid-cols-2 gap-4 ${showError("deliveryType") ? "[&>button]:border-red-400" : ""}`}
               >
                 {[
                   { id: "vaginal", icon: Baby, title: "Vaginal delivery" },
@@ -1019,11 +1157,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   </button>
                 ))}
               </div>
-              {touched && !formData.deliveryType && (
-                <span className="text-xs text-red-500 mt-2">
-                  Please select a delivery type
-                </span>
-              )}
+              {showError("deliveryType") && (
+<span className="text-xs text-red-500 mt-2">{showError("deliveryType")}</span>
+)}
             </div>
 
             <div className="flex flex-col">
@@ -1053,11 +1189,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   We will share the care line number with her on the welcome SMS
                 </span>
               )}
-              {touched && !formData.callingWindow && (
-                <span className="text-xs text-red-500 mt-1">
-                  Please select a calling window
-                </span>
-              )}
+              {showError("callingWindow") && (
+<span className="text-xs text-red-500 mt-1">{showError("callingWindow")}</span>
+)}
             </div>
           </div>
         </div>
@@ -1090,7 +1224,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 type="button"
                 key={outcome.id}
                 onClick={() => updateField("outcome", outcome.id as (typeof formData)["outcome"])}
-                className={`text-left border rounded-xl px-5 py-4 cursor-pointer transition-colors flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
+                className={`text-left border rounded-xl px-5 py-4 cursor-pointer transition-colors flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${showError("outcome") ? "border-red-400" : ""}`}
               >
                 <outcome.icon
                   size={24}
@@ -1106,11 +1240,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 </div>
               </button>
             ))}
-            {touched && !formData.outcome && (
-              <span className="text-xs text-red-500">
-                Please select an outcome
-              </span>
-            )}
+            {showError("outcome") && (
+<span className="text-xs text-red-500">{showError("outcome")}</span>
+)}
           </div>
         </div>
       )}
@@ -1139,11 +1271,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 selected={formData.medications}
                 onChange={(val) => updateField("medications", val)}
               />
-              {touched && formData.medications.length === 0 && (
-                <span className="text-xs text-red-500 mt-2">
-                  Please select what she was discharged with (or "None sent home")
-                </span>
-              )}
+              {showError("medications") && (
+<span className="text-xs text-red-500 mt-2">{showError("medications")}</span>
+)}
             </div>
           </div>
         </div>
@@ -1158,8 +1288,8 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           />
           <EmergencyContacts
             contacts={emergencyContacts}
-            onChange={setEmergencyContacts}
-            touched={touched}
+            onChange={updateEmergencyContacts}
+            touched={reveal.shows("emergencyContacts")}
           />
         </div>
       )}
@@ -1173,8 +1303,8 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           />
           <EmergencyContacts
             contacts={emergencyContacts}
-            onChange={setEmergencyContacts}
-            touched={touched}
+            onChange={updateEmergencyContacts}
+            touched={reveal.shows("emergencyContacts")}
           />
         </div>
       )}
@@ -1295,15 +1425,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   value={formData.motherName}
                   onChange={(e) => updateField("motherName", e.target.value)}
                   className={
-                    touched && !formData.motherName ? "border-red-400" : ""
+                    showError("motherName") ? "border-red-400" : ""
                   }
                   fullWidth
                 />
-                {touched && !formData.motherName && (
-                  <span className="text-xs text-red-500">
-                    Please enter her full name
-                  </span>
-                )}
+                {showError("motherName") && (
+<span className="text-xs text-red-500">{showError("motherName")}</span>
+)}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label
@@ -1313,7 +1441,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   Phone number
                 </label>
                 <div
-                  className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${touched && (!formData.phoneNumber || !phoneValid) ? "border-red-400" : "border-gray-200"}`}
+                  className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${showError("phoneNumber") ? "border-red-400" : "border-gray-200"}`}
                 >
                   <Select
                     value={countryCode}
@@ -1356,16 +1484,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
                   />
                 </div>
-                {touched && !formData.phoneNumber && (
-                  <span className="text-xs text-red-500">
-                    Please enter a phone number
-                  </span>
-                )}
-                {touched && formData.phoneNumber && !phoneValid && (
-                  <span className="text-xs text-red-500">
-                    Please enter a valid phone number
-                  </span>
-                )}
+                {showError("phoneNumber") && (
+<span className="text-xs text-red-500">{showError("phoneNumber")}</span>
+)}
               </div>
             </div>
 
@@ -1377,7 +1498,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 <PopoverTrigger asChild>
                   <Button
                     variant="ghost"
-                    className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.dateOfBirth ? "border-red-400" : "border-gray-200"}`}
+                    className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${showError("dateOfBirth") ? "border-red-400" : "border-gray-200"}`}
                   >
                     <CalendarIcon
                       size={16}
@@ -1413,11 +1534,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   />
                 </PopoverContent>
               </Popover>
-              {touched && !formData.dateOfBirth && (
-                <span className="text-xs text-red-500">
-                  Please select her date of birth
-                </span>
-              )}
+              {showError("dateOfBirth") && (
+<span className="text-xs text-red-500">{showError("dateOfBirth")}</span>
+)}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -1429,21 +1548,18 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   max="30"
                   placeholder="Number of pregnancies"
                   value={formData.gravida}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 30))
-                      updateField("gravida", val);
-                  }}
+                  // Accept what she types — the 0–30 cap is reported as a
+                  // message below, not enforced by swallowing the keystroke
+                  // (which looked like a broken input).
+                  onChange={(e) => updateField("gravida", e.target.value)}
                   className={
-                    touched && formData.gravida === "" ? "border-red-400" : ""
+                    showError("gravida") ? "border-red-400" : ""
                   }
                   fullWidth
                 />
-                {touched && formData.gravida === "" && (
-                  <span className="text-xs text-red-500">
-                    Please enter number of pregnancies
-                  </span>
-                )}
+                {showError("gravida") && (
+<span className="text-xs text-red-500">{showError("gravida")}</span>
+)}
               </div>
               <div className="flex flex-col gap-1.5">
                 <Input
@@ -1453,27 +1569,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   max="30"
                   placeholder="Number of births"
                   value={formData.para}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 30))
-                      updateField("para", val);
-                  }}
-                  className={
-                    (touched && formData.para === "") || paraExceedsGravida
-                      ? "border-red-400"
-                      : ""
-                  }
+                  onChange={(e) => updateField("para", e.target.value)}
+                  className={showError("para") ? "border-red-400" : ""}
                   fullWidth
                 />
-                {touched && formData.para === "" ? (
-                  <span className="text-xs text-red-500">
-                    Please enter number of births
-                  </span>
-                ) : paraExceedsGravida ? (
-                  <span className="text-xs text-red-500">
-                    Births (para) can't exceed pregnancies (gravida)
-                  </span>
-                ) : null}
+                {showError("para") && (
+                  <span className="text-xs text-red-500">{showError("para")}</span>
+                )}
               </div>
             </div>
 
@@ -1486,7 +1588,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.deliveryDate ? "border-red-400" : "border-gray-200"}`}
+                      className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${showError("deliveryDate") ? "border-red-400" : "border-gray-200"}`}
                     >
                       <CalendarIcon
                         size={16}
@@ -1509,6 +1611,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
+                      // She cannot have delivered before her own plausible
+                      // childbearing age.
+                      disabled={
+                        earliestDeliveryDate
+                          ? { before: earliestDeliveryDate }
+                          : undefined
+                      }
                       selected={
                         formData.deliveryDate
                           ? parse(
@@ -1527,11 +1636,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     />
                   </PopoverContent>
                 </Popover>
-                {touched && !formData.deliveryDate && (
-                  <span className="text-xs text-red-500">
-                    Please select a delivery date
-                  </span>
-                )}
+                {showError("deliveryDate") && (
+<span className="text-xs text-red-500">{showError("deliveryDate")}</span>
+)}
               </div>
               <div className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium text-gray-700">
@@ -1541,7 +1648,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${touched && !formData.dischargeDate ? "border-red-400" : "border-gray-200"}`}
+                      className={`justify-start gap-2 bg-white border rounded-md px-3 py-2 text-sm text-gray-900 font-normal w-full h-10 hover:bg-gray-50 ${showError("dischargeDate") ? "border-red-400" : "border-gray-200"}`}
                     >
                       <CalendarIcon
                         size={16}
@@ -1564,6 +1671,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
+                      // Discharge before delivery is invalid — grey those days
+                      // out so the error state is mostly unreachable by mouse.
+                      // The typed/loaded case is still caught by stepErrors.
+                      disabled={deliveryDate ? { before: deliveryDate } : undefined}
                       selected={
                         formData.dischargeDate
                           ? parse(
@@ -1582,11 +1693,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     />
                   </PopoverContent>
                 </Popover>
-                {touched && !formData.dischargeDate && (
-                  <span className="text-xs text-red-500">
-                    Please select a discharge date
-                  </span>
-                )}
+                {showError("dischargeDate") && (
+<span className="text-xs text-red-500">{showError("dischargeDate")}</span>
+)}
               </div>
             </div>
 
@@ -1602,11 +1711,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   updateField("language", val.length > 0 ? val[0] : "")
                 }
               />
-              {touched && !formData.language && (
-                <span className="text-xs text-red-500 mt-1">
-                  Please select a preferred language
-                </span>
-              )}
+              {showError("language") && (
+<span className="text-xs text-red-500 mt-1">{showError("language")}</span>
+)}
             </div>
 
             <div className="flex flex-col">
@@ -1636,11 +1743,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   We will share the care line number with her on the welcome SMS
                 </span>
               )}
-              {touched && !formData.callingWindow && (
-                <span className="text-xs text-red-500 mt-1">
-                  Please select a calling window
-                </span>
-              )}
+              {showError("callingWindow") && (
+<span className="text-xs text-red-500 mt-1">{showError("callingWindow")}</span>
+)}
             </div>
 
             <div className="flex flex-col">
@@ -1648,7 +1753,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 Delivery type
               </span>
               <div
-                className={`grid grid-cols-2 gap-4 ${touched && !formData.deliveryType ? "[&>button]:border-red-400" : ""}`}
+                className={`grid grid-cols-2 gap-4 ${showError("deliveryType") ? "[&>button]:border-red-400" : ""}`}
               >
                 {[
                   { id: "vaginal", icon: Baby, title: "Vaginal delivery" },
@@ -1674,11 +1779,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   </button>
                 ))}
               </div>
-              {touched && !formData.deliveryType && (
-                <span className="text-xs text-red-500 mt-2">
-                  Please select a delivery type
-                </span>
-              )}
+              {showError("deliveryType") && (
+<span className="text-xs text-red-500 mt-2">{showError("deliveryType")}</span>
+)}
             </div>
           </div>
         </div>
@@ -1711,7 +1814,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 type="button"
                 key={outcome.id}
                 onClick={() => updateField("outcome", outcome.id as (typeof formData)["outcome"])}
-                className={`text-left border rounded-xl px-5 py-4 cursor-pointer transition-colors flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${touched && !formData.outcome ? "border-red-400" : ""}`}
+                className={`text-left border rounded-xl px-5 py-4 cursor-pointer transition-colors flex items-center gap-4 ${formData.outcome === outcome.id ? "border-primary bg-primary-100" : "border-gray-200 hover:border-primary/40"} ${showError("outcome") ? "border-red-400" : ""}`}
               >
                 <outcome.icon
                   size={24}
@@ -1727,11 +1830,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 </div>
               </button>
             ))}
-            {touched && !formData.outcome && (
-              <span className="text-xs text-red-500">
-                Please select an outcome
-              </span>
-            )}
+            {showError("outcome") && (
+<span className="text-xs text-red-500">{showError("outcome")}</span>
+)}
           </div>
         </div>
       )}
@@ -1760,11 +1861,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 selected={formData.medications}
                 onChange={(val) => updateField("medications", val)}
               />
-              {touched && formData.medications.length === 0 && (
-                <span className="text-xs text-red-500 mt-2">
-                  Please select what she was discharged with (or "None sent home")
-                </span>
-              )}
+              {showError("medications") && (
+<span className="text-xs text-red-500 mt-2">{showError("medications")}</span>
+)}
             </div>
           </div>
         </div>
@@ -1842,17 +1941,15 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     maxLength={80}
                     onChange={(e) => updateField("risksOther", e.target.value)}
                     className={
-                      touched && formData.risksOther.trim() === ""
+                      showError("risksOther")
                         ? "border-red-400"
                         : ""
                     }
                     fullWidth
                   />
-                  {touched && formData.risksOther.trim() === "" && (
-                    <span className="text-xs text-red-500">
-                      Describe the risk factor, or unselect "Other"
-                    </span>
-                  )}
+                  {showError("risksOther") && (
+<span className="text-xs text-red-500">{showError("risksOther")}</span>
+)}
                 </div>
               )}
             </div>
@@ -1867,7 +1964,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             title="Her consent"
             description="Read this to her out loud, or show her the screen. Check-in calls and WhatsApp messages are both required before you can enroll her."
           />
-          {touched && (!formData.consentCalls || !formData.whatsappOptIn) && (
+          {(showError("consentCalls") || showError("whatsappOptIn")) && (
             <div className="mb-6">
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -1892,7 +1989,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   consentRecording: next ? prev.consentRecording : false,
                 }));
               }}
-              className={`w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors ${formData.consentCalls ? "border-primary bg-primary-100" : "border-gray-200 bg-white"} ${touched && !formData.consentCalls ? "border-red-400" : ""}`}
+              className={`w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors ${formData.consentCalls ? "border-primary bg-primary-100" : "border-gray-200 bg-white"} ${showError("consentCalls") ? "border-red-400" : ""}`}
             >
               <div
                 className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.consentCalls ? "bg-primary border-primary" : "bg-white border-gray-300"}`}
@@ -1921,7 +2018,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
               onClick={() =>
                 updateField("whatsappOptIn", !formData.whatsappOptIn)
               }
-              className={`w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors ${formData.whatsappOptIn ? "border-primary bg-primary-100" : "border-gray-200 bg-white"} ${touched && !formData.whatsappOptIn ? "border-red-400" : ""}`}
+              className={`w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors ${formData.whatsappOptIn ? "border-primary bg-primary-100" : "border-gray-200 bg-white"} ${showError("whatsappOptIn") ? "border-red-400" : ""}`}
             >
               <div
                 className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.whatsappOptIn ? "bg-primary border-primary" : "bg-white border-gray-300"}`}
