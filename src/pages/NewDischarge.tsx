@@ -444,6 +444,11 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           consent_calls: formData.consentCalls,
           consent_recording: formData.consentRecording,
           whatsapp_opt_in: formData.whatsappOptIn,
+          // She's discharged (already delivered) seconds after this call —
+          // the antenatal "checking in on your pregnancy" welcome would be
+          // wrong for her; the discharge call below sends her the right
+          // post-birth message instead.
+          skip_antenatal_welcome: true,
         });
         const newId: string = motherRes.data.mother_id ?? motherRes.data.id;
         motherIdRef.current = newId;
