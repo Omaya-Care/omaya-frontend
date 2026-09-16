@@ -133,7 +133,10 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
       setTouched(true);
       if (!step2Valid || !phoneValid) return;
     }
-    if (currentStep === 4 && !formData.consentCalls) {
+    if (
+      currentStep === 4 &&
+      (!formData.consentCalls || !formData.whatsappOptIn)
+    ) {
       setTouched(true);
       return;
     }
@@ -192,9 +195,12 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
       const fields = [
         ...step2Required.map((f) => f.key),
         "consentCalls" as const,
+        "whatsappOptIn" as const,
       ];
       if (fields.includes(field as never)) {
-        setTouched(field !== "consentCalls" || value === true);
+        const isConsentField =
+          field === "consentCalls" || field === "whatsappOptIn";
+        setTouched(!isConsentField || value === true);
       }
     }
   };
@@ -264,8 +270,8 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
             {[
               {
                 icon: Phone,
-                title: "She'll receive calls, not messages",
-                body: "Omaya calls her directly. No app needed. Works on any phone.",
+                title: "She'll receive calls, and can message Omaya on WhatsApp",
+                body: "Omaya calls her directly. No app needed — just her phone number, or WhatsApp if she has it.",
               },
               {
                 icon: ShieldCheck,
@@ -688,6 +694,47 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
 
             <button
               type="button"
+              aria-pressed={formData.whatsappOptIn}
+              onClick={() =>
+                updateField("whatsappOptIn", !formData.whatsappOptIn)
+              }
+              className={`
+                w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors
+                ${formData.whatsappOptIn ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}
+                ${touched && !formData.whatsappOptIn ? "border-red-400" : ""}
+              `}
+            >
+              <div
+                className={`
+                w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center
+                ${formData.whatsappOptIn ? "bg-primary border-primary" : "bg-white border-gray-300"}
+              `}
+              >
+                {formData.whatsappOptIn && (
+                  <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                )}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-900">
+                  WhatsApp messages
+                </span>
+                <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
+                  She can message Omaya on WhatsApp with questions or concerns
+                  between check-in calls. She can opt out at any time.
+                </span>
+                <span className="text-xs text-primary font-semibold mt-2 uppercase tracking-wide">
+                  REQUIRED TO ENROLL
+                </span>
+              </div>
+            </button>
+            {touched && !formData.whatsappOptIn && (
+              <span className="text-xs text-red-500 -mt-3">
+                You must obtain consent to WhatsApp messages before enrolling
+              </span>
+            )}
+
+            <button
+              type="button"
               aria-pressed={formData.consentRecording}
               onClick={() =>
                 updateField("consentRecording", !formData.consentRecording)
@@ -714,41 +761,6 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
                   Calls may be recorded to improve care quality. Recordings are
                   stored securely and only used by her care team.
-                </span>
-                <span className="text-xs text-gray-400 font-semibold mt-2 uppercase tracking-wide">
-                  OPTIONAL
-                </span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              aria-pressed={formData.whatsappOptIn}
-              onClick={() =>
-                updateField("whatsappOptIn", !formData.whatsappOptIn)
-              }
-              className={`
-                w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors
-                ${formData.whatsappOptIn ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}
-              `}
-            >
-              <div
-                className={`
-                w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center
-                ${formData.whatsappOptIn ? "bg-primary border-primary" : "bg-white border-gray-300"}
-              `}
-              >
-                {formData.whatsappOptIn && (
-                  <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                )}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold text-gray-900">
-                  WhatsApp messages
-                </span>
-                <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
-                  She can message Omaya on WhatsApp with questions or concerns
-                  between check-in calls. She can opt out at any time.
                 </span>
                 <span className="text-xs text-gray-400 font-semibold mt-2 uppercase tracking-wide">
                   OPTIONAL
@@ -824,12 +836,12 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                 highlight: formData.consentCalls,
               },
               {
-                label: "Call recording",
-                value: formData.consentRecording ? "Consented" : "No consent",
-              },
-              {
                 label: "WhatsApp messages",
                 value: formData.whatsappOptIn ? "Consented" : "No consent",
+              },
+              {
+                label: "Call recording",
+                value: formData.consentRecording ? "Consented" : "No consent",
               },
             ].map((row, idx) => (
               <div

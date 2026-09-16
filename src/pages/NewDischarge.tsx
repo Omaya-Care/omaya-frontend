@@ -166,7 +166,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
     whatsappOptIn: false,
   });
 
-  const totalSteps = foundMother ? 5 : 6;
+  const totalSteps = foundMother ? 5 : 7;
 
   // "Progress" worth warning about = an existing mother has been selected, or
   // the user has moved past the search screen into the actual form.
@@ -313,11 +313,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           formData.deliveryType,
       );
     if (currentStep === 2) return Boolean(formData.outcome);
-    if (currentStep === 3)
+    if (currentStep === 3) return formData.medications.length > 0;
+    if (currentStep === 4)
       // Optional step, but a toggled-on "Other" must be described.
       return !riskOtherOn || formData.risksOther.trim() !== "";
-    if (currentStep === 4) return Boolean(formData.consentCalls);
-    if (currentStep === 5) return emergencyValid;
+    if (currentStep === 5)
+      return Boolean(formData.consentCalls && formData.whatsappOptIn);
+    if (currentStep === 6) return emergencyValid;
     return true;
   })();
 
@@ -350,7 +352,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         if (!emergencyValid) return;
       }
     } else {
-      // 6-step flow validation for new patients
+      // 7-step flow validation for new patients
       if (currentStep === 1) {
         const step1Valid =
           formData.motherName &&
@@ -370,12 +372,15 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         const step2Valid = formData.outcome;
         if (!step2Valid) return;
       } else if (currentStep === 3) {
+        // Medications must be answered explicitly ("None sent home" counts).
+        if (formData.medications.length === 0) return;
+      } else if (currentStep === 4) {
         // Optional step, but a toggled-on "Other" must be described.
         if (riskOtherOn && formData.risksOther.trim() === "") return;
-      } else if (currentStep === 4) {
-        const step4Valid = formData.consentCalls;
-        if (!step4Valid) return;
       } else if (currentStep === 5) {
+        const step5Valid = formData.consentCalls && formData.whatsappOptIn;
+        if (!step5Valid) return;
+      } else if (currentStep === 6) {
         if (!emergencyValid) return;
       }
     }
@@ -399,6 +404,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         ),
         outcome: formData.outcome,
         preferred_call_window: formData.callingWindow,
+        // Tells the backend which post-birth WhatsApp template to send: she
+        // was already antenatal-enrolled (found via search) vs. enrolled and
+        // discharged in this same flow — her first contact with Omaya.
+        already_enrolled: Boolean(foundMother),
         // Existing mothers have no consent step in this flow — omit the keys so
         // the backend keeps their originally-recorded consent (do NOT fabricate
         // it as true). Only the new-patient flow below collects fresh consent.
@@ -802,9 +811,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
             {[
               {
                 icon: Phone,
-                title: "She'll receive calls, not messages",
+                title: "She'll receive calls, and can message Omaya on WhatsApp",
                 description:
-                  "Omaya calls her directly. No app needed. Works on any phone.",
+                  "Omaya calls her directly. No app needed — just her phone number, or WhatsApp if she has it.",
               },
               {
                 icon: ShieldCheck,
@@ -1155,10 +1164,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         </div>
       )}
 
-      {!foundMother && currentStep === 5 && (
+      {!foundMother && currentStep === 6 && (
         <div className="flex flex-col mt-6">
           <StepHeader
-            step={5}
+            step={6}
             title="Emergency contacts"
             description="Who should we call if we cannot reach her? Add up to 3."
           />
@@ -1731,6 +1740,40 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         <div className="flex flex-col mt-6">
           <StepHeader
             step={3}
+            title="Medications"
+            description="What was she discharged with?"
+          />
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-gray-700 mb-3 block">
+                Medications sent home
+              </span>
+              <ChipSelect
+                options={[
+                  { value: "pain_relief", label: "Pain relief" },
+                  { value: "antibiotics", label: "Antibiotics" },
+                  { value: "iron_folic", label: "Iron & folic acid" },
+                  { value: "wound_care", label: "Wound care" },
+                  { value: "none", label: "None sent home" },
+                  { value: "not_sure", label: "Not sure" },
+                ]}
+                selected={formData.medications}
+                onChange={(val) => updateField("medications", val)}
+              />
+              {touched && formData.medications.length === 0 && (
+                <span className="text-xs text-red-500 mt-2">
+                  Please select what she was discharged with (or "None sent home")
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!foundMother && currentStep === 4 && (
+        <div className="flex flex-col mt-6">
+          <StepHeader
+            step={4}
             title="Clinical background"
             description="Tap any that apply — this helps Omaya escalate sooner."
           />
@@ -1817,20 +1860,21 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         </div>
       )}
 
-      {!foundMother && currentStep === 4 && (
+      {!foundMother && currentStep === 5 && (
         <div className="flex flex-col mt-6">
           <StepHeader
-            step={4}
+            step={5}
             title="Her consent"
             description="Read this to her out loud, or show her the screen. Both options below must be addressed before you can enroll her."
           />
-          {touched && !formData.consentCalls && (
+          {touched && (!formData.consentCalls || !formData.whatsappOptIn) && (
             <div className="mb-6">
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Consent required</AlertTitle>
                 <AlertDescription>
-                  You must obtain consent to check-in calls before enrolling
+                  You must obtain consent to check-in calls and WhatsApp
+                  messages before enrolling
                 </AlertDescription>
               </Alert>
             </div>
@@ -1864,6 +1908,35 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
                   Omaya will call her to check how she and her baby are doing
                   after she goes home. She can ask to stop at any time.
+                </span>
+                <span className="text-xs text-primary font-semibold mt-2 uppercase tracking-wide">
+                  Required to enroll
+                </span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              aria-pressed={formData.whatsappOptIn}
+              onClick={() =>
+                updateField("whatsappOptIn", !formData.whatsappOptIn)
+              }
+              className={`w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors ${formData.whatsappOptIn ? "border-primary bg-primary-100" : "border-gray-200 bg-white"} ${touched && !formData.whatsappOptIn ? "border-red-400" : ""}`}
+            >
+              <div
+                className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.whatsappOptIn ? "bg-primary border-primary" : "bg-white border-gray-300"}`}
+              >
+                {formData.whatsappOptIn && (
+                  <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                )}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-900">
+                  WhatsApp messages
+                </span>
+                <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
+                  She can message Omaya on WhatsApp with questions or concerns
+                  between check-in calls. She can opt out at any time.
                 </span>
                 <span className="text-xs text-primary font-semibold mt-2 uppercase tracking-wide">
                   Required to enroll
@@ -1907,35 +1980,6 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 </span>
               </div>
             </button>
-
-            <button
-              type="button"
-              aria-pressed={formData.whatsappOptIn}
-              onClick={() =>
-                updateField("whatsappOptIn", !formData.whatsappOptIn)
-              }
-              className={`w-full text-left border rounded-xl px-5 py-4 flex items-start gap-4 cursor-pointer transition-colors ${formData.whatsappOptIn ? "border-primary bg-primary-100" : "border-gray-200 bg-white"}`}
-            >
-              <div
-                className={`w-5 h-5 rounded flex-shrink-0 border mt-0.5 flex items-center justify-center ${formData.whatsappOptIn ? "bg-primary border-primary" : "bg-white border-gray-300"}`}
-              >
-                {formData.whatsappOptIn && (
-                  <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                )}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold text-gray-900">
-                  WhatsApp messages
-                </span>
-                <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
-                  She can message Omaya on WhatsApp with questions or concerns
-                  between check-in calls. She can opt out at any time.
-                </span>
-                <span className="text-xs text-gray-400 font-semibold mt-2 uppercase tracking-wide">
-                  Optional
-                </span>
-              </div>
-            </button>
           </div>
           <p className="text-xs text-gray-400 font-normal mt-6">
             By tapping 'Confirm discharge', you confirm that you have explained
@@ -1944,10 +1988,10 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
         </div>
       )}
 
-      {!foundMother && currentStep === 6 && (
+      {!foundMother && currentStep === 7 && (
         <div className="flex flex-col mt-6">
           <StepHeader
-            step={6}
+            step={7}
             title="Summary"
             description="Review all details before confirming discharge."
           />
@@ -2010,6 +2054,13 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     : "Pregnancy loss",
               },
               {
+                label: "Medications",
+                value:
+                  formData.medications.length > 0
+                    ? formData.medications.map(labelForMedication).join(", ")
+                    : "None recorded",
+              },
+              {
                 label: "Language",
                 value:
                   { english: "English", twi: "Twi", ga: "Ga" }[
@@ -2036,12 +2087,12 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 highlight: formData.consentCalls,
               },
               {
-                label: "Call recording",
-                value: formData.consentRecording ? "Consented" : "No consent",
-              },
-              {
                 label: "WhatsApp messages",
                 value: formData.whatsappOptIn ? "Consented" : "No consent",
+              },
+              {
+                label: "Call recording",
+                value: formData.consentRecording ? "Consented" : "No consent",
               },
               {
                 label: "First call",
