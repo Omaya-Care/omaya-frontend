@@ -63,3 +63,37 @@ export function askHeldLabel(blocked?: "cooloff" | "unconfigured" | null): strin
       return undefined;
   }
 }
+
+/**
+ * How long her permission to be called lasts, phrased for a clinician.
+ *
+ * Meta grants are either permanent (no expiry) or a bounded window — and the
+ * backend already resolves which, stamping `permission_expires_at` from the
+ * webhook (or defaulting to Meta's documented 7 days when the webhook is
+ * malformed). That window reached the client but was never rendered, so
+ * "she allowed calls" looked open-ended even when it had days to run.
+ *
+ * `undefined` when there is nothing useful to say, so callers can omit the
+ * element entirely rather than print an empty parenthetical.
+ */
+export function permissionWindowLabel(
+  status?: string,
+  expiresAt?: string,
+): string | undefined {
+  if (status !== "granted") return undefined;
+  if (!expiresAt) return "no expiry";
+  const expiry = new Date(expiresAt);
+  if (Number.isNaN(expiry.getTime())) return undefined;
+  const hoursLeft = (expiry.getTime() - Date.now()) / 3_600_000;
+  // Already lapsed by the client's clock but the server still says granted:
+  // trust the SERVER (its clock is the one the placement gate uses) and say
+  // nothing rather than contradict the row we were handed.
+  if (hoursLeft <= 0) return undefined;
+  // Under a day, hours are what a midwife can act on; past that a date is
+  // easier to hold in mind than "in 73 hours".
+  if (hoursLeft < 24) {
+    const hours = Math.max(1, Math.round(hoursLeft));
+    return `expires in ${hours}h`;
+  }
+  return `until ${expiry.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
+}
