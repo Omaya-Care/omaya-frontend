@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Mother, CheckIn, EmergencyContact, WhatsAppCallInfo } from "../types";
 
@@ -83,4 +83,34 @@ export const useMother = (id: string) => {
     },
     enabled: !!id,
   });
+};
+
+/**
+ * Force-refresh a mother's record on demand.
+ *
+ * WhatsApp call permission is the one field on this record that changes
+ * WITHOUT anyone in the portal doing anything: she taps Allow (or Decline) in
+ * WhatsApp and Meta posts a webhook to the backend. The browser has no way to
+ * learn that, and a temporary grant can also lapse on its own while the page
+ * sits open.
+ *
+ * We deliberately do NOT poll for it — a background interval per open mother
+ * record is real, permanent DB load for an event that happens a handful of
+ * times a day. Instead the refresh is event-driven: the clinician gets a fresh
+ * read at the moment they are about to act on it (opening the Call-now menu),
+ * on top of React Query's existing refetch-on-window-focus. Cost is one
+ * request per actual look, and nothing at all in the background.
+ *
+ * `invalidateQueries` rather than `refetch`: it bypasses the 30s global
+ * `staleTime` (App.tsx) — which exists to suppress redundant fetches, and is
+ * exactly the wrong behaviour when the clinician has explicitly asked to see
+ * current state — and it refreshes every mounted consumer of the key, so the
+ * mother record and the call-detail footer cannot disagree.
+ */
+export const useRefreshMother = () => {
+  const queryClient = useQueryClient();
+  return (id: string) => {
+    if (!id) return;
+    void queryClient.invalidateQueries({ queryKey: ["mother", id] });
+  };
 };

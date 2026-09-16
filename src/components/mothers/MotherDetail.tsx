@@ -34,7 +34,13 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { formatDate, formatDateTime, formatPhone } from "../../lib/format";
 import { useCallNow } from "../../hooks/useCallNow";
 import { useRequestWhatsAppCallPermission } from "../../hooks/useWhatsAppPermission";
-import { permissionLabel, askBlockedLabel, askHeldLabel } from "../../lib/whatsappPermission";
+import {
+  permissionLabel,
+  permissionWindowLabel,
+  askBlockedLabel,
+  askHeldLabel,
+} from "../../lib/whatsappPermission";
+import { useRefreshMother } from "../../hooks/useMothers";
 
 interface MotherDetailProps {
   mother: Mother | null;
@@ -69,6 +75,7 @@ const MotherDetail = ({
     isPending: isAskingPermission,
     blocked: askBlocked,
   } = useRequestWhatsAppCallPermission(mother?.id ?? "");
+  const refreshMother = useRefreshMother();
   const [activeTab, setActiveTab] = useState<Tab>("details");
   const [transcriptModal, setTranscriptModal] = useState<{ open: boolean; text: string }>({
     open: false,
@@ -459,7 +466,11 @@ const MotherDetail = ({
               <p>{onLogVisitClick ? "Record a manual visit or note." : "You don't have permission to log visits"}</p>
             </TooltipContent>
           </Tooltip>
-          <DropdownMenu>
+          {/* See CallActions: refresh on OPEN rather than on an interval. Her
+              permission changes on a Meta webhook this tab never sees, so the
+              cached record can be stale — but only the moment she is about to
+              be called does that staleness cost anything. */}
+          <DropdownMenu onOpenChange={(open) => { if (open) refreshMother(mother.id); }}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex">
@@ -497,6 +508,19 @@ const MotherDetail = ({
                 {!whatsappAvailable && (
                   <span className="ml-2 text-[10px] text-gray-400">
                     {permissionLabel(mother.whatsappCall?.permissionStatus)}
+                  </span>
+                )}
+                {/* Gap A: show how long the grant actually lasts — the window
+                    was on the payload but never rendered. */}
+                {whatsappAvailable && permissionWindowLabel(
+                  mother.whatsappCall?.permissionStatus,
+                  mother.whatsappCall?.permissionExpiresAt,
+                ) && (
+                  <span className="ml-2 text-[10px] text-gray-400">
+                    {permissionWindowLabel(
+                      mother.whatsappCall?.permissionStatus,
+                      mother.whatsappCall?.permissionExpiresAt,
+                    )}
                   </span>
                 )}
               </DropdownMenuItem>

@@ -10,8 +10,13 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { useCallNow } from "../../hooks/useCallNow";
 import { useRequestWhatsAppCallPermission } from "../../hooks/useWhatsAppPermission";
-import { useMother } from "../../hooks/useMothers";
-import { permissionLabel, askBlockedLabel, askHeldLabel } from "../../lib/whatsappPermission";
+import { useMother, useRefreshMother } from "../../hooks/useMothers";
+import {
+  permissionLabel,
+  permissionWindowLabel,
+  askBlockedLabel,
+  askHeldLabel,
+} from "../../lib/whatsappPermission";
 
 interface CallActionsProps {
   motherId: string;
@@ -30,6 +35,7 @@ interface CallActionsProps {
 const CallActions = ({ motherId }: CallActionsProps) => {
   const navigate = useNavigate();
   const motherQuery = useMother(motherId);
+  const refreshMother = useRefreshMother();
   const { callNow, isPending } = useCallNow(motherId);
   const {
     requestPermission,
@@ -66,7 +72,13 @@ const CallActions = ({ motherId }: CallActionsProps) => {
         </TooltipTrigger>
         <TooltipContent side="top"><p>Go to this mother's profile.</p></TooltipContent>
       </Tooltip>
-      <DropdownMenu>
+      {/* Event-driven freshness, deliberately not a poll: her permission can
+          flip to granted/denied on a Meta webhook the browser never sees, and
+          a temporary grant can lapse while this screen sits open. Refreshing
+          on OPEN means the clinician reads current state at the one moment it
+          matters, at the cost of one request per actual look — where a
+          background interval would be permanent DB load for a rare event. */}
+      <DropdownMenu onOpenChange={(open) => { if (open) refreshMother(motherId); }}>
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex">
@@ -121,6 +133,21 @@ const CallActions = ({ motherId }: CallActionsProps) => {
             )}
             {whatsappPending && (
               <span className="ml-2 text-[10px] text-gray-400">checking…</span>
+            )}
+            {/* Gap A: the grant's WINDOW. `permission_expires_at` has always
+                been on the payload but was never shown, so an expiring grant
+                looked identical to a permanent one right up until the call
+                was refused. */}
+            {whatsappAvailable && permissionWindowLabel(
+              mother?.whatsappCall?.permissionStatus,
+              mother?.whatsappCall?.permissionExpiresAt,
+            ) && (
+              <span className="ml-2 text-[10px] text-gray-400">
+                {permissionWindowLabel(
+                  mother?.whatsappCall?.permissionStatus,
+                  mother?.whatsappCall?.permissionExpiresAt,
+                )}
+              </span>
             )}
           </DropdownMenuItem>
           {/* The unblock for the item above. Only offered when the WhatsApp
