@@ -1865,7 +1865,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           <StepHeader
             step={5}
             title="Her consent"
-            description="Read this to her out loud, or show her the screen. Both options below must be addressed before you can enroll her."
+            description="Read this to her out loud, or show her the screen. Check-in calls and WhatsApp messages are both required before you can enroll her."
           />
           {touched && (!formData.consentCalls || !formData.whatsappOptIn) && (
             <div className="mb-6">

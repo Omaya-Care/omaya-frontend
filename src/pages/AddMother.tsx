@@ -639,7 +639,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
           <StepHeader
             step={4}
             title="Her consent"
-            description="Read this to her out loud, or show her the screen. Both options below must be addressed before you can enroll her."
+            description="Read this to her out loud, or show her the screen. Check-in calls and WhatsApp messages are both required before you can enroll her."
           />
           {submitError && (
             <div className="mb-6">
