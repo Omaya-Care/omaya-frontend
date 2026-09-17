@@ -92,6 +92,10 @@ export interface Call {
   summary?: string;
   transcript?: CallTranscriptRow[];
   audioUrl?: string;
+  // Disambiguates a missing audioUrl. false = she declined recording, so no
+  // audio was ever captured (the capture gate in call-service prevents it).
+  // true with no audioUrl = the call captured no audio, or it is unavailable.
+  recordingConsent?: boolean;
   // 'whatsapp' is the TEXT channel (an episode); 'whatsapp_call' is a real
   // voice conversation over WhatsApp — same call pipeline, different transport.
   channel?: "voice" | "whatsapp" | "whatsapp_call";
