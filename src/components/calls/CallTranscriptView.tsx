@@ -34,12 +34,23 @@ const CallTranscriptView = ({ call, onBack }: CallTranscriptViewProps) => {
       </div>
 
       {/* Recording (waveform) */}
-      {call.audioUrl && (
+      {call.audioUrl ? (
         <div className="pt-4 pb-5 shrink-0 border-b border-gray-100">
           <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2">Recording</p>
           <WaveformPlayer key={call.id} src={call.audioUrl} />
         </div>
-      )}
+      ) : call.recordingConsent === false ? (
+        // Say so explicitly rather than hiding the section. A clinician who
+        // finds no player needs to know this call was never recorded by
+        // choice — not wonder whether playback is broken.
+        <div className="pt-4 pb-5 shrink-0 border-b border-gray-100">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2">Recording</p>
+          <p className="text-sm text-gray-500">
+            Not recorded — this mother did not consent to call recording. The transcript below
+            is unaffected.
+          </p>
+        </div>
+      ) : null}
 
       {/* Full transcript — chat conversation */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-6 pr-1">

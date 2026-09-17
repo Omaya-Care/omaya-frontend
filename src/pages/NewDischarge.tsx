@@ -2069,8 +2069,9 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                   Call recording
                 </span>
                 <span className="block text-sm text-gray-500 font-normal mt-1 leading-relaxed">
-                  Calls may be recorded to improve care quality. Recordings are
-                  stored securely and only used by her care team.
+                  If she agrees, calls are recorded and stored securely for her
+                  care team only. If she declines, no recording is made or kept
+                  — her check-in calls continue either way.
                 </span>
                 <span className="text-xs text-gray-400 font-semibold mt-2 uppercase tracking-wide">
                   {formData.consentCalls ? "Optional" : "Consent to calls first"}
