@@ -94,10 +94,25 @@ api.interceptors.response.use(
   },
 );
 
+/** One field-attributed validation failure from the backend's 422 envelope. */
+export interface ApiFieldError {
+  /** Dot-joined path with the `body` scope marker dropped, e.g.
+   *  `mother.gravida` or `discharge.discharge_date`. Maps directly onto a
+   *  wizard field — no `loc` array walking needed. */
+  path: string;
+  loc: string[];
+  type: string;
+  message: string;
+}
+
 export interface ApiError {
   error_code: string;
   message: string;
   status: number;
+  /** Present on a 422 from an endpoint served by the backend's
+   *  `validation_error_handler`. Lets a form put each message on the input
+   *  that caused it instead of collapsing them into one banner. */
+  fields?: ApiFieldError[];
 }
 
 /**
@@ -140,6 +155,25 @@ export function extractApiError(
   const ax = err as AxiosError<{ detail?: unknown }>;
   const status = ax.response?.status ?? 0;
   const detail = ax.response?.data?.detail;
+
+  // Field-attributed 422 envelope (backend `validation_error_handler`):
+  // {error_code, message, fields: [{path, loc, type, message}, ...]}.
+  // Checked before the generic envelope below because it carries BOTH an
+  // `error_code` and the per-field list, and the list is the useful part.
+  const data = ax.response?.data as { fields?: unknown } | undefined;
+  if (Array.isArray(data?.fields)) {
+    const envelope = ax.response?.data as unknown as {
+      error_code?: string;
+      message?: string;
+      fields: ApiFieldError[];
+    };
+    return {
+      error_code: envelope.error_code ?? "validation_error",
+      message: envelope.message ?? fallback,
+      status,
+      fields: envelope.fields,
+    };
+  }
 
   // Canonical auth envelope: detail = {error_code, message}
   if (

@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./auth", () => ({ clearSession: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
-import { api } from "./api";
+import { api, extractApiError } from "./api";
 import { clearSession } from "./auth";
 
 const mockedClearSession = vi.mocked(clearSession);
@@ -196,5 +196,67 @@ describe("the axios instance itself", () => {
 
   it("is not the global axios instance, so the interceptor stays scoped", () => {
     expect(api).not.toBe(axios);
+  });
+});
+
+
+describe("extractApiError — the field-attributed 422 envelope", () => {
+  /** An axios-shaped rejection carrying `data` as the response body. */
+  const err = (status: number, data: unknown) =>
+    new AxiosError("failed", String(status), undefined, null, {
+      status,
+      data,
+      statusText: "",
+      headers: new AxiosHeaders(),
+      config: { headers: new AxiosHeaders() },
+    });
+
+  it("carries the per-field list through so a form can place each message", () => {
+    const fields = [
+      { path: "mother.para", loc: ["body", "mother", "para"], type: "value_error", message: "too many" },
+      {
+        path: "discharge.discharge_date",
+        loc: ["body", "discharge", "discharge_date"],
+        type: "value_error",
+        message: "before delivery",
+      },
+    ];
+    const out = extractApiError(
+      err(422, { error_code: "validation_error", message: "fix these", fields }),
+    );
+    expect(out.error_code).toBe("validation_error");
+    expect(out.message).toBe("fix these");
+    expect(out.fields).toEqual(fields);
+    expect(out.status).toBe(422);
+  });
+
+  it("wins over the generic envelope — the envelope carries BOTH keys", () => {
+    // Both branches match a body with an `error_code`; the field list is the
+    // useful half, so it must be checked first.
+    const out = extractApiError(
+      err(422, {
+        error_code: "validation_error",
+        message: "fix these",
+        fields: [{ path: "mother.gravida", loc: [], type: "t", message: "bad" }],
+      }),
+    );
+    expect(out.fields).toHaveLength(1);
+  });
+
+  it("leaves `fields` undefined for a plain application error", () => {
+    const out = extractApiError(
+      err(409, { detail: { error_code: "phone_already_enrolled", message: "dupe" } }),
+    );
+    expect(out.error_code).toBe("phone_already_enrolled");
+    expect(out.fields).toBeUndefined();
+  });
+
+  it("still handles the legacy bare-`detail` 422 list", () => {
+    const out = extractApiError(
+      err(422, { detail: [{ loc: ["body", "gravida"], msg: "nope", type: "value_error" }] }),
+    );
+    expect(out.error_code).toBe("validation_error");
+    expect(out.message).toContain("gravida");
+    expect(out.fields).toBeUndefined();
   });
 });
