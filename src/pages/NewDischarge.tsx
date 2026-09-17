@@ -944,7 +944,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                 icon: Phone,
                 title: "She'll receive calls, and can message Omaya on WhatsApp",
                 description:
-                  "Omaya calls her directly. No app needed — just her phone number, or WhatsApp if she has it.",
+                  "Omaya calls her directly. No app needed, just her phone number and WhatsApp.",
               },
               {
                 icon: ShieldCheck,

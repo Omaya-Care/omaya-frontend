@@ -287,7 +287,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
               {
                 icon: Phone,
                 title: "She'll receive calls, and can message Omaya on WhatsApp",
-                body: "Omaya calls her directly. No app needed — just her phone number, or WhatsApp if she has it.",
+                body: "Omaya calls her directly. No app needed, just her phone number and WhatsApp.",
               },
               {
                 icon: ShieldCheck,
