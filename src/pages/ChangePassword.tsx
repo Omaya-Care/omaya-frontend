@@ -6,12 +6,14 @@ import { Button } from "../components/ui/Button";
 import { AuthCard, AuthError } from "../components/auth/AuthCard";
 import { changePassword, validatePassword } from "../lib/auth-api";
 import { extractApiError } from "../lib/api";
-import { isAuthenticated } from "../lib/auth";
+import { defaultRouteFor, getClinician, isAuthenticated } from "../lib/auth";
 
 /**
  * Forced rotation for a seat that signed in with must_change_password=true.
  * Reachable only with a valid session (the JWT is already stored); on
- * success the re-issued token clears the flag and we land on the dashboard.
+ * success the re-issued token clears the flag and we land on the dashboard —
+ * or, for an expert-roster account, its own work queue (see Login.tsx's
+ * defaultRouteFor: Dashboard has nothing to show an account with no mothers).
  */
 const ChangePassword = () => {
   const navigate = useNavigate();
@@ -43,7 +45,7 @@ const ChangePassword = () => {
     setSubmitting(true);
     try {
       await changePassword(current, next);
-      navigate("/dashboard", { replace: true });
+      navigate(defaultRouteFor(getClinician()?.hospital_name), { replace: true });
     } catch (err) {
       setError(extractApiError(err).message);
     } finally {

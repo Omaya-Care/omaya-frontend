@@ -13,20 +13,176 @@ import { useMothers } from "../hooks/useMothers";
 import { useCalls } from "../hooks/useCalls";
 import { useEscalations } from "../hooks/useEscalations";
 import { useDashboardStats } from "../hooks/useDashboardStats";
+import { useExpertStats, useExpertQueue, useMyExpertRequests } from "../hooks/useExpertRequests";
+import { ExpertRequestListItem } from "../components/expert-requests/ExpertRequestListItem";
 import { useAcknowledgeAlert } from "../hooks/useMutations";
 import { EscalationItem } from "../types";
 import { useAuth } from "../contexts/AuthContext";
-import { getClinician } from "../lib/auth";
+import { EXPERT_HOSPITAL_NAME, getClinician } from "../lib/auth";
 import { formatResponseMinutes } from "../lib/format";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Separator } from "../components/ui/separator";
 import { Skeleton } from "../components/ui/skeleton";
 import { Alert, AlertTitle, AlertDescription } from "../components/ui/alert";
 
+// OMA-341: an expert-roster account has no mothers of its own — the
+// mother-cohort dashboard below would just be four empty stat cards and a
+// "no calls" table. This is a completely different, much lighter view for
+// that account type, not a variant of the same one.
+const ExpertDashboard = () => {
+  const navigate = useNavigate();
+  const { data: stats, isLoading } = useExpertStats();
+  const { data: queue = [], isLoading: isQueueLoading } = useExpertQueue();
+  const { data: mine = [], isLoading: isMineLoading } = useMyExpertRequests();
+  const clinician = getClinician();
+  const firstName = clinician?.name?.split(/\s+/)[0] ?? "there";
+  const ratingPct =
+    stats && stats.ratingTotalCount > 0
+      ? Math.round((stats.ratingGoodCount / stats.ratingTotalCount) * 100)
+      : null;
+
+  return (
+    <div className="flex flex-col gap-6 pb-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}</h1>
+        <p className="text-sm text-gray-400 mt-0.5">Here's how your requests are going.</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="border-0 shadow-none rounded-2xl bg-surface-tint-3">
+              <CardContent className="p-3 md:p-4 space-y-2">
+                <Skeleton className="h-4 w-24 bg-primary-200" />
+                <Skeleton className="h-3 w-32 bg-primary-200" />
+                <Skeleton className="h-9 w-16 bg-primary-200" />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <>
+            <StatCard
+              label="Requests this week"
+              sublabel="Claimed by you"
+              value={stats?.requestsThisWeek ?? 0}
+              tint={3}
+            />
+            <StatCard
+              label="Active conversations"
+              sublabel="Open right now"
+              value={stats?.activeConversations ?? 0}
+              tint={3}
+              onViewAll={() => navigate("/expert-requests")}
+            />
+            <StatCard
+              label="Completed this week"
+              sublabel="Marked done"
+              value={stats?.completedThisWeek ?? 0}
+              tint={3}
+            />
+            <StatCard
+              label="Your rating"
+              sublabel={
+                stats && stats.ratingTotalCount > 0
+                  ? `From ${stats.ratingTotalCount} rated conversation${stats.ratingTotalCount === 1 ? "" : "s"}`
+                  : "No ratings yet"
+              }
+              value={ratingPct != null ? `${ratingPct}% good` : "—"}
+              tint={3}
+            />
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-4">
+        <Card className="border-gray-200 shadow-sm rounded-2xl flex-1 flex flex-col min-h-[200px]">
+          <CardHeader className="px-3 md:px-5 pt-4 md:pt-5 pb-0">
+            <SectionHeader
+              title="Waiting in your queue"
+              count={queue.length > 0 ? queue.length : undefined}
+              onViewAll={() => navigate("/expert-requests")}
+            />
+          </CardHeader>
+          <CardContent className="px-3 md:px-5 pb-3 flex-1 flex flex-col">
+            {isQueueLoading ? (
+              <div className="flex flex-col gap-3 py-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-[64px] w-full rounded-lg" />
+                ))}
+              </div>
+            ) : queue.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
+                <CheckCircle2 size={32} className="text-primary" />
+                <span className="text-sm font-semibold text-gray-700 mt-1">All caught up</span>
+                <span className="text-xs text-gray-400 font-normal text-center max-w-[220px]">
+                  No unclaimed requests in your category right now.
+                </span>
+              </div>
+            ) : (
+              <div className="-mx-3 md:-mx-5">
+                {queue.slice(0, 5).map((item) => (
+                  <ExpertRequestListItem
+                    key={item.id}
+                    item={item}
+                    isSelected={false}
+                    onClick={() => navigate("/expert-requests")}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-200 shadow-sm rounded-2xl flex-1 flex flex-col min-h-[200px]">
+          <CardHeader className="px-3 md:px-5 pt-4 md:pt-5 pb-0">
+            <SectionHeader
+              title="Your active conversations"
+              count={mine.length > 0 ? mine.length : undefined}
+              onViewAll={() => navigate("/expert-requests")}
+            />
+          </CardHeader>
+          <CardContent className="px-3 md:px-5 pb-3 flex-1 flex flex-col">
+            {isMineLoading ? (
+              <div className="flex flex-col gap-3 py-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-[64px] w-full rounded-lg" />
+                ))}
+              </div>
+            ) : mine.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
+                <span className="text-sm font-semibold text-gray-700 mt-1">Nothing active</span>
+                <span className="text-xs text-gray-400 font-normal text-center max-w-[220px]">
+                  Claim a request from the queue to start a conversation.
+                </span>
+              </div>
+            ) : (
+              <div className="-mx-3 md:-mx-5">
+                {mine.slice(0, 5).map((item) => (
+                  <ExpertRequestListItem
+                    key={item.id}
+                    item={item}
+                    isSelected={false}
+                    onClick={() => navigate("/expert-requests")}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { openDrawer } = useDrawer();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+
+  // Hook order must stay unconditional regardless of which branch renders
+  // below, so this check happens AFTER every hook call in this component —
+  // see the early return just before the mother-cohort JSX.
+  const isExpertAccount = user?.hospitalName === EXPERT_HOSPITAL_NAME;
   const { data: mothers = [], isLoading: mothersLoading } = useMothers();
   const todayISO = new Date().toISOString().slice(0, 10);
   const { data: calls = [], isLoading: callsLoading, isError: callsError, refetch: refetchCalls } = useCalls(todayISO);
@@ -68,6 +224,10 @@ const Dashboard = () => {
 
   const clinician = getClinician();
   const firstName = clinician?.name?.split(/\s+/)[0] ?? "User";
+
+  // Every hook above has already run unconditionally — this only decides
+  // which JSX comes back, so Rules of Hooks holds regardless of account type.
+  if (isExpertAccount) return <ExpertDashboard />;
 
   return (
     <div className="flex flex-col gap-6 pb-6">

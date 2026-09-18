@@ -12,6 +12,10 @@ export function toMe(raw: Record<string, unknown>): Me {
     hospitalName: raw.hospital_name as Me["hospitalName"],
     mustChangePassword: (raw.must_change_password as boolean) ?? false,
     permissions: raw.permissions as RolePermissions,
+    bio: (raw.bio as string | null) ?? null,
+    yearsOfExperience: (raw.years_of_experience as number | null) ?? null,
+    languages: (raw.languages as string[] | null) ?? [],
+    specialty: (raw.specialty as string | null) ?? null,
   };
 }
 
