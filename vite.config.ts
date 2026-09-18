@@ -24,6 +24,18 @@ export default defineConfig(({ command }) => ({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    // Local dev is exercised through a cloudflared quick tunnel (its
+    // hostname rotates on every restart) — without this, Vite 6 rejects the
+    // tunnel host with a "Blocked request" 403. Dev-only; the config is
+    // ignored at build.
+    host: true,
+    allowedHosts: [
+      'itself-structured-trader-motherboard.trycloudflare.com',
+      '.trycloudflare.com',
+      'localhost',
+    ],
+  },
   define: {
     __SENTRY_RELEASE__: JSON.stringify(release),
   },

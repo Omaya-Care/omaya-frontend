@@ -138,6 +138,14 @@ export interface Me {
   hospitalName: string;
   mustChangePassword: boolean;
   permissions: RolePermissions;
+  // OMA-341 — mother-facing intro card fields, meaningful only for an
+  // expert-roster account (null otherwise).
+  bio: string | null;
+  yearsOfExperience: number | null;
+  // Portal-visible only — not shown on the mother-facing card.
+  languages: string[];
+  // Shown on the consent card alongside category.
+  specialty: string | null;
 }
 
 export interface RolePermissions {
@@ -154,4 +162,47 @@ export interface Role {
   description: string | null;
   isSystem: boolean;
   permissions: RolePermissions;
+}
+
+// OMA-341 — expert requests (bloom-backend app/routers/expert_requests.py).
+export type ExpertCategory =
+  | "psychologist"
+  | "lactation_consultant"
+  | "postpartum_wellness_expert"
+  | "other";
+
+export type ExpertRequestStatus = "new" | "assigned" | "active" | "completed" | "cancelled";
+
+export interface ExpertThreadMessage {
+  id: string;
+  speaker: "mother" | "expert";
+  textBody: string;
+  createdAt: string;
+}
+
+export type ExpertRating = "good" | "okay" | "not_helpful";
+
+export interface ExpertRequestItem {
+  id: string;
+  category: ExpertCategory;
+  questionText: string;
+  // Consent-gated (OMA-341): the API omits these (null) unless she picked
+  // "share my name too" on the combined consent card — not a client-side
+  // choice, the backend simply doesn't send them otherwise.
+  motherName: string | null;
+  carePhase: string | null;
+  language: string | null;
+  status: ExpertRequestStatus;
+  requestedAt: string;
+  respondedAt: string | null;
+  reported: boolean;
+  rating: ExpertRating | null;
+  // Sorts to the front of the queue — set only by the self-harm auto-queue
+  // path today, never by a mother's ordinary request.
+  urgent: boolean;
+}
+
+export interface MyExpertRequestItem extends ExpertRequestItem {
+  messageCount: number;
+  lastMessage: ExpertThreadMessage | null;
 }
