@@ -7,11 +7,12 @@ import { Input } from "../components/ui/Input";
 import { Skeleton } from "../components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { useSlideIndicator } from "../hooks/useSlideIndicator";
-import { getStatusDotClass } from "../lib/badge-helpers";
+import { getStatusDotClass, matchesDirectionFilter } from "../lib/badge-helpers";
 
 const CallsPage = () => {
   const [pickedCallId, setPickedCallId] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [directionFilter, setDirectionFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
@@ -33,11 +34,16 @@ const CallsPage = () => {
 
   const listRef = useRef<HTMLDivElement>(null);
 
-  const activeFilterCount = (statusFilter !== "all" ? 1 : 0) + (dateFilter !== "all" ? 1 : 0);
+  const activeFilterCount =
+    (statusFilter !== "all" ? 1 : 0) +
+    (dateFilter !== "all" ? 1 : 0) +
+    (directionFilter !== "all" ? 1 : 0);
 
   const filteredCalls = useMemo(() => {
     return calls.filter((call) => {
       if (statusFilter !== "all" && call.status !== statusFilter) return false;
+
+      if (!matchesDirectionFilter(call.direction, directionFilter)) return false;
 
 if (search.trim()) {
         const q = search.toLowerCase();
@@ -49,7 +55,7 @@ if (search.trim()) {
       return true;
     });
     // dateFilter intentionally excluded — date filtering happens server-side via apiDate.
-  }, [calls, statusFilter, search]);
+  }, [calls, statusFilter, directionFilter, search]);
 
   const callIndicator = useSlideIndicator(listRef, '[data-slide-active="true"]', [
     selectedCallId,
@@ -149,6 +155,25 @@ if (search.trim()) {
                   </div>
                 </div>
                 <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Direction</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["all", "inbound", "outbound"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setDirectionFilter(val)}
+                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                          directionFilter === val
+                            ? "border-primary bg-primary-100 text-primary font-medium"
+                            : "border-gray-200 text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        {val === "all" ? "All" : val === "inbound" ? "Incoming" : "Outgoing"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Date</p>
                   <div className="flex flex-wrap gap-1.5">
                     {["all", "today"].map((val) => (
@@ -177,6 +202,7 @@ if (search.trim()) {
               onClick={() => {
                 setStatusFilter("all");
                 setDateFilter("all");
+                setDirectionFilter("all");
               }}
               className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-primary transition-colors"
             >
