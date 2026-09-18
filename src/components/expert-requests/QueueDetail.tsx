@@ -49,6 +49,7 @@ const QueueDetail = ({ request, onClaimed }: QueueDetailProps) => {
     }
   };
 
+  // react-doctor-disable-next-line react-doctor/no-transition-all -- animate-in enter keyframe (duration-N is animation-duration), not a CSS transition:all
   return (
     <div className="flex flex-1 flex-col min-h-0 animate-in fade-in-0 duration-200 motion-reduce:animate-none">
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">

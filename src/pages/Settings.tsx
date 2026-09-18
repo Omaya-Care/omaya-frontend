@@ -372,7 +372,7 @@ const SettingsPage = () => {
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
   const languagesChanged =
-    parsedLanguages.join(' ') !== (me?.languages ?? []).join(' ');
+    parsedLanguages.join("\u0000") !== (me?.languages ?? []).join("\u0000");
   const expertProfileChanged =
     bio.trim() !== (me?.bio ?? '').trim() ||
     parsedYears !== (me?.yearsOfExperience ?? null) ||

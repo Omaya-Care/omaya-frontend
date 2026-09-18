@@ -282,6 +282,7 @@ export const useClaimExpertRequest = () => {
 };
 
 export const useSendExpertTyping = () => {
+  // react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- fire-and-forget typing ping; there is no cached state to invalidate
   return useMutation({
     mutationFn: async (requestId: string) => {
       const res = await api.post(`/expert-requests/${requestId}/typing`);

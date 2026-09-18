@@ -19,7 +19,7 @@ import { RequireAuth } from "./components/auth/RequireAuth";
 import { DocsGate } from "./components/auth/DocsGate";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { RolePermissions } from "./types";
-import { EXPERT_HOSPITAL_NAME } from "./lib/auth";
+import { EXPERT_HOSPITAL_NAME, getClinician } from "./lib/auth";
 import { DrawerProvider } from "./contexts/DrawerContext";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -107,10 +107,20 @@ function Protected({ children }: { children: ReactNode }) {
   if (required && !isLoading && !can(required)) {
     return <Navigate to="/dashboard" replace />;
   }
+  // Fall back to the persisted profile when /auth/me has no answer for us.
+  // AppShell decides which nav items to show from `getClinician()`, so when
+  // that request fails with anything other than a 401 this guard used to
+  // disagree with the nav it sits behind: the sidebar still offered Expert
+  // Requests and clicking it bounced the expert straight back to /dashboard.
+  // A transient profile-service blip should not lock an expert out of their
+  // only work queue while the expert-request endpoints are still answering.
+  // A 401 is different and already handled upstream — lib/api.ts clears the
+  // stored profile, so this falls through to the redirect as it should.
+  const expertHospitalName = user?.hospitalName ?? getClinician()?.hospital_name;
   if (
     expertOnlyRoutes.has(pathname) &&
     !isLoading &&
-    user?.hospitalName !== EXPERT_HOSPITAL_NAME
+    expertHospitalName !== EXPERT_HOSPITAL_NAME
   ) {
     return <Navigate to="/dashboard" replace />;
   }
