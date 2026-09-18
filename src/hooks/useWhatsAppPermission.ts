@@ -20,6 +20,14 @@ const REASON_COPY: Record<string, string> = {
   cooldown_7d: "WhatsApp allows only two permission requests per week. Try again in a few days.",
   ask_in_flight: "Another request for this mother is already being sent.",
   no_phone: "No phone number on file for this mother.",
+  // WhatsApp itself refused to carry the request — its per-pair limit was
+  // already spent, which can happen without us ever having asked her (she was
+  // re-enrolled, or another clinic shares this WhatsApp number). Naming the
+  // reset condition matters: before this existed the clinician was told to
+  // "try again in a minute", which is never true for this limit.
+  cooldown_meta:
+    "WhatsApp is limiting permission requests for this mother. Try again tomorrow, or after she next speaks to you on a WhatsApp call.",
+  calling_disabled: "WhatsApp calling is switched off on this server.",
 };
 
 /** Server-side reasons that no amount of clicking will fix — they need someone
@@ -84,7 +92,18 @@ export const useRequestWhatsAppCallPermission = (motherId: string) => {
           return;
         }
         holdShut("cooloff");
-        toast.error("The message couldn't be sent to WhatsApp. You can try again in a minute.");
+        // Name the code when we have one. `reason` now carries a machine token
+        // from the edge (`meta_132001`, `not_configured`, `http_502`) and this
+        // branch used to drop it on the floor — which put the clinician right
+        // back at the 2026-09-17 incident's "try again in a minute" for every
+        // Meta failure except the one we happen to map. Retrying genuinely
+        // won't help a deleted template; the least we can do is make the
+        // failure quotable to whoever can fix it.
+        toast.error(
+          reason
+            ? `The message couldn't be sent to WhatsApp (${reason}). Report this if it keeps happening.`
+            : "The message couldn't be sent to WhatsApp. You can try again in a minute.",
+        );
         return;
       }
       toast.error(REASON_COPY[reason] ?? "Could not send the permission request. Please try again.");
