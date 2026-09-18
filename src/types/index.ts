@@ -99,6 +99,9 @@ export interface Call {
   // 'whatsapp' is the TEXT channel (an episode); 'whatsapp_call' is a real
   // voice conversation over WhatsApp — same call pipeline, different transport.
   channel?: "voice" | "whatsapp" | "whatsapp_call";
+  // Who placed the call (backend mig 0081). OPTIONAL on purpose: absent from a
+  // backend that predates the field, and every read site must tolerate that.
+  direction?: "inbound" | "outbound";
 }
 
 export interface EscalationItem {
