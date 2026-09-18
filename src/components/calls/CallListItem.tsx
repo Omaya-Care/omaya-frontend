@@ -1,7 +1,12 @@
 import { Clock } from "lucide-react";
 import { Call } from "../../types";
 import { Badge } from "../ui/Badge";
-import { getStatusBadgeClass } from "../../lib/badge-helpers";
+import {
+  CHANNEL_BADGE_CLASS,
+  DIRECTION_BADGE_CLASS,
+  getStatusBadgeClass,
+  showsIncomingBadge,
+} from "../../lib/badge-helpers";
 import { formatDateTime } from "../../lib/format";
 
 interface CallListItemProps {
@@ -43,12 +48,13 @@ const CallListItem = ({ call, isSelected, onClick }: CallListItemProps) => {
               {call.motherName}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
+              {showsIncomingBadge(call.direction) && (
+                <Badge variant="outline" className={DIRECTION_BADGE_CLASS} size="sm">
+                  Incoming
+                </Badge>
+              )}
               {(call.channel === "whatsapp" || call.channel === "whatsapp_call") && (
-                <Badge
-                  variant="outline"
-                  className="border-emerald-200 bg-emerald-50 text-emerald-700"
-                  size="sm"
-                >
+                <Badge variant="outline" className={CHANNEL_BADGE_CLASS} size="sm">
                   {call.channel === "whatsapp_call" ? "WhatsApp call" : "WhatsApp"}
                 </Badge>
               )}

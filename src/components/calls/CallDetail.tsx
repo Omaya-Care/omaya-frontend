@@ -2,7 +2,13 @@ import { useState } from "react";
 import { PhoneCall, Clock, Heart, Calendar, Mic, Flag, FileText } from "lucide-react";
 import { Call } from "../../types";
 import { Badge } from "../ui/Badge";
-import { getSeverityBadgeClass, getStatusBadgeClass } from "../../lib/badge-helpers";
+import {
+  CHANNEL_BADGE_CLASS,
+  DIRECTION_BADGE_CLASS,
+  getSeverityBadgeClass,
+  getStatusBadgeClass,
+  showsIncomingBadge,
+} from "../../lib/badge-helpers";
 import { CallActions } from "./CallActions";
 import { CallTranscriptView } from "./CallTranscriptView";
 import { formatDateTime } from "../../lib/format";
@@ -78,12 +84,13 @@ const CallDetail = ({ call, isLoading }: CallDetailProps) => {
             <Badge variant="outline" className={getStatusBadgeClass(call.status)} size="sm" dot>
               {label}
             </Badge>
+            {showsIncomingBadge(call.direction) && (
+              <Badge variant="outline" className={DIRECTION_BADGE_CLASS} size="sm">
+                Incoming
+              </Badge>
+            )}
             {(call.channel === "whatsapp" || call.channel === "whatsapp_call") && (
-              <Badge
-                variant="outline"
-                className="border-emerald-200 bg-emerald-50 text-emerald-700"
-                size="sm"
-              >
+              <Badge variant="outline" className={CHANNEL_BADGE_CLASS} size="sm">
                 {call.channel === "whatsapp_call" ? "WhatsApp call" : "WhatsApp"}
               </Badge>
             )}
