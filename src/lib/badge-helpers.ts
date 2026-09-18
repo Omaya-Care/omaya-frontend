@@ -73,6 +73,47 @@ export function getStatusBadgeClass(status: string) {
   }
 }
 
+// The WhatsApp channel badge. Extracted from CallListItem/CallDetail, where
+// these exact classes were inlined and duplicated.
+export const CHANNEL_BADGE_CLASS = "border-emerald-200 bg-emerald-50 text-emerald-700";
+
+// The "Incoming" badge for a call the mother placed. Deliberately not red
+// (reads as `missed`) and not emerald (reads as WhatsApp) — sky is unused
+// elsewhere in this palette, so it carries no inherited meaning.
+export const DIRECTION_BADGE_CLASS = "border-sky-200 bg-sky-50 text-sky-700";
+
+// Whether to show the "Incoming" badge — ONE rule, deliberately with no
+// channel special-case.
+//
+// An earlier version suppressed the badge for WhatsApp text episodes on the
+// grounds that they are inbound by construction, so the badge told the
+// clinician nothing. That was true but it desynced the badge from the direction
+// FILTER, which kept matching those rows: filtering "Incoming" returned a list
+// of WhatsApp conversations that were not visibly incoming. A filter returning
+// rows the UI does not mark is the same class of untruth this whole change
+// exists to remove, just moved from the label to the filter.
+//
+// So: badge and filter now answer "is this row incoming?" identically. The
+// redundancy on WhatsApp rows is the accepted cost of having exactly one rule
+// that cannot drift. The backend's channel-first LABEL rule is unaffected and
+// complementary — the label says what KIND of interaction it was, the badge
+// says who started it.
+export function showsIncomingBadge(direction: "inbound" | "outbound" | undefined): boolean {
+  return direction === "inbound";
+}
+
+// Direction filter predicate. `direction` is optional on the wire so the UI
+// stays correct against a backend that predates it — the `?? "outbound"` is
+// load-bearing: without it an "Outgoing" filter against an older backend
+// matches NOTHING and reads to a clinician as data loss.
+export function matchesDirectionFilter(
+  direction: "inbound" | "outbound" | undefined,
+  filter: string,
+): boolean {
+  if (filter === "all") return true;
+  return (direction ?? "outbound") === filter;
+}
+
 // OMA-341 — expert_requests.status is a distinct vocabulary from Call's
 // (new/assigned/active/completed/cancelled, not completed/in_progress/
 // upcoming/missed), kept as its own named export rather than adding cases
