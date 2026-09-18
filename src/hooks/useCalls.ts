@@ -20,6 +20,7 @@ function toCall(raw: Record<string, unknown>): Call {
     audioUrl: raw.audio_url as string | undefined,
     recordingConsent: raw.recording_consent as boolean | undefined,
     channel: raw.channel as Call["channel"],
+    direction: raw.direction as Call["direction"],
   };
 }
 
