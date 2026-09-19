@@ -13,6 +13,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  HeartHandshake,
 } from "lucide-react";
 import { useDrawer } from "../../contexts/DrawerContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -22,6 +23,7 @@ import {
   clearSession,
   initialsOf,
   SESSION_STORAGE_KEY,
+  EXPERT_HOSPITAL_NAME,
 } from "../../lib/auth";
 import { logout } from "../../lib/auth-api";
 import { useSlideIndicator } from "../../hooks/useSlideIndicator";
@@ -58,18 +60,34 @@ interface AppShellProps {
 }
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", route: "/dashboard" },
-  { icon: Users,           label: "Mothers",   route: "/mothers" },
-  { icon: Phone,           label: "Calls",     route: "/calls" },
-  { icon: UserCog,         label: "Staff",     route: "/staff" },
+  { icon: LayoutDashboard,  label: "Dashboard",       route: "/dashboard" },
+  { icon: Users,            label: "Mothers",         route: "/mothers" },
+  { icon: Phone,            label: "Calls",           route: "/calls" },
+  { icon: HeartHandshake,   label: "Expert requests", route: "/expert-requests" },
+  { icon: UserCog,          label: "Staff",           route: "/staff" },
+  { icon: Settings,         label: "Settings",        route: "/settings" },
 ];
 
 const navItemPermissions: Record<string, keyof RolePermissions | null> = {
   "/dashboard": null,
   "/mothers": "view_mothers",
   "/calls": "view_mothers",
+  "/expert-requests": "view_mothers",
   "/staff": "manage_staff",
+  "/settings": null,
 };
+
+// Mother-cohort pages (Mothers/Calls/Staff) are meaningless for an
+// expert-roster account — it has no mothers of its own, RLS returns nothing
+// for all of them. Dashboard is NOT one of these: it renders a completely
+// different, expert-specific view (see Dashboard.tsx's ExpertDashboard), so
+// it stays visible for both account types. /expert-requests is the inverse
+// of the mother-cohort pages: it's THE page for an expert account and pure
+// noise for an ordinary hospital clinician (even one with view_mothers).
+// Both directions are hospital-name-gated on top of the permission filter
+// below, not permission-gated — see EXPERT_HOSPITAL_NAME.
+const EXPERT_ONLY_ROUTES = new Set(["/expert-requests"]);
+const NON_EXPERT_ROUTES = new Set(["/mothers", "/calls", "/staff"]);
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigate = useNavigate();
@@ -81,7 +99,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
 
+  const clinician = getClinician();
+  const isExpertAccount = clinician?.hospital_name === EXPERT_HOSPITAL_NAME;
+
   const visibleNavItems = navItems.filter((item) => {
+    if (isExpertAccount && NON_EXPERT_ROUTES.has(item.route)) return false;
+    if (!isExpertAccount && EXPERT_ONLY_ROUTES.has(item.route)) return false;
     const required = navItemPermissions[item.route];
     return required === null || can(required);
   });
@@ -95,7 +118,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     visibleNavItems.length,
   ]);
 
-  const clinician = getClinician();
   const displayName = clinician?.name ?? clinician?.email ?? "";
   const roleLabel = clinician?.role ?? "";
   const hospitalName = clinician?.hospital_name ?? "";
@@ -153,24 +175,31 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         <button
           type="button"
           aria-label="Close menu"
-          className="fixed inset-0 bg-black/30 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/30 z-20 md:hidden"
           onClick={() => setMobileSidebarOpen(false)}
         />
       )}
 
       {/* ── SIDEBAR ──────────────────────────────────────────── */}
+      {/* Cutover to a persistent (non-drawer) sidebar is `md` (768px), not
+          `lg` — a portrait tablet has plenty of width for the docked rail,
+          and lumping it in with phone widths meant it only ever got the
+          full-screen overlay treatment meant for phones. Below `md` the
+          drawer width is viewport-relative (`78vw`, capped at 300px) instead
+          of a flat 220px, so it scales sanely from small phones up to large
+          ones instead of feeling cramped or oversized. */}
       <aside
         className={`
-          fixed lg:static inset-y-0 left-0 z-30 lg:z-auto
-          ${sidebarCollapsed ? "lg:w-[64px]" : "lg:w-[220px]"}
-          w-[220px] flex-none h-full flex flex-col py-4
+          fixed md:static inset-y-0 left-0 z-30 md:z-auto
+          ${sidebarCollapsed ? "md:w-[64px]" : "md:w-[220px]"}
+          w-[78vw] max-w-[300px] flex-none h-full flex flex-col py-4
           bg-white border-r border-gray-200
           transition-[width,transform] duration-200 ease-in-out motion-reduce:transition-none overflow-hidden
-          ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >
         {/* Logo row */}
-        <div className={`pt-2 pb-8 flex items-center px-5 ${sidebarCollapsed ? "lg:justify-center lg:px-0" : "justify-between"}`}>
+        <div className={`pt-2 pb-8 flex items-center px-5 ${sidebarCollapsed ? "md:justify-center md:px-0" : "justify-between"}`}>
           <Link
             to="/dashboard"
             className="flex-none hover:opacity-80 transition-opacity"
@@ -179,21 +208,22 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <img src="/logo.png" className="h-[28px] w-auto object-contain" alt="Omaya Care" />
           </Link>
 
-          {/* Mobile close */}
+          {/* Mobile close — padded well past the 18px icon so the tap
+              target clears the ~44px touch-target floor. */}
           <button
             type="button"
-            className="lg:hidden text-gray-400 hover:text-gray-600 transition-colors"
+            className="md:hidden -m-2 p-2 text-gray-400 hover:text-gray-600 transition-colors"
             onClick={() => setMobileSidebarOpen(false)}
             aria-label="Close menu"
           >
             <X size={18} />
           </button>
 
-          {/* Desktop collapse toggle */}
+          {/* Desktop/tablet collapse toggle */}
           {!sidebarCollapsed && (
             <button
               type="button"
-              className="hidden lg:flex text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-md hover:bg-gray-100"
+              className="hidden md:flex text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-md hover:bg-gray-100"
               onClick={() => setSidebarCollapsed(true)}
               aria-label="Collapse sidebar"
             >
@@ -229,7 +259,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           )}
           {/* Expand toggle when collapsed */}
           {sidebarCollapsed && (
-            <div className="hidden lg:flex justify-center mb-3">
+            <div className="hidden md:flex justify-center mb-3">
               <button
                 type="button"
                 className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-md hover:bg-gray-100"
@@ -247,7 +277,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               to={item.route}
               onClick={() => setMobileSidebarOpen(false)}
               className={({ isActive }) => `
-                relative z-10 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm group
+                relative z-10 flex items-center gap-3 px-3 py-3 md:py-2.5 rounded-lg text-sm group
                 transition-[color,background-color,transform] duration-200 ease-out
                 ${
                   isActive
@@ -267,7 +297,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     <span
                       className={`whitespace-nowrap overflow-hidden transition-[max-width,opacity] duration-200 ease-in-out motion-reduce:transition-none ${
                         sidebarCollapsed
-                          ? "lg:max-w-0 lg:opacity-0"
+                          ? "md:max-w-0 md:opacity-0"
                           : "max-w-[160px] opacity-100"
                       }`}
                     >
@@ -311,7 +341,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 <div
                   className={`flex flex-col min-w-0 overflow-hidden transition-[max-width,opacity] duration-200 ease-in-out motion-reduce:transition-none ${
                     sidebarCollapsed
-                      ? "lg:max-w-0 lg:opacity-0 flex-1"
+                      ? "md:max-w-0 md:opacity-0 flex-1"
                       : "max-w-[160px] opacity-100 flex-1"
                   }`}
                 >
@@ -320,7 +350,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 </div>
                 <ChevronsUpDown
                   size={14}
-                  className={`text-gray-400 flex-none transition-opacity duration-200 motion-reduce:transition-none ${sidebarCollapsed ? "lg:opacity-0" : "opacity-100"}`}
+                  className={`text-gray-400 flex-none transition-opacity duration-200 motion-reduce:transition-none ${sidebarCollapsed ? "md:opacity-0" : "opacity-100"}`}
                 />
               </div>
             </PopoverTrigger>
@@ -352,16 +382,16 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       </aside>
 
       {/* ── MAIN CONTENT ─────────────────────────────────────── */}
-      <main className="flex-1 bg-surface-app relative flex flex-col lg:rounded-tl-2xl lg:shadow-[-6px_0_20px_-6px_rgba(0,0,0,0.12)] overflow-y-auto">
-        {/* Mobile top bar — logo + menu toggle. The bell floats top-right
-            (below), so it's not repeated here. */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 flex-shrink-0">
+      <main className="flex-1 bg-surface-app relative flex flex-col md:rounded-tl-2xl md:shadow-[-6px_0_20px_-6px_rgba(0,0,0,0.12)] overflow-y-auto">
+        {/* Mobile/tablet top bar — logo + menu toggle. The bell floats
+            top-right (below), so it's not repeated here. */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 flex-shrink-0">
           <img src="/logo.png" className="h-7 w-auto object-contain" alt="Omaya Care" />
           <button
             type="button"
             onClick={() => setMobileSidebarOpen(true)}
             aria-label="Open menu"
-            className="text-gray-600 hover:text-gray-800 transition-colors"
+            className="-m-2 p-2 text-gray-600 hover:text-gray-800 transition-colors"
           >
             <Menu size={22} />
           </button>
@@ -369,14 +399,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
         {/* Global notifications bell — floats top-right so it lines up with
             the first line of the page (e.g. the dashboard date). */}
-        <div className="absolute top-3 right-4 lg:top-4 lg:right-4 z-10">
+        <div className="absolute top-3 right-4 md:top-4 md:right-4 z-10">
           <NotificationsBell />
         </div>
 
         {/* react-doctor-disable-next-line react-doctor/no-transition-all -- animate-in enter keyframe (duration-N is animation-duration), not a CSS transition:all */}
         <div
           key={location.pathname}
-          className="flex flex-1 flex-col min-h-0 px-4 lg:px-6 pt-4 lg:pt-6 pb-4 lg:pb-6 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+          className="flex flex-1 flex-col min-h-0 px-4 md:px-6 pt-4 md:pt-6 pb-4 md:pb-6 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
         >
           {children}
         </div>

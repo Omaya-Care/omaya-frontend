@@ -19,6 +19,7 @@ import { RequireAuth } from "./components/auth/RequireAuth";
 import { DocsGate } from "./components/auth/DocsGate";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { RolePermissions } from "./types";
+import { EXPERT_HOSPITAL_NAME, getClinician } from "./lib/auth";
 import { DrawerProvider } from "./contexts/DrawerContext";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -30,6 +31,7 @@ import DocsLoading from "./components/DocsLoading";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const MothersPage = lazy(() => import("./pages/Mothers"));
 const CallsPage = lazy(() => import("./pages/Calls"));
+const ExpertRequestsPage = lazy(() => import("./pages/ExpertRequests"));
 const StaffPage = lazy(() => import("./pages/Staff"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const Docs = lazy(() => import("./Docs"));
@@ -89,21 +91,46 @@ const routePermissions: Partial<Record<string, keyof RolePermissions>> = {
   "/staff": "manage_staff",
 };
 
+// Routes gated on account TYPE rather than a RolePermissions key —
+// /expert-requests is only for accounts on the dedicated Omaya expert
+// roster (see EXPERT_HOSPITAL_NAME); an ordinary hospital clinician with
+// view_mothers=true is not an expert, so this can't be a routePermissions
+// entry the way /mothers or /calls are.
+const expertOnlyRoutes = new Set(["/expert-requests"]);
+
 /** Protected page: requires a session + permission, rendered inside the app shell. */
 function Protected({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  const { can, isLoading } = useAuth();
+  const { user, can, isLoading } = useAuth();
   const required = routePermissions[pathname];
 
   if (required && !isLoading && !can(required)) {
     return <Navigate to="/dashboard" replace />;
   }
+  // Fall back to the persisted profile when /auth/me has no answer for us.
+  // AppShell decides which nav items to show from `getClinician()`, so when
+  // that request fails with anything other than a 401 this guard used to
+  // disagree with the nav it sits behind: the sidebar still offered Expert
+  // Requests and clicking it bounced the expert straight back to /dashboard.
+  // A transient profile-service blip should not lock an expert out of their
+  // only work queue while the expert-request endpoints are still answering.
+  // A 401 is different and already handled upstream — lib/api.ts clears the
+  // stored profile, so this falls through to the redirect as it should.
+  const expertHospitalName = user?.hospitalName ?? getClinician()?.hospital_name;
+  if (
+    expertOnlyRoutes.has(pathname) &&
+    !isLoading &&
+    expertHospitalName !== EXPERT_HOSPITAL_NAME
+  ) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
-  // While /auth/me is still loading for a permission-gated route, render a
-  // loader inside the shell instead of mounting the page — otherwise the page
-  // fetches its data and 403s before the post-load redirect can fire.
-  const content =
-    required && isLoading ? <PageLoading /> : children;
+  // While /auth/me is still loading for a permission- or account-type-gated
+  // route, render a loader inside the shell instead of mounting the page —
+  // otherwise the page fetches its data and 403s before the post-load
+  // redirect can fire.
+  const isGated = !!required || expertOnlyRoutes.has(pathname);
+  const content = isGated && isLoading ? <PageLoading /> : children;
 
   return (
     <RequireAuth>
@@ -176,6 +203,14 @@ export default function App() {
                     element={
                       <Protected>
                         <CallsPage />
+                      </Protected>
+                    }
+                  />
+                  <Route
+                    path="/expert-requests"
+                    element={
+                      <Protected>
+                        <ExpertRequestsPage />
                       </Protected>
                     }
                   />

@@ -10,7 +10,12 @@ export type ClinicianRole =
   | "Midwife"
   | "Coordinator"
   | "Paediatrician"
-  | "Psychologist";
+  | "Psychologist"
+  // OMA-341 expert roster roles (bloom-backend migration 0057). "Psychologist"
+  // above is shared — it's also a normal hospital-staff role; hospitalName is
+  // what actually distinguishes an expert account, see isExpertAccount().
+  | "Lactation Consultant"
+  | "Postpartum Wellness Expert";
 
 export interface Clinician {
   id: string;
@@ -72,6 +77,24 @@ export function clearSession(): void {
   localStorage.removeItem(LEGACY_TOKEN_KEY);
   localStorage.removeItem(LEGACY_CLINICIAN_KEY);
   localStorage.removeItem(LEGACY_MUST_CHANGE_KEY);
+}
+
+// OMA-341: the one dedicated hospital expert clinician accounts live on
+// (bloom-backend migration 0057 — app/models/clinician.py / the seed
+// script). Hospital name, not role, is what actually identifies an expert
+// account: "Psychologist" is also an ordinary hospital-staff role, so role
+// name alone would misfire for a hospital's own psychologist. Compared
+// directly against `hospital_name` (Clinician, localStorage profile) or
+// `hospitalName` (Me, /auth/me) at each call site — the field naming
+// differs between those two shapes, so this is a bare constant, not a
+// shape-specific helper.
+export const EXPERT_HOSPITAL_NAME = "Omaya (Expert Roster)";
+
+/** Default landing route for a signed-in clinician. An expert-roster account
+ * has no mothers of its own — Dashboard/Mothers/Calls are all empty for it —
+ * so it lands on its actual work queue instead. */
+export function defaultRouteFor(hospitalName: string | undefined): string {
+  return hospitalName === EXPERT_HOSPITAL_NAME ? "/expert-requests" : "/dashboard";
 }
 
 /** Initials for the avatar chip — first+last of the name, else the email. */

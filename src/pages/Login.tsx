@@ -5,7 +5,7 @@ import { AuthShell } from "../components/auth/AuthShell";
 import { AuthError } from "../components/auth/AuthCard";
 import { signIn } from "../lib/auth-api";
 import { extractApiError } from "../lib/api";
-import { isAuthenticated } from "../lib/auth";
+import { defaultRouteFor, getClinician, isAuthenticated } from "../lib/auth";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ const Login = () => {
   const [submitting, setSubmitting] = useState(false);
 
   if (isAuthenticated()) {
-    return <Navigate to={next || "/dashboard"} replace />;
+    return <Navigate to={next || defaultRouteFor(getClinician()?.hospital_name)} replace />;
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -27,10 +27,11 @@ const Login = () => {
     setError(null);
     setSubmitting(true);
     try {
-      const { mustChangePassword } = await signIn(email, password);
-      navigate(mustChangePassword ? "/change-password" : next || "/dashboard", {
-        replace: true,
-      });
+      const { mustChangePassword, clinician } = await signIn(email, password);
+      navigate(
+        mustChangePassword ? "/change-password" : next || defaultRouteFor(clinician.hospital_name),
+        { replace: true },
+      );
     } catch (err) {
       setError(extractApiError(err, "Invalid email or password.").message);
     } finally {
