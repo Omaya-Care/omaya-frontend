@@ -20,6 +20,14 @@ const REASON_COPY: Record<string, string> = {
   cooldown_7d: "WhatsApp allows only two permission requests per week. Try again in a few days.",
   ask_in_flight: "Another request for this mother is already being sent.",
   no_phone: "No phone number on file for this mother.",
+  // WhatsApp itself refused to carry the request — its per-pair limit was
+  // already spent, which can happen without us ever having asked her (she was
+  // re-enrolled, or another clinic shares this WhatsApp number). Naming the
+  // reset condition matters: before this existed the clinician was told to
+  // "try again in a minute", which is never true for this limit.
+  cooldown_meta:
+    "WhatsApp is limiting permission requests for this mother. Try again tomorrow, or after she next speaks to you on a WhatsApp call.",
+  calling_disabled: "WhatsApp calling is switched off on this server.",
 };
 
 /** Server-side reasons that no amount of clicking will fix — they need someone
@@ -32,6 +40,29 @@ const NON_RETRYABLE = new Set(["send_secret_unconfigured"]);
 const RETRY_COOLOFF_MS = 60_000;
 
 export type AskBlock = "cooloff" | "unconfigured";
+
+/** The toast text for a send the server refused outright (HTTP 200,
+ *  `status: "error"`), given the machine token it refused with.
+ *
+ *  Extracted as a pure function for the same reason `callNowErrorMessage` is:
+ *  this routing is incident-specific and untestable while it sits inside a
+ *  mutation callback, so it could regress to misleading retry guidance with
+ *  CI green. `reason` carries an edge token (`meta_132001`, `not_configured`,
+ *  `http_502`); naming it beats a blanket "try again in a minute", which is
+ *  simply false for a deleted template or a spent Meta budget. */
+export function permissionSendErrorMessage(reason: string): string {
+  if (NON_RETRYABLE.has(reason)) {
+    return "WhatsApp permission requests aren't configured on this server. Report this — retrying won't help.";
+  }
+  return reason
+    ? `The message couldn't be sent to WhatsApp (${reason}). Report this if it keeps happening.`
+    : "The message couldn't be sent to WhatsApp. You can try again in a minute.";
+}
+
+/** The toast text for a refusal the server explains with a known reason. */
+export function permissionRefusalMessage(reason: string): string {
+  return REASON_COPY[reason] ?? "Could not send the permission request. Please try again.";
+}
 
 export const useRequestWhatsAppCallPermission = (motherId: string) => {
   const request = useRequestWhatsAppPermission();
@@ -76,18 +107,11 @@ export const useRequestWhatsAppCallPermission = (motherId: string) => {
         // the clinician gets an identical-looking button and a "try again" that
         // changes nothing — the documented-likely outcome while the vendor
         // transport for interactive messages is unproven.
-        if (NON_RETRYABLE.has(reason)) {
-          holdShut("unconfigured");
-          toast.error(
-            "WhatsApp permission requests aren't configured on this server. Report this — retrying won't help.",
-          );
-          return;
-        }
-        holdShut("cooloff");
-        toast.error("The message couldn't be sent to WhatsApp. You can try again in a minute.");
+        holdShut(NON_RETRYABLE.has(reason) ? "unconfigured" : "cooloff");
+        toast.error(permissionSendErrorMessage(reason));
         return;
       }
-      toast.error(REASON_COPY[reason] ?? "Could not send the permission request. Please try again.");
+      toast.error(permissionRefusalMessage(reason));
     } catch (err: unknown) {
       const resp = (err as {
         response?: { status?: number; data?: { detail?: { error_code?: string; message?: string } } };
