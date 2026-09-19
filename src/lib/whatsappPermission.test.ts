@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { permissionWindowLabel, permissionLabel } from "./whatsappPermission";
+import {
+  permissionWindowLabel,
+  permissionLabel,
+  askBlockedLabel,
+} from "./whatsappPermission";
 
 const inHours = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
 
@@ -45,5 +49,30 @@ describe("permissionLabel", () => {
     expect(permissionLabel(undefined)).toBe("not asked yet");
     expect(permissionLabel("denied")).toBe("she declined");
     expect(permissionLabel("expired")).toBe("permission expired");
+  });
+});
+
+describe("askBlockedLabel", () => {
+  it("distinguishes a WhatsApp-side limit from 'already asked today'", () => {
+    // `cooldown_meta` means WhatsApp refused to carry the request — she was
+    // never actually asked. Rendering it as "already asked today" would tell a
+    // midwife we messaged a mother we did not, which is the same class of
+    // untruth the 2026-09-17 incident produced at the toast layer.
+    expect(askBlockedLabel("cooldown_meta")).toBe("WhatsApp limit reached");
+    expect(askBlockedLabel("cooldown_24h")).toBe("already asked today");
+  });
+
+  it("names the kill switch instead of falling through to 'unavailable'", () => {
+    // `calling_disabled` has always been reachable (WHATSAPP_CALLING_ENABLED)
+    // but had no label, so the item read "unavailable" — indistinguishable
+    // from a fault.
+    expect(askBlockedLabel("calling_disabled")).toBe("WhatsApp calling is off");
+  });
+
+  it("returns undefined for a reason it does not know", () => {
+    // The caller falls back to "unavailable"; an unknown reason must not
+    // render as the empty string and collapse the hint entirely.
+    expect(askBlockedLabel("meta_131026")).toBeUndefined();
+    expect(askBlockedLabel(undefined)).toBeUndefined();
   });
 });

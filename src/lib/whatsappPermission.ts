@@ -37,6 +37,16 @@ export function askBlockedLabel(reason?: string): string | undefined {
       return "already asked today";
     case "cooldown_7d":
       return "weekly limit reached";
+    // She was never actually asked — WhatsApp refused to carry the request
+    // because the limit for this clinic-and-mother pair was already spent
+    // (see `cooldown_meta` in the API docs). Deliberately NOT worded as
+    // "already asked today": that is `cooldown_24h`, and telling a midwife we
+    // asked her when we did not is the small version of the bug this whole
+    // path exists to fix.
+    case "cooldown_meta":
+      return "WhatsApp limit reached";
+    case "calling_disabled":
+      return "WhatsApp calling is off";
     case "ask_in_flight":
       return "already sending";
     case "no_phone":
