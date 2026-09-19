@@ -84,20 +84,17 @@ const navItemPermissions: Record<string, keyof RolePermissions | null> = {
 // it stays visible for both account types. /expert-requests is the inverse
 // of the mother-cohort pages: it's THE page for an expert account and pure
 // noise for an ordinary hospital clinician (even one with view_mothers).
-// /settings rides in NON_EXPERT_ROUTES for a different reason: it is not
-// meaningless for a hospital clinician, it is just already reachable from
-// the profile popover, so a second top-level entry is clutter there. An
-// expert account has a much emptier sidebar and misses the popover, so it
-// keeps the nav item.
+// /settings sits in EXPERT_ONLY_ROUTES for a different reason than
+// /expert-requests: it is not meaningless for a hospital clinician, it is
+// just already reachable from the profile popover, so a second top-level
+// entry is clutter there. An expert account has a much emptier sidebar and
+// misses the popover, so it keeps the nav item.
 // Both directions are hospital-name-gated on top of the permission filter
-// below, not permission-gated — see EXPERT_HOSPITAL_NAME.
-const EXPERT_ONLY_ROUTES = new Set(["/expert-requests"]);
-const NON_EXPERT_ROUTES = new Set([
-  "/mothers",
-  "/calls",
-  "/staff",
-  "/settings",
-]);
+// below, not permission-gated — see EXPERT_HOSPITAL_NAME. Note the sets are
+// named for who SEES them: EXPERT_ONLY_ROUTES is hidden from hospital
+// accounts, NON_EXPERT_ROUTES is hidden from expert accounts.
+const EXPERT_ONLY_ROUTES = new Set(["/expert-requests", "/settings"]);
+const NON_EXPERT_ROUTES = new Set(["/mothers", "/calls", "/staff"]);
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigate = useNavigate();
