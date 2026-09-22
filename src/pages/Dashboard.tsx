@@ -174,15 +174,12 @@ const ExpertDashboard = () => {
   );
 };
 
-const Dashboard = () => {
+// The mother-cohort dashboard. Split out from the entry point below so its
+// queries only ever mount for an account that has mothers — see there.
+const ClinicianDashboard = () => {
   const navigate = useNavigate();
   const { openDrawer } = useDrawer();
-  const { can, user } = useAuth();
-
-  // Hook order must stay unconditional regardless of which branch renders
-  // below, so this check happens AFTER every hook call in this component —
-  // see the early return just before the mother-cohort JSX.
-  const isExpertAccount = user?.hospitalName === EXPERT_HOSPITAL_NAME;
+  const { can } = useAuth();
   const { data: mothers = [], isLoading: mothersLoading } = useMothers();
   const todayISO = new Date().toISOString().slice(0, 10);
   const { data: calls = [], isLoading: callsLoading, isError: callsError, refetch: refetchCalls } = useCalls(todayISO);
@@ -224,10 +221,6 @@ const Dashboard = () => {
 
   const clinician = getClinician();
   const firstName = clinician?.name?.split(/\s+/)[0] ?? "User";
-
-  // Every hook above has already run unconditionally — this only decides
-  // which JSX comes back, so Rules of Hooks holds regardless of account type.
-  if (isExpertAccount) return <ExpertDashboard />;
 
   return (
     <div className="flex flex-col gap-6 pb-6">
@@ -451,6 +444,20 @@ const Dashboard = () => {
       )}
     </div>
   );
+};
+
+// Pick the view BEFORE either branch's hooks mount. This used to be one
+// component with an early `return <ExpertDashboard />` after every hook
+// call — which satisfied the Rules of Hooks but meant an expert's visit
+// still fired useMothers/useCalls/useEscalations/useDashboardStats and threw
+// the results away: four requests for a cohort they do not have, some of
+// which 403, plus background alert polling if they hold `escalate`. Two
+// sibling components own their own queries, so the constraint the old
+// comment worked around no longer exists.
+const Dashboard = () => {
+  const { user } = useAuth();
+  const isExpertAccount = user?.hospitalName === EXPERT_HOSPITAL_NAME;
+  return isExpertAccount ? <ExpertDashboard /> : <ClinicianDashboard />;
 };
 
 export default Dashboard;

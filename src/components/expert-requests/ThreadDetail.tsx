@@ -81,10 +81,21 @@ const ThreadDetail = ({ requestItem, onCompleted }: ThreadDetailProps) => {
     if (!trimmed) return;
     try {
       const result = await reply.mutateAsync({ requestId: requestItem.id, body: trimmed });
-      setBody("");
-      if (!result.sent) {
+      // Only clear the composer once it actually went out. The backend is
+      // durable-record-first (it commits the thread message BEFORE attempting
+      // the outbound call), so `sent: false` means "she has not received
+      // this" — and wiping the box made an expert retype a clinical message
+      // to act on that. Keeping the draft makes the retry one click.
+      //
+      // Retrying does add a SECOND message to the thread, because the first
+      // one is already recorded; say so rather than let the expert discover
+      // it. A resend-that-existing-message endpoint would be the real fix and
+      // does not exist yet.
+      if (result.sent) {
+        setBody("");
+      } else {
         toast.warning(
-          "Your message is recorded, but it may not have reached her WhatsApp yet — you can retry.",
+          "Recorded, but it may not have reached her WhatsApp. Sending again will retry delivery and add a second message to the thread.",
         );
       }
     } catch (err) {
@@ -106,6 +117,7 @@ const ThreadDetail = ({ requestItem, onCompleted }: ThreadDetailProps) => {
 
   const displayName = requestItem.motherName ?? "Anonymous";
 
+  // react-doctor-disable-next-line react-doctor/no-transition-all -- animate-in enter keyframe (duration-N is animation-duration), not a CSS transition:all
   return (
     <div className="flex flex-1 flex-col min-h-0 animate-in fade-in-0 duration-200 motion-reduce:animate-none">
       {/* Header */}

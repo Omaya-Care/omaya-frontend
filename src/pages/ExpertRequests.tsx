@@ -25,9 +25,14 @@ const ExpertRequestsPage = () => {
   // Default-select the first item once each tab's list loads, mirroring
   // Calls.tsx — one effect per list (not a single effect keyed off the
   // active tab) so switching tabs can't clobber the other tab's selection.
+  // Re-select when the stored id is empty OR no longer in the list. The
+  // second half matters because this list polls: another expert claiming the
+  // item you had selected drops it out of the queue, leaving a non-empty id
+  // that `find()` can no longer resolve — so the detail pane went blank and
+  // stayed blank until you clicked something yourself.
   useEffect(() => {
     // react-doctor-disable-next-line react-doctor/no-event-handler
-    if (queue.length > 0 && !selectedQueueId) {
+    if (queue.length > 0 && !queue.some((r) => r.id === selectedQueueId)) {
       // react-doctor-disable-next-line react-doctor/no-derived-state
       setSelectedQueueId(queue[0].id);
     }
@@ -35,7 +40,7 @@ const ExpertRequestsPage = () => {
 
   useEffect(() => {
     // react-doctor-disable-next-line react-doctor/no-event-handler
-    if (mine.length > 0 && !selectedMineId) {
+    if (mine.length > 0 && !mine.some((r) => r.id === selectedMineId)) {
       // react-doctor-disable-next-line react-doctor/no-derived-state
       setSelectedMineId(mine[0].id);
     }
