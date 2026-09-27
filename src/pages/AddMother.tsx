@@ -39,6 +39,7 @@ import {
   dobError,
   gravidaError,
   localDigitsOf,
+  normaliseLocalDigits,
   paraError,
   phoneLocalDigitsValid,
   requiredErrors,
@@ -147,7 +148,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
           ),
         ),
         ...collectErrors({
-          phone: formData.phone && !phoneValid ? "Enter at least 9 digits" : null,
+          phone: formData.phone && !phoneValid ? "Enter a 9-digit number" : null,
           dob: dobError(formData.dob),
           gravida: gravidaError(formData.gravida),
           para: paraError(formData.gravida, formData.para),
@@ -390,10 +391,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                     placeholder="55 123 4567"
                     value={groupPhoneDigits(formData.phone.replace(countryCode, ""))}
                     onChange={(e) => {
-                      const raw = e.target.value
-                        .replace(/\D/g, "")
-                        .replace(/^0+/, "")
-                        .slice(0, 9);
+                      const raw = normaliseLocalDigits(e.target.value, countryCode);
                       updateField("phone", raw ? `${countryCode}${raw}` : "");
                     }}
                     className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"

@@ -66,6 +66,7 @@ import {
   dobError,
   gravidaError,
   localDigitsOf,
+  normaliseLocalDigits,
   paraError,
   parseFormDate,
   phoneLocalDigitsValid,
@@ -418,7 +419,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           deliveryType: { value: formData.deliveryType, message: "Please select the delivery type" },
         }),
         ...collectErrors({
-          phoneNumber: formData.phoneNumber && !phoneValid ? "Enter at least 9 digits" : null,
+          phoneNumber: formData.phoneNumber && !phoneValid ? "Enter a 9-digit number" : null,
           dateOfBirth: dobError(formData.dateOfBirth),
           gravida: gravidaError(formData.gravida),
           para: paraError(formData.gravida, formData.para),
@@ -1472,10 +1473,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     placeholder="55 123 4567"
                     value={groupPhoneDigits(formData.phoneNumber.replace(countryCode, ""))}
                     onChange={(e) => {
-                      const raw = e.target.value
-                        .replace(/\D/g, "")
-                        .replace(/^0+/, "")
-                        .slice(0, 9);
+                      const raw = normaliseLocalDigits(e.target.value, countryCode);
                       updateField(
                         "phoneNumber",
                         raw ? `${countryCode}${raw}` : "",

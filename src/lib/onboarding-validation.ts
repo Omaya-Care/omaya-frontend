@@ -42,12 +42,33 @@ export const startOfToday = (): Date => {
 // ── Phone ───────────────────────────────────────────────────────────
 
 /**
- * A local phone number is usable once it has >= 9 digits (the dial code is
- * held separately). This rule was written out four times across the two
- * wizards and the emergency-contacts editor; this is the one copy.
+ * A local phone number is usable when it has exactly 9 digits (the dial code
+ * is held separately). The phone inputs no longer truncate what is typed or
+ * pasted, so an over-long value must fail here rather than be sliced into a
+ * different, valid-looking number.
  */
 export const phoneLocalDigitsValid = (localDigits: string): boolean =>
-  localDigits.replace(/\D/g, "").length >= 9;
+  localDigits.replace(/\D/g, "").length === 9;
+
+/**
+ * Normalise what was typed or pasted into a phone input to local digits:
+ * drop the selected dial code when it is clearly present ("+233…", "00233…",
+ * or "233" followed by exactly 9 digits), then a single trunk "0". Never
+ * truncates — an over-long result is left for `phoneLocalDigitsValid` to reject.
+ */
+export const normaliseLocalDigits = (raw: string, countryCode: string): string => {
+  let digits = raw.replace(/\D/g, "");
+  const cc = countryCode.replace(/\D/g, "");
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("+") && digits.startsWith(cc)) {
+    digits = digits.slice(cc.length);
+  } else if (digits.startsWith(`00${cc}`)) {
+    digits = digits.slice(2 + cc.length);
+  } else if (digits.startsWith(cc) && digits.length - cc.length === 9) {
+    digits = digits.slice(cc.length);
+  }
+  return digits.replace(/^0/, "");
+};
 
 /** Strip a dial-code prefix and any separators off a stored phone value. */
 export const localDigitsOf = (phone: string, countryCode: string): string =>
