@@ -17,6 +17,7 @@ import {
   dobError,
   gravidaError,
   localDigitsOf,
+  normaliseLocalDigits,
   paraError,
   parityPairError,
   phoneLocalDigitsValid,
@@ -41,9 +42,13 @@ const daysFromNow = (days: number): string => {
 };
 
 describe("phone", () => {
-  it("accepts 9 or more local digits", () => {
+  it("accepts exactly 9 local digits", () => {
     expect(phoneLocalDigitsValid("241234567")).toBe(true);
     expect(phoneLocalDigitsValid("24 123 4567")).toBe(true);
+  });
+
+  it("rejects more than 9 (the input no longer truncates, so this is the guard)", () => {
+    expect(phoneLocalDigitsValid("2412345678")).toBe(false);
   });
 
   it("rejects fewer than 9", () => {
@@ -154,6 +159,29 @@ describe("discharge vs delivery", () => {
   it("is a no-op while either date is missing", () => {
     expect(dischargeVsDeliveryError("", "2026-06-01")).toBeNull();
     expect(dischargeVsDeliveryError("2026-06-01", "")).toBeNull();
+  });
+});
+
+describe("normaliseLocalDigits", () => {
+  it.each([
+    ["0241234567", "241234567"],
+    ["241234567", "241234567"],
+    ["+233 24 123 4567", "241234567"],
+    ["233241234567", "241234567"],
+    ["00233241234567", "241234567"],
+    ["+233 0241234567", "241234567"],
+  ])("%s -> %s", (raw, expected) => {
+    expect(normaliseLocalDigits(raw, "+233")).toBe(expected);
+  });
+
+  it("does not truncate an over-long local number into a different valid one; validation rejects it", () => {
+    const out = normaliseLocalDigits("02412345678", "+233");
+    expect(out).toBe("2412345678");
+    expect(phoneLocalDigitsValid(out)).toBe(false);
+  });
+
+  it("keeps a 9-digit local number that happens to start with the dial code", () => {
+    expect(normaliseLocalDigits("233123456", "+233")).toBe("233123456");
   });
 });
 
