@@ -1,8 +1,11 @@
 export type Severity = 'crisis' | 'elevated' | 'monitor' | 'routine' | 'inactive';
 
-// Whether the current escalation rung's clinician SMS page was delivered.
-// Only "blocked" (an open L4 whose page was never delivered) surfaces in the UI.
-export type PageStatus = 'paged' | 'blocked' | 'pending' | 'not_applicable';
+// Whether a clinician on the escalation chain has been reached for an open L4.
+// Two states surface in the UI: "blocked" (the chain produced no page at all —
+// the hospital cannot be paged) and "unreached" (the chain has been dialling /
+// sending but nobody has answered or received a page yet — gateway down or
+// every rung rang out). Both mean: contact the on-call person directly.
+export type PageStatus = 'paged' | 'unreached' | 'blocked' | 'pending' | 'not_applicable';
 
 export type CallStatus = 'completed' | 'in_progress' | 'upcoming' | 'missed';
 

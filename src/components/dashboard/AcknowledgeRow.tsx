@@ -46,14 +46,26 @@ const AcknowledgeRow = ({ item, onAcknowledge }: AcknowledgeRowProps) => {
             {item.severity.charAt(0).toUpperCase() + item.severity.slice(1)}
           </Badge>
           {item.pageStatus === "blocked" && (
-            // The on-call clinician's SMS page was never delivered — the only
-            // visible difference between a paged and a blocked open alert.
+            // The chain produced no page at all — the hospital cannot be
+            // paged. The only visible difference from a paged open alert.
             <Badge
               variant="outline"
               className="bg-red-50 text-red-700 border-red-200"
               size="sm"
             >
               Not paged
+            </Badge>
+          )}
+          {item.pageStatus === "unreached" && (
+            // The chain has been dialling / sending but nobody has answered
+            // or received a page yet (C1) — a clinician must be reached by
+            // hand, so it has to be visible in the row, not just the modal.
+            <Badge
+              variant="outline"
+              className="bg-red-50 text-red-700 border-red-200"
+              size="sm"
+            >
+              Not reached
             </Badge>
           )}
         </div>

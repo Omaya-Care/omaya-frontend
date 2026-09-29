@@ -69,6 +69,7 @@ import {
   normaliseLocalDigits,
   paraError,
   parseFormDate,
+  phoneLengthMessage,
   phoneLocalDigitsValid,
   requiredErrors,
   type FieldErrors,
@@ -343,7 +344,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   // local digits. Shared with AddMother and the emergency-contacts editor —
   // this rule used to be written out four separate times.
   const phoneDigits = localDigitsOf(formData.phoneNumber, countryCode);
-  const phoneValid = phoneLocalDigitsValid(phoneDigits);
+  const phoneValid = phoneLocalDigitsValid(phoneDigits, countryCode);
 
   const emergencyValid = emergencyContactsValid(emergencyContacts);
 
@@ -419,7 +420,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           deliveryType: { value: formData.deliveryType, message: "Please select the delivery type" },
         }),
         ...collectErrors({
-          phoneNumber: formData.phoneNumber && !phoneValid ? "Enter a 9-digit number" : null,
+          phoneNumber: formData.phoneNumber && !phoneValid ? phoneLengthMessage(countryCode) : null,
           dateOfBirth: dobError(formData.dateOfBirth),
           gravida: gravidaError(formData.gravida),
           para: paraError(formData.gravida, formData.para),
