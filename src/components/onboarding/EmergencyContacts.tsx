@@ -9,6 +9,7 @@ import {
 } from "../ui/select";
 import { ChipSelect } from "./ChipSelect";
 import { groupPhoneDigits } from "../../lib/format";
+import { normaliseLocalDigits } from "../../lib/onboarding-validation";
 import {
   type EmergencyContactForm,
   MAX_EMERGENCY_CONTACTS,
@@ -121,10 +122,7 @@ const EmergencyContacts = ({
                   placeholder="55 123 4567"
                   value={groupPhoneDigits(contact.phone)}
                   onChange={(e) => {
-                    const raw = e.target.value
-                      .replace(/\D/g, "")
-                      .replace(/^0+/, "")
-                      .slice(0, 9);
+                    const raw = normaliseLocalDigits(e.target.value, contact.countryCode);
                     update(index, { phone: raw });
                   }}
                   className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"

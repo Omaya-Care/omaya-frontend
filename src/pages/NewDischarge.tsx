@@ -66,8 +66,10 @@ import {
   dobError,
   gravidaError,
   localDigitsOf,
+  normaliseLocalDigits,
   paraError,
   parseFormDate,
+  phoneLengthMessage,
   phoneLocalDigitsValid,
   requiredErrors,
   type FieldErrors,
@@ -342,7 +344,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
   // local digits. Shared with AddMother and the emergency-contacts editor —
   // this rule used to be written out four separate times.
   const phoneDigits = localDigitsOf(formData.phoneNumber, countryCode);
-  const phoneValid = phoneLocalDigitsValid(phoneDigits);
+  const phoneValid = phoneLocalDigitsValid(phoneDigits, countryCode);
 
   const emergencyValid = emergencyContactsValid(emergencyContacts);
 
@@ -418,7 +420,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
           deliveryType: { value: formData.deliveryType, message: "Please select the delivery type" },
         }),
         ...collectErrors({
-          phoneNumber: formData.phoneNumber && !phoneValid ? "Enter at least 9 digits" : null,
+          phoneNumber: formData.phoneNumber && !phoneValid ? phoneLengthMessage(countryCode) : null,
           dateOfBirth: dobError(formData.dateOfBirth),
           gravida: gravidaError(formData.gravida),
           para: paraError(formData.gravida, formData.para),
@@ -1472,10 +1474,7 @@ const NewDischarge = ({ onClose }: NewDischargeProps = {}) => {
                     placeholder="55 123 4567"
                     value={groupPhoneDigits(formData.phoneNumber.replace(countryCode, ""))}
                     onChange={(e) => {
-                      const raw = e.target.value
-                        .replace(/\D/g, "")
-                        .replace(/^0+/, "")
-                        .slice(0, 9);
+                      const raw = normaliseLocalDigits(e.target.value, countryCode);
                       updateField(
                         "phoneNumber",
                         raw ? `${countryCode}${raw}` : "",

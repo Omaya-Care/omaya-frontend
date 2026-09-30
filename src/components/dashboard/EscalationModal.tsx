@@ -113,6 +113,18 @@ const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationMod
             </span>
           </div>
         )}
+        {item.pageStatus === 'unreached' && (
+          // The chain has been paging (voice / WhatsApp) but nobody has
+          // answered or received a page yet — the gateway may be down or every
+          // rung rang out (C1). Same PHI-safe posture: no name, phone or
+          // per-rung detail, just the fact that no one has been reached.
+          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-red-600" />
+            <span className="font-normal">
+              <span className="font-semibold">No on-call clinician has been reached yet</span> — delivery may have failed or nobody has answered. Please contact them directly and acknowledge this alert.
+            </span>
+          </div>
+        )}
 
         <div>
           <div className="flex justify-between items-center mb-1">

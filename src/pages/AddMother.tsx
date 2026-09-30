@@ -39,7 +39,9 @@ import {
   dobError,
   gravidaError,
   localDigitsOf,
+  normaliseLocalDigits,
   paraError,
+  phoneLengthMessage,
   phoneLocalDigitsValid,
   requiredErrors,
   type FieldErrors,
@@ -127,7 +129,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
   const totalSteps = 5;
 
   const phoneDigits = localDigitsOf(formData.phone, countryCode);
-  const phoneValid = phoneLocalDigitsValid(phoneDigits);
+  const phoneValid = phoneLocalDigitsValid(phoneDigits, countryCode);
 
   // Per-step errors, from the same rules the discharge wizard and the API use
   // (`lib/onboarding-validation`). One source, so the Continue button and the
@@ -147,7 +149,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
           ),
         ),
         ...collectErrors({
-          phone: formData.phone && !phoneValid ? "Enter at least 9 digits" : null,
+          phone: formData.phone && !phoneValid ? phoneLengthMessage(countryCode) : null,
           dob: dobError(formData.dob),
           gravida: gravidaError(formData.gravida),
           para: paraError(formData.gravida, formData.para),
@@ -390,10 +392,7 @@ const AddMother = ({ onClose }: AddMotherProps = {}) => {
                     placeholder="55 123 4567"
                     value={groupPhoneDigits(formData.phone.replace(countryCode, ""))}
                     onChange={(e) => {
-                      const raw = e.target.value
-                        .replace(/\D/g, "")
-                        .replace(/^0+/, "")
-                        .slice(0, 9);
+                      const raw = normaliseLocalDigits(e.target.value, countryCode);
                       updateField("phone", raw ? `${countryCode}${raw}` : "");
                     }}
                     className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"

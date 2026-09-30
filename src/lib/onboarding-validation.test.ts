@@ -17,13 +17,19 @@ import {
   dobError,
   gravidaError,
   localDigitsOf,
+  normaliseLocalDigits,
   paraError,
   parityPairError,
+  phoneLengthMessage,
   phoneLocalDigitsValid,
   requiredErrors,
   collectErrors,
   revealTogether,
 } from "./onboarding-validation";
+import {
+  emergencyPhoneValid,
+  emptyEmergencyContact,
+} from "../components/onboarding/emergency-contacts";
 
 /** `n` whole years before today, as the wizard's `yyyy-MM-dd`. */
 const yearsAgo = (years: number): string => {
@@ -41,19 +47,61 @@ const daysFromNow = (days: number): string => {
 };
 
 describe("phone", () => {
-  it("accepts 9 or more local digits", () => {
-    expect(phoneLocalDigitsValid("241234567")).toBe(true);
-    expect(phoneLocalDigitsValid("24 123 4567")).toBe(true);
+  it("accepts exactly 9 local digits for Ghana", () => {
+    expect(phoneLocalDigitsValid("241234567", "+233")).toBe(true);
+    expect(phoneLocalDigitsValid("24 123 4567", "+233")).toBe(true);
   });
 
-  it("rejects fewer than 9", () => {
-    expect(phoneLocalDigitsValid("24123456")).toBe(false);
-    expect(phoneLocalDigitsValid("")).toBe(false);
+  it("rejects more than 9 for Ghana (the input no longer truncates, so this is the guard)", () => {
+    expect(phoneLocalDigitsValid("2412345678", "+233")).toBe(false);
+  });
+
+  it("rejects fewer than 9 for Ghana", () => {
+    expect(phoneLocalDigitsValid("24123456", "+233")).toBe(false);
+    expect(phoneLocalDigitsValid("", "+233")).toBe(false);
+  });
+
+  // Greptile PR#18 P1: a 10-digit Nigerian local part was rejected by a
+  // Ghana-only 9-digit rule. Lengths are libphonenumber's NSN lengths.
+  it.each([
+    ["+234", "8031234567", true], // Nigeria mobile, 10
+    ["+234", "803123456", false],
+    ["+234", "80312345678", false],
+    ["+225", "0701234567", true], // Côte d'Ivoire, 10 incl. significant 0
+    ["+225", "701234567", false],
+    ["+228", "90123456", true], // Togo, 8
+    ["+228", "901234567", false],
+    ["+221", "771234567", true], // Senegal, 9
+    ["+221", "7712345678", false],
+  ])("%s %s valid=%s", (cc, local, valid) => {
+    expect(phoneLocalDigitsValid(local, cc)).toBe(valid);
+  });
+
+  it("names the right length in the message", () => {
+    expect(phoneLengthMessage("+233")).toBe("Enter a 9-digit number");
+    expect(phoneLengthMessage("+234")).toBe("Enter a 10-digit number");
   });
 
   it("strips the dial code and separators", () => {
     expect(localDigitsOf("+233241234567", "+233")).toBe("241234567");
     expect(localDigitsOf("+233 24-123 4567", "+233")).toBe("241234567");
+  });
+});
+
+describe("emergencyPhoneValid", () => {
+  const contact = (countryCode: string, phone: string) => ({
+    ...emptyEmergencyContact(),
+    countryCode,
+    phone,
+  });
+
+  it("accepts a 10-digit Nigerian contact (an existing one must not block saving)", () => {
+    expect(emergencyPhoneValid(contact("+234", "8031234567"))).toBe(true);
+  });
+
+  it("still requires 9 digits for a Ghana contact", () => {
+    expect(emergencyPhoneValid(contact("+233", "241234567"))).toBe(true);
+    expect(emergencyPhoneValid(contact("+233", "2412345678"))).toBe(false);
   });
 });
 
@@ -154,6 +202,53 @@ describe("discharge vs delivery", () => {
   it("is a no-op while either date is missing", () => {
     expect(dischargeVsDeliveryError("", "2026-06-01")).toBeNull();
     expect(dischargeVsDeliveryError("2026-06-01", "")).toBeNull();
+  });
+});
+
+describe("normaliseLocalDigits", () => {
+  it.each([
+    ["0241234567", "241234567"],
+    ["241234567", "241234567"],
+    ["+233 24 123 4567", "241234567"],
+    ["00233241234567", "241234567"],
+    ["+233 0241234567", "241234567"],
+  ])("%s -> %s", (raw, expected) => {
+    expect(normaliseLocalDigits(raw, "+233")).toBe(expected);
+  });
+
+  it("does not truncate an over-long local number into a different valid one; validation rejects it", () => {
+    const out = normaliseLocalDigits("02412345678", "+233");
+    expect(out).toBe("2412345678");
+    expect(phoneLocalDigitsValid(out, "+233")).toBe(false);
+  });
+
+  it("keeps a 9-digit local number that happens to start with the dial code", () => {
+    expect(normaliseLocalDigits("233123456", "+233")).toBe("233123456");
+  });
+
+  // Greptile PR#18 P1: a bare "233…" had its first three digits peeled off
+  // and was accepted as a different 9-digit number. Only an explicit "+" or
+  // "00" marks the dial code now; anything else stays over-long and fails.
+  it.each([
+    ["233987654321", "+233"],
+    ["233241234567", "+233"],
+    ["2348031234567", "+234"],
+  ])("leaves bare %s (%s) over-long so validation rejects it", (raw, cc) => {
+    const out = normaliseLocalDigits(raw, cc);
+    expect(out).toBe(raw);
+    expect(phoneLocalDigitsValid(out, cc)).toBe(false);
+  });
+
+  it("handles Nigerian input: trunk 0, +234 and 00234", () => {
+    expect(normaliseLocalDigits("08031234567", "+234")).toBe("8031234567");
+    expect(normaliseLocalDigits("+234 803 123 4567", "+234")).toBe("8031234567");
+    expect(normaliseLocalDigits("002348031234567", "+234")).toBe("8031234567");
+  });
+
+  it("never drops the leading 0 where it is part of the number (Côte d'Ivoire)", () => {
+    expect(normaliseLocalDigits("07 01 23 45 67", "+225")).toBe("0701234567");
+    expect(normaliseLocalDigits("+225 07 01 23 45 67", "+225")).toBe("0701234567");
+    expect(phoneLocalDigitsValid("0701234567", "+225")).toBe(true);
   });
 });
 
