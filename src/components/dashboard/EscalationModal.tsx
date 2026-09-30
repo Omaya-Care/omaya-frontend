@@ -121,7 +121,7 @@ const EscalationModal = ({ isOpen, onClose, onAcknowledge, item }: EscalationMod
           <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-red-600" />
             <span className="font-normal">
-              <span className="font-semibold">No on-call clinician has been reached yet</span> — the pages are going out but nobody has answered. Please contact them directly and acknowledge this alert.
+              <span className="font-semibold">No on-call clinician has been reached yet</span> — delivery may have failed or nobody has answered. Please contact them directly and acknowledge this alert.
             </span>
           </div>
         )}
