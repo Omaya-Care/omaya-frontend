@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import type { RecentEscalation } from "@/hooks/useDashboardCards";
-import { formatTimeLeft, isUnreached, timeLeftClass } from "@/components/escalations/alert-display";
+import { formatSlaSpan, isUnreached, timeLeftClass } from "@/components/escalations/alert-display";
 
 const SEVERITY_CLASS: Record<string, string> = {
   crisis: "bg-severity-crisis-bg text-severity-crisis-fg",
@@ -95,7 +95,7 @@ export function RecentEscalations({ rows, loading, failed, limit = 5 }: RecentEs
                   </div>
                   <div className={`shrink-0 text-right ${timeLeftClass(row.timeLeftMinutes)}`}>
                     <div className="text-base font-semibold tabular-nums">
-                      {formatTimeLeft(row.timeLeftMinutes)}
+                      {formatSlaSpan(row.timeLeftMinutes)}
                     </div>
                     <div className="text-xs text-gray-400">SLA</div>
                   </div>

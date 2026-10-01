@@ -1,10 +1,15 @@
 import type { AlertRow } from "@/hooks/useAlerts";
 
-export function formatTimeLeft(minutes: number): string {
+/** The bare SLA span — "1h 5m" — with no "left"/"Overdue by" wording. */
+export function formatSlaSpan(minutes: number): string {
   const abs = Math.abs(minutes);
   const h = Math.floor(abs / 60);
   const m = abs % 60;
-  const span = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+export function formatTimeLeft(minutes: number): string {
+  const span = formatSlaSpan(minutes);
   return minutes < 0 ? `Overdue by ${span}` : `${span} left`;
 }
 
