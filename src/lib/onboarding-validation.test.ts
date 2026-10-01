@@ -109,6 +109,23 @@ describe("emergencyPhoneValid", () => {
   });
 });
 
+describe("emergencyPhoneValid", () => {
+  const contact = (countryCode: string, phone: string) => ({
+    ...emptyEmergencyContact(),
+    countryCode,
+    phone,
+  });
+
+  it("accepts a 10-digit Nigerian contact (an existing one must not block saving)", () => {
+    expect(emergencyPhoneValid(contact("+234", "8031234567"))).toBe(true);
+  });
+
+  it("still requires 9 digits for a Ghana contact", () => {
+    expect(emergencyPhoneValid(contact("+233", "241234567"))).toBe(true);
+    expect(emergencyPhoneValid(contact("+233", "2412345678"))).toBe(false);
+  });
+});
+
 describe("gravida / para", () => {
   it("passes an empty value — that's the required-field rule's job", () => {
     expect(gravidaError("")).toBeNull();
