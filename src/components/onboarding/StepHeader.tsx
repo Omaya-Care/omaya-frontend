@@ -13,7 +13,7 @@ const StepHeader = ({ step, title, description }: StepHeaderProps) => {
         </span>
       )}
       <h1 className="text-2xl font-bold text-gray-900 mt-1">{title}</h1>
-      <p className="text-sm text-gray-500 mt-2 leading-relaxed max-w-lg font-normal">
+      <p className="text-sm text-gray-500 mt-2 leading-relaxed max-w-2xl font-normal">
         {description}
       </p>
       <div className="mt-6 mb-8 h-px bg-gray-100 w-full" />

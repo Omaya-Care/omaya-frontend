@@ -1,180 +1,206 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { useExpertQueue, useMyExpertRequests } from "../hooks/useExpertRequests";
-import { ExpertRequestListItem } from "../components/expert-requests/ExpertRequestListItem";
-import { QueueDetail } from "../components/expert-requests/QueueDetail";
-import { ThreadDetail } from "../components/expert-requests/ThreadDetail";
-import { Skeleton } from "../components/ui/skeleton";
-import { useSlideIndicator } from "../hooks/useSlideIndicator";
+import { useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  useExpertQueue,
+  useMyExpertRequests,
+  type ExpertRequestItem,
+  type MyExpertRequestItem,
+} from "@/hooks/useExpertRequests";
+import { ExpertRequestListItem } from "@/components/expert-requests/ExpertRequestListItem";
+import { QueueDetail } from "@/components/expert-requests/QueueDetail";
+import { ThreadDetail } from "@/components/expert-requests/ThreadDetail";
+import type { ExpertTab } from "@/components/expert-requests/expert-display";
+import { MobileBackButton } from "@/components/layout/MobileBackButton";
 
-type Tab = "queue" | "mine";
+/** Deep link: /expert-requests?tab=mine&request=<id> opens that request.
+ *  Applied during render (not an effect) and the params are consumed, so a
+ *  repeat click on the same link re-applies it — same pattern as Escalations. */
+function useExpertDeepLink(setTab: (tab: ExpertTab) => void, select: (tab: ExpertTab, id: string) => void) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedTab = searchParams.get("tab");
+  const linkedId = searchParams.get("request");
+  if (linkedTab === "queue" || linkedTab === "mine" || linkedId) {
+    const tab: ExpertTab = linkedTab === "mine" ? "mine" : "queue";
+    setTab(tab);
+    if (linkedId) select(tab, linkedId);
+    queueMicrotask(() =>
+      setSearchParams(
+        (p) => {
+          p.delete("tab");
+          p.delete("request");
+          return p;
+        },
+        { replace: true },
+      ),
+    );
+  }
+}
 
-const ExpertRequestsPage = () => {
-  const [tab, setTab] = useState<Tab>("queue");
-  const [selectedQueueId, setSelectedQueueId] = useState<string>("");
-  const [selectedMineId, setSelectedMineId] = useState<string>("");
-  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+/** Expert requests — same split layout as Escalations: 1/3 the queue or the
+ *  expert's own conversations | 2/3 the selected request. Both lists poll. */
+export default function ExpertRequests() {
+  const [tab, setTab] = useState<ExpertTab>("queue");
+  // Per-tab selection, so switching tabs can't clobber the other's choice.
+  const [selected, setSelected] = useState<Record<ExpertTab, string | null>>({ queue: null, mine: null });
+  const select = (t: ExpertTab, id: string | null) =>
+    setSelected((s) => (s[t] === id ? s : { ...s, [t]: id }));
 
-  const { data: queue = [], isLoading: isQueueLoading } = useExpertQueue();
-  const { data: mine = [], isLoading: isMineLoading } = useMyExpertRequests();
+  const queue = useExpertQueue();
+  const mine = useMyExpertRequests();
 
-  const items = tab === "queue" ? queue : mine;
-  const selectedId = tab === "queue" ? selectedQueueId : selectedMineId;
-  const isLoading = tab === "queue" ? isQueueLoading : isMineLoading;
+  useExpertDeepLink(
+    (t) => {
+      if (t !== tab) setTab(t);
+    },
+    (t, id) => select(t, id),
+  );
 
-  // Default-select the first item once each tab's list loads, mirroring
-  // Calls.tsx — one effect per list (not a single effect keyed off the
-  // active tab) so switching tabs can't clobber the other tab's selection.
-  // Re-select when the stored id is empty OR no longer in the list. The
-  // second half matters because this list polls: another expert claiming the
-  // item you had selected drops it out of the queue, leaving a non-empty id
-  // that `find()` can no longer resolve — so the detail pane went blank and
-  // stayed blank until you clicked something yourself.
-  useEffect(() => {
-    // react-doctor-disable-next-line react-doctor/no-event-handler
-    if (queue.length > 0 && !queue.some((r) => r.id === selectedQueueId)) {
-      // react-doctor-disable-next-line react-doctor/no-derived-state
-      setSelectedQueueId(queue[0].id);
-    }
-  }, [queue, selectedQueueId]);
-
-  useEffect(() => {
-    // react-doctor-disable-next-line react-doctor/no-event-handler
-    if (mine.length > 0 && !mine.some((r) => r.id === selectedMineId)) {
-      // react-doctor-disable-next-line react-doctor/no-derived-state
-      setSelectedMineId(mine[0].id);
-    }
-  }, [mine, selectedMineId]);
-
-  const listRef = useRef<HTMLDivElement>(null);
-  const indicator = useSlideIndicator(listRef, '[data-slide-active="true"]', [
-    selectedId,
-    items,
-  ]);
-
-  const handleSelect = (id: string) => {
-    if (tab === "queue") setSelectedQueueId(id);
-    else setSelectedMineId(id);
-    setMobileDetailOpen(true);
-  };
-
-  const handleClaimed = (requestId: string) => {
-    setTab("mine");
-    setSelectedMineId(requestId);
-  };
-
-  const handleCompleted = () => {
-    setSelectedMineId("");
-  };
-
-  const selectedQueueItem = queue.find((r) => r.id === selectedQueueId) ?? null;
-  const selectedMineItem = mine.find((r) => r.id === selectedMineId) ?? null;
+  const current = tab === "queue" ? queue : mine;
+  const selectedId = selected[tab];
+  // Derived, not stored: if the list polls and the request is gone (claimed by
+  // another expert, completed), the panel falls back to its empty state.
+  const selectedQueueItem = queue.data.find((r) => r.id === selected.queue) ?? null;
+  const selectedMineItem = mine.data.find((r) => r.id === selected.mine) ?? null;
+  // Below `md` only one pane shows: the detail once something is selected.
+  const showDetail = (tab === "queue" ? selectedQueueItem : selectedMineItem) !== null;
 
   return (
-    <div className="flex flex-1 min-h-0 flex-row gap-6">
-      {/* ── LEFT PANEL ──────────────────────────────────────── */}
-      <div
-        className={`
-          flex-shrink-0 flex-col bg-white rounded-2xl overflow-hidden shadow-sm
-          w-full lg:w-80 h-full
-          ${mobileDetailOpen ? "hidden lg:flex" : "flex"}
-        `}
+    <div className="flex h-full flex-col px-4 py-6 sm:px-12 sm:py-14 md:grid md:grid-cols-3 lg:px-20 lg:py-16">
+      <section
+        className={`col-span-1 min-h-0 min-w-0 flex-1 flex-col md:flex md:border-r md:border-border md:pr-6 ${
+          showDetail ? "hidden" : "flex"
+        }`}
       >
-        <div className="px-4 pt-5 pb-3 flex-shrink-0">
-          <h2 className="text-lg font-bold text-gray-900">Expert requests</h2>
-        </div>
-
-        <div className="px-4 pb-3 flex-shrink-0 flex items-center gap-1.5">
-          {(
-            [
-              { key: "queue", label: `Queue${queue.length ? ` (${queue.length})` : ""}` },
-              { key: "mine", label: `Mine${mine.length ? ` (${mine.length})` : ""}` },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={`text-xs px-2.5 py-1.5 rounded-md border transition-colors font-medium ${
-                tab === t.key
-                  ? "border-primary bg-primary-100 text-primary"
-                  : "border-gray-200 text-gray-600 hover:border-gray-300"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div
-          ref={listRef}
-          className="relative flex-1 overflow-y-auto overflow-x-hidden border-t border-gray-200"
-        >
-          {indicator && (
-            <div
-              aria-hidden
-              className="absolute left-0 right-0 top-0 z-0 h-px origin-top bg-gray-50 transition-transform duration-300 ease-out pointer-events-none"
-              style={{
-                transform: `translateY(${indicator.top}px) scaleY(${indicator.height})`,
-              }}
-            />
+        <header className="flex flex-col gap-4 pb-4">
+          <h1 className="text-2xl font-normal tracking-tight text-foreground">Expert requests</h1>
+          <TabBar
+            tab={tab}
+            counts={{ queue: queue.loading ? null : queue.data.length, mine: mine.loading ? null : mine.data.length }}
+            onSelect={setTab}
+          />
+          {current.failed && (
+            <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">
+              Couldn't refresh this list — it may be out of date. Retrying…
+            </p>
           )}
-          {isLoading && items.length === 0 ? (
-            <div className="space-y-1 p-4">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-[64px] w-full rounded-lg" />
-              ))}
-            </div>
-          ) : items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-1 px-4 py-12">
-              <p className="text-sm text-gray-400 font-normal text-center">
-                {tab === "queue"
-                  ? "No unclaimed requests right now — you're all caught up."
-                  : "No active conversations."}
-              </p>
-            </div>
-          ) : (
-            items.map((item) => (
-              <ExpertRequestListItem
-                key={item.id}
-                item={item}
-                isSelected={selectedId === item.id}
-                onClick={() => handleSelect(item.id)}
-              />
-            ))
-          )}
-        </div>
-      </div>
+        </header>
 
-      {/* ── RIGHT PANEL ─────────────────────────────────────── */}
-      <div
-        className={`
-          flex-col bg-white rounded-2xl overflow-hidden shadow-sm p-6
-          flex-1 h-full
-          ${mobileDetailOpen ? "flex" : "hidden lg:flex"}
-        `}
+        <RequestList
+          loading={current.loading}
+          items={current.data}
+          emptyMessage={emptyMessage(tab, current.failed && current.data.length === 0, current.forbidden)}
+          selectedId={selectedId}
+          onSelect={(id) => select(tab, id)}
+        />
+      </section>
+      <section
+        className={`col-span-2 min-h-0 min-w-0 flex-1 flex-col md:flex md:pl-6 ${
+          showDetail ? "flex" : "hidden"
+        }`}
       >
-        <button
-          type="button"
-          className="lg:hidden flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4 -mt-1 self-start"
-          onClick={() => setMobileDetailOpen(false)}
-        >
-          <ArrowLeft size={16} />
-          <span>Back to list</span>
-        </button>
-
+        <MobileBackButton onClick={() => select(tab, null)} />
         {tab === "queue" ? (
-          <QueueDetail request={selectedQueueItem} onClaimed={handleClaimed} />
+          <QueueDetail
+            key={selectedQueueItem?.id ?? "none"}
+            request={selectedQueueItem}
+            onClaimed={(id) => {
+              setTab("mine");
+              select("mine", id);
+            }}
+          />
         ) : (
           <ThreadDetail
-            key={selectedMineId}
-            requestItem={selectedMineItem}
-            onCompleted={handleCompleted}
+            key={selectedMineItem?.id ?? "none"}
+            request={selectedMineItem}
+            onCompleted={() => select("mine", null)}
           />
         )}
-      </div>
+      </section>
     </div>
   );
-};
+}
 
-export default ExpertRequestsPage;
+function emptyMessage(tab: ExpertTab, failed: boolean, forbidden: boolean): string {
+  if (forbidden) return "Your role doesn't have access to expert requests.";
+  if (failed) return "Couldn't load requests.";
+  return tab === "queue" ? "No unclaimed requests right now — you're all caught up." : "No active conversations.";
+}
+
+const TABS: { value: ExpertTab; label: string }[] = [
+  { value: "queue", label: "Queue" },
+  { value: "mine", label: "Mine" },
+];
+
+function TabBar({
+  tab,
+  counts,
+  onSelect,
+}: {
+  tab: ExpertTab;
+  counts: Record<ExpertTab, number | null>;
+  onSelect: (tab: ExpertTab) => void;
+}) {
+  const tabIndex = TABS.findIndex((t) => t.value === tab);
+  return (
+    <div role="tablist" className="relative grid grid-cols-2 self-start rounded-full bg-gray-100 p-1">
+      {/* Sliding highlight — transform-only so it stays on the compositor. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-8px)/2)] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none"
+        style={{ transform: `translateX(${tabIndex * 100}%)` }}
+      />
+      {TABS.map((t) => {
+        const count = counts[t.value];
+        return (
+          <button
+            key={t.value}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.value}
+            onClick={() => onSelect(t.value)}
+            className={`relative z-10 flex items-center justify-center gap-1.5 rounded-full px-3.5 py-1 text-sm transition-colors ${
+              tab === t.value ? "text-[#7A2850]" : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            {t.label}
+            {count != null && count > 0 && <span className="text-xs tabular-nums">{count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RequestList({
+  loading,
+  items,
+  emptyMessage,
+  selectedId,
+  onSelect,
+}: {
+  loading: boolean;
+  items: (ExpertRequestItem | MyExpertRequestItem)[];
+  emptyMessage: string;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  let content: ReactNode;
+  if (loading) {
+    content = Array.from({ length: 5 }, (_, i) => (
+      <li key={i} className="flex items-center gap-3 px-3 py-3">
+        <div className="size-9 shrink-0 animate-pulse rounded-full bg-gray-100" />
+        <div className="flex-1">
+          <div className="h-4 w-32 animate-pulse rounded bg-gray-100" />
+          <div className="mt-2 h-3 w-40 animate-pulse rounded bg-gray-100" />
+        </div>
+      </li>
+    ));
+  } else if (items.length === 0) {
+    content = <li className="px-3 py-10 text-center text-sm text-gray-400">{emptyMessage}</li>;
+  } else {
+    content = items.map((item) => (
+      <ExpertRequestListItem key={item.id} item={item} selected={item.id === selectedId} onSelect={onSelect} />
+    ));
+  }
+  return <ul className="-mx-3 min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto">{content}</ul>;
+}

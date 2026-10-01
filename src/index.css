@@ -72,6 +72,11 @@
         .bell-trigger:hover .bell-swing {
             animation: bell-swing 0.68s ease-out;
         }
+        /* Rung once when a toast lands in the bell (NotificationToaster). */
+        .bell-ring {
+            transform-origin: top center;
+            animation: bell-swing 0.68s ease-out;
+        }
     }
 
     /* Hide the scrollbar while keeping scroll functionality. */
@@ -177,6 +182,19 @@
     * {
         @apply border-border;
     }
+    /* No rubber-band bounce or scroll chaining anywhere in the app.
+       Scoped to real scrollers only: on `*` it also hit every overflow:hidden
+       box (cards, `truncate` text), which Chrome treats as a scroll container,
+       so a wheel over them dead-ended instead of scrolling the page. */
+    html,
+    body,
+    [class*="overflow-auto"],
+    [class*="overflow-y-auto"],
+    [class*="overflow-x-auto"],
+    [class*="overflow-scroll"],
+    [class*="overflow-y-scroll"] {
+        overscroll-behavior: none;
+    }
     body {
         @apply bg-background text-foreground;
     }
@@ -201,4 +219,16 @@
     font-weight: 700;
     font-display: swap;
     src: url("/fonts/nb-international-pro-700.woff2") format("woff2");
+}
+
+/* App-wide: hide scrollbars everywhere (details panel, main content, page)
+   while keeping every scroll container scrollable. */
+@layer base {
+    * {
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* old Edge */
+    }
+    *::-webkit-scrollbar {
+        display: none; /* Chrome / Safari / Edge */
+    }
 }

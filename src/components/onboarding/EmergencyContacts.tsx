@@ -1,14 +1,6 @@
 import { Plus, X } from "lucide-react";
-import { Input } from "../ui/Input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
 import { ChipSelect } from "./ChipSelect";
-import { groupPhoneDigits } from "../../lib/format";
+import { FieldError, PhoneField, TextField } from "./fields";
 import { normaliseLocalDigits } from "../../lib/onboarding-validation";
 import {
   type EmergencyContactForm,
@@ -17,6 +9,100 @@ import {
   RELATIONSHIP_OPTIONS,
   emergencyPhoneValid,
 } from "./emergency-contacts";
+
+interface ContactRowProps {
+  contact: EmergencyContactForm;
+  index: number;
+  touched: boolean;
+  onChange: (patch: Partial<EmergencyContactForm>) => void;
+  onRemove: () => void;
+}
+
+/** One editable contact: heading, name, phone, relationship. */
+const ContactRow = ({ contact, index, touched, onChange, onRemove }: ContactRowProps) => {
+  const phoneInvalid = touched && !emergencyPhoneValid(contact);
+  return (
+    <div
+      className={
+        index > 0 ? "flex flex-col gap-5 border-t border-gray-100 pt-6" : "flex flex-col gap-5"
+      }
+    >
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-gray-400 tracking-wide uppercase">
+          {index === 0 ? "Primary contact" : `Contact ${index + 1} of ${MAX_EMERGENCY_CONTACTS}`}
+        </h4>
+        {index > 0 && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1 text-xs font-medium"
+          >
+            <X size={14} />
+            <span>Remove</span>
+          </button>
+        )}
+      </div>
+
+      {/* Name */}
+      <TextField
+        label="Full name"
+        placeholder="e.g. Kwame Asante"
+        value={contact.name}
+        onChange={(e) => onChange({ name: e.target.value })}
+        error={touched && !contact.name.trim() ? "Please enter emergency contact name" : undefined}
+      />
+
+      {/* Phone */}
+      <PhoneField
+        id={`emergency-phone-${contact.id}`}
+        countryCode={contact.countryCode}
+        onCountryCodeChange={(val) => onChange({ countryCode: val })}
+        localDigits={contact.phone}
+        onLocalInput={(typed) => {
+          // Normalise so a pasted "+233…" still fits. Never truncated — an
+          // over-long number fails validation instead (see `PHONE_PLANS`).
+          const raw = normaliseLocalDigits(typed, contact.countryCode);
+          onChange({ phone: raw });
+        }}
+        error={phoneInvalid ? "Please enter a valid phone number" : undefined}
+      />
+
+      {/* Relationship */}
+      <div className="flex flex-col">
+        <label
+          htmlFor={`emergency-relationship-${contact.id}`}
+          className="text-sm font-semibold text-gray-700 mb-3"
+        >
+          Relationship
+        </label>
+        <ChipSelect
+          id={`emergency-relationship-${contact.id}`}
+          max={1}
+          options={RELATIONSHIP_OPTIONS}
+          selected={contact.relationship ? [contact.relationship] : []}
+          onChange={(val) => onChange({ relationship: val.length > 0 ? val[0] : "" })}
+        />
+        {contact.relationship === "other" && (
+          <TextField
+            containerClassName="mt-3"
+            placeholder="Please specify"
+            value={contact.relationshipCustom}
+            onChange={(e) => onChange({ relationshipCustom: e.target.value })}
+            error={
+              touched && !contact.relationshipCustom.trim()
+                ? "Please specify relationship"
+                : undefined
+            }
+          />
+        )}
+        <FieldError
+          className="mt-1"
+          error={touched && !contact.relationship && "Please select a relationship"}
+        />
+      </div>
+    </div>
+  );
+};
 
 interface EmergencyContactsProps {
   contacts: EmergencyContactForm[];
@@ -45,144 +131,16 @@ const EmergencyContacts = ({
 
   return (
     <div className="flex flex-col gap-6">
-      {contacts.map((contact, index) => {
-        const phoneInvalid = touched && !emergencyPhoneValid(contact);
-        return (
-          <div
-            key={contact.id}
-            className={
-              index > 0 ? "flex flex-col gap-5 border-t border-gray-100 pt-6" : "flex flex-col gap-5"
-            }
-          >
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-gray-400 tracking-wide uppercase">
-                {index === 0
-                  ? "Primary contact"
-                  : `Contact ${index + 1} of ${MAX_EMERGENCY_CONTACTS}`}
-              </h4>
-              {index > 0 && (
-                <button
-                  type="button"
-                  onClick={() => removeContact(index)}
-                  className="text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1 text-xs font-medium"
-                >
-                  <X size={14} />
-                  <span>Remove</span>
-                </button>
-              )}
-            </div>
-
-            {/* Name */}
-            <div className="flex flex-col gap-1.5">
-              <Input
-                label="Full name"
-                placeholder="e.g. Kwame Asante"
-                value={contact.name}
-                onChange={(e) => update(index, { name: e.target.value })}
-                className={touched && !contact.name.trim() ? "border-red-400" : ""}
-                fullWidth
-              />
-              {touched && !contact.name.trim() && (
-                <span className="text-xs text-red-500">
-                  Please enter emergency contact name
-                </span>
-              )}
-            </div>
-
-            {/* Phone */}
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor={`emergency-phone-${contact.id}`}
-                className="text-sm font-medium text-gray-700"
-              >
-                Phone number
-              </label>
-              <div
-                className={`flex items-center border rounded-md h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${phoneInvalid ? "border-red-400" : "border-gray-200"}`}
-              >
-                <Select
-                  value={contact.countryCode}
-                  onValueChange={(val) => update(index, { countryCode: val })}
-                >
-                  <SelectTrigger className="h-auto w-fit border-0 bg-transparent px-2 py-2 text-sm font-medium text-gray-700 shadow-none focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-gray-400 [&>span]:line-clamp-none whitespace-nowrap shrink-0">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="min-w-[100px]">
-                    <SelectItem value="+233">🇬🇭 +233</SelectItem>
-                    <SelectItem value="+234">🇳🇬 +234</SelectItem>
-                    <SelectItem value="+225">🇨🇮 +225</SelectItem>
-                    <SelectItem value="+228">🇹🇬 +228</SelectItem>
-                    <SelectItem value="+221">🇸🇳 +221</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="h-6 w-px bg-gray-200" />
-                <Input
-                  id={`emergency-phone-${contact.id}`}
-                  type="tel"
-                  placeholder="55 123 4567"
-                  value={groupPhoneDigits(contact.phone)}
-                  onChange={(e) => {
-                    const raw = normaliseLocalDigits(e.target.value, contact.countryCode);
-                    update(index, { phone: raw });
-                  }}
-                  className="flex-1 border-0 bg-transparent px-2 py-2 text-gray-900 focus-visible:ring-0 shadow-none h-auto"
-                />
-              </div>
-              {phoneInvalid && (
-                <span className="text-xs text-red-500">
-                  Please enter a valid phone number
-                </span>
-              )}
-            </div>
-
-            {/* Relationship */}
-            <div className="flex flex-col">
-              <label
-                htmlFor={`emergency-relationship-${contact.id}`}
-                className="text-sm font-semibold text-gray-700 mb-3"
-              >
-                Relationship
-              </label>
-              <ChipSelect
-                id={`emergency-relationship-${contact.id}`}
-                max={1}
-                options={RELATIONSHIP_OPTIONS}
-                selected={contact.relationship ? [contact.relationship] : []}
-                onChange={(val) =>
-                  update(index, { relationship: val.length > 0 ? val[0] : "" })
-                }
-              />
-              {contact.relationship === "other" && (
-                <div className="flex flex-col gap-1.5 mt-3">
-                  <Input
-                    placeholder="Please specify"
-                    value={contact.relationshipCustom}
-                    onChange={(e) =>
-                      update(index, { relationshipCustom: e.target.value })
-                    }
-                    className={
-                      touched && !contact.relationshipCustom.trim()
-                        ? "border-red-400"
-                        : ""
-                    }
-                    fullWidth
-                  />
-                  {touched && !contact.relationshipCustom.trim() && (
-                    <span className="text-xs text-red-500">
-                      Please specify relationship
-                    </span>
-                  )}
-                </div>
-              )}
-              {touched && !contact.relationship && (
-                <span className="text-xs text-red-500 mt-1">
-                  Please select a relationship
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
+      {contacts.map((contact, index) => (
+        <ContactRow
+          key={contact.id}
+          contact={contact}
+          index={index}
+          touched={touched}
+          onChange={(patch) => update(index, patch)}
+          onRemove={() => removeContact(index)}
+        />
+      ))}
 
       {contacts.length < MAX_EMERGENCY_CONTACTS && (
         <button

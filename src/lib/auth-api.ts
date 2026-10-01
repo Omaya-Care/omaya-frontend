@@ -17,6 +17,63 @@ interface TokenResponse {
   clinician: Clinician;
 }
 
+// ── GET /auth/me ────────────────────────────────────────────────────
+
+// One shared GET /auth/me for every consumer (permissions, the account page,
+// the dashboard), so a page mount fires it once rather than once per hook.
+// Keyed by the signed-in clinician id so a different user signing in within
+// the same SPA session never reads the previous user's profile. A failed
+// request isn't kept — the next caller retries.
+let meRequest: { owner: string | null; promise: Promise<Record<string, unknown>> } | null =
+  null;
+
+/** The current account's raw /auth/me body — shared and cached; `force`
+ *  re-fetches (after a profile or permission change). */
+export function fetchMe(force = false): Promise<Record<string, unknown>> {
+  const owner = getClinician()?.id ?? null;
+  if (!force && meRequest && meRequest.owner === owner) return meRequest.promise;
+  const promise = api
+    .get("/auth/me")
+    .then((res) => (res.data ?? {}) as Record<string, unknown>);
+  const entry = { owner, promise };
+  meRequest = entry;
+  promise.catch(() => {
+    if (meRequest === entry) meRequest = null;
+  });
+  return promise;
+}
+
+/** Drop the cached /auth/me — on sign-in, sign-out and profile updates. */
+export function invalidateMe(): void {
+  meRequest = null;
+}
+
+// Per-session client caches derived from /auth/me (the permission store)
+// register here and are wiped when a NEW session starts. A callback registry
+// rather than a direct import keeps hooks/ -> lib/ the only dependency edge.
+const sessionResetters = new Set<() => void>();
+
+/** Register a cache to wipe when a new session starts. */
+export function onSessionReset(reset: () => void): () => void {
+  sessionResetters.add(reset);
+  return () => sessionResetters.delete(reset);
+}
+
+/** A new session was established (sign-in, set-password, change-password):
+ *  drop /auth/me and everything derived from it. */
+function startNewSession(): void {
+  invalidateMe();
+  sessionResetters.forEach((reset) => reset());
+}
+
+/** Session ended (sign-out, cross-tab sign-out): drop /auth/me and every
+ *  per-session cache, PHI drafts included. Call AFTER clearSession(), so the
+ *  resetters see no owner and don't refetch. */
+export function endSession(): void {
+  invalidateMe();
+  sessionResetters.forEach((reset) => reset());
+}
+
 export interface SignInResult {
   mustChangePassword: boolean;
   clinician: Clinician;
@@ -33,6 +90,7 @@ export async function signIn(
   // The backend set the HttpOnly session cookie on this response; we only
   // persist the profile + must-change flag client-side.
   setSession(data.clinician, data.must_change_password);
+  startNewSession();
   return {
     mustChangePassword: data.must_change_password,
     clinician: data.clinician,
@@ -74,6 +132,7 @@ export async function setPassword(
   );
   // Session cookie is set on the response; persist the profile only.
   setSession(data.clinician, false);
+  startNewSession();
   return data.clinician;
 }
 
@@ -92,6 +151,7 @@ export async function changePassword(
     setSession(clinician, false);
   }
   clearMustChange();
+  startNewSession();
 }
 
 /**

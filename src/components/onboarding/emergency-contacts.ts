@@ -2,6 +2,8 @@
 // Kept separate from the component file so Fast Refresh can preserve component
 // state (a file should export only components for that to work).
 
+import { phoneLocalDigitsValid } from "@/lib/onboarding-validation";
+
 // One editable emergency-contact row. `phone` holds ONLY the local digits
 // (no dial code); `countryCode` is the dial code for that row's phone.
 export interface EmergencyContactForm {
@@ -48,10 +50,10 @@ export const RELATIONSHIP_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-// A single contact's local phone is valid when it has exactly 9 digits — mirrors
-// the mother's `phoneValid` check used elsewhere in the discharge flow.
+// A single contact's local phone is valid when it has the right number of
+// digits for its dial code — the same rule as the mother's phone.
 export const emergencyPhoneValid = (c: EmergencyContactForm) =>
-  c.phone.replace(/\D/g, "").length === 9;
+  phoneLocalDigitsValid(c.phone, c.countryCode);
 
 // A contact is complete when name + a valid phone + relationship are present,
 // and (for "other") the custom relationship text is non-empty.

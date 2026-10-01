@@ -1,7 +1,8 @@
-import { useRef } from "react";
-import { toast } from "sonner";
-import { useTriggerCall, CallRoute } from "./useMutations";
-import { useRefreshMother } from "./useMothers";
+import { useRef, useState } from "react";
+import { toast } from "@/lib/notify";
+import { api } from "@/lib/api";
+
+export type CallRoute = "phone" | "whatsapp";
 
 /**
  * The backend's answer when a WhatsApp call was refused for want of permission
@@ -44,12 +45,10 @@ export const callNowErrorMessage = (status?: number, errorCode?: string): string
  * footer and the mother record). Owns the toasts and the error mapping so the
  * two surfaces can't drift apart on what a 409 means.
  *
- * `useTriggerCall` raises no toasts of its own — every message the clinician
- * sees for this action comes from here.
+ * `onChanged` re-reads her record after anything that changed server state.
  */
-export const useCallNow = (motherId: string) => {
-  const triggerCall = useTriggerCall();
-  const refreshMother = useRefreshMother();
+export const useCallNow = (motherId: string, onChanged: () => void) => {
+  const [isPending, setIsPending] = useState(false);
   const phoneRetryKey = useRef<string | null>(null);
 
   const callNow = async (route: CallRoute) => {
@@ -59,8 +58,14 @@ export const useCallNow = (motherId: string) => {
       route === "phone"
         ? stableCallIdempotencyKey(phoneRetryKey)
         : crypto.randomUUID();
+    setIsPending(true);
     try {
-      const data = await triggerCall.mutateAsync({ motherId, route, idempotencyKey });
+      const { data } = await api.post(
+        `/mothers/${motherId}/calls`,
+        { route },
+        { headers: route === "phone" ? { "Idempotency-Key": idempotencyKey } : undefined },
+      );
+      onChanged();
       if (route === "phone") phoneRetryKey.current = null;
       // Rollback-skew guard: an older backend ignores the body and places a
       // PHONE call. A WhatsApp success toast over a phone call would put a
@@ -85,10 +90,9 @@ export const useCallNow = (motherId: string) => {
         // a call. Red here would read as "nothing happened, try again" — the
         // one conclusion that wastes her remaining weekly ask slot.
         toast.info(callNowErrorMessage(status, ASK_SENT));
-        // Her permission_status is now `requested` server-side. useTriggerCall
-        // only invalidates on success, so without this the menu keeps offering
-        // "Ask her to allow" for an ask that has already gone out.
-        refreshMother(motherId);
+        // Her permission_status is now `requested` server-side; without this
+        // the menu keeps offering "Ask her to allow" for an ask already sent.
+        onChanged();
       } else {
         toast.error(
           detail?.error_code === "whatsapp_unavailable" && detail.message
@@ -100,8 +104,10 @@ export const useCallNow = (motherId: string) => {
       // user action must replay the original request. Any HTTP response is a
       // definitive server outcome and ends this action.
       if (route === "phone" && status !== undefined) phoneRetryKey.current = null;
+    } finally {
+      setIsPending(false);
     }
   };
 
-  return { callNow, isPending: triggerCall.isPending };
+  return { callNow, isPending };
 };

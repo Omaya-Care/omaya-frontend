@@ -42,19 +42,63 @@ export const startOfToday = (): Date => {
 // ── Phone ───────────────────────────────────────────────────────────
 
 /**
- * A local phone number is usable when it has exactly 9 digits (the dial code
- * is held separately). The phone inputs no longer truncate what is typed or
- * pasted, so an over-long value must fail here rather than be sliced into a
- * different, valid-looking number.
+ * Numbering plan for each dial code the phone selectors offer (AddMother,
+ * the discharge wizard, the emergency-contacts editor).
+ *
+ * `nsnLength` is the national significant number length — the digits after the
+ * country code — taken from libphonenumber's metadata, which is what the
+ * backend validates against (`app/schemas/common.py`). `trunkZero` is whether
+ * the country dials a national "0" prefix that is NOT part of the number:
+ * Ghana (024 123 4567 → +233 24 123 4567) and Nigeria (0803 123 4567 →
+ * +234 803 123 4567) do; Côte d'Ivoire, Togo and Senegal do not, and in
+ * Côte d'Ivoire the leading 0 IS part of the number (+225 07 01 23 45 67), so
+ * it must never be dropped there.
  */
-export const phoneLocalDigitsValid = (localDigits: string): boolean =>
-  localDigits.replace(/\D/g, "").length === 9;
+export const PHONE_PLANS: Readonly<
+  Record<string, { nsnLength: number; trunkZero: boolean }>
+> = {
+  "+233": { nsnLength: 9, trunkZero: true }, // Ghana
+  "+234": { nsnLength: 10, trunkZero: true }, // Nigeria
+  "+225": { nsnLength: 10, trunkZero: false }, // Côte d'Ivoire
+  "+228": { nsnLength: 8, trunkZero: false }, // Togo
+  "+221": { nsnLength: 9, trunkZero: false }, // Senegal
+};
 
 /**
- * Normalise what was typed or pasted into a phone input to local digits:
- * drop the selected dial code when it is clearly present ("+233…", "00233…",
- * or "233" followed by exactly 9 digits), then a single trunk "0". Never
- * truncates — an over-long result is left for `phoneLocalDigitsValid` to reject.
+ * A local phone number is usable when it has exactly the national significant
+ * number length for its dial code (the dial code is held separately). The
+ * phone inputs never truncate what is typed or pasted, so an over-long value
+ * must fail here rather than be sliced into a different, valid-looking number.
+ * An unlisted dial code can't be checked locally; the backend is the gate.
+ */
+export const phoneLocalDigitsValid = (
+  localDigits: string,
+  countryCode: string,
+): boolean => {
+  const length = localDigits.replace(/\D/g, "").length;
+  const plan = PHONE_PLANS[countryCode];
+  return plan ? length === plan.nsnLength : length >= 4 && length <= 14;
+};
+
+/** The inline message for a local number of the wrong length. */
+export const phoneLengthMessage = (countryCode: string): string => {
+  const plan = PHONE_PLANS[countryCode];
+  return plan
+    ? `Enter a ${plan.nsnLength}-digit number`
+    : "Please enter a valid phone number";
+};
+
+/**
+ * Normalise what was typed or pasted into a phone input to local digits.
+ *
+ * The selected dial code is dropped only when it is written unambiguously as
+ * international — "+233…" or "00233…". A bare "233…" is left alone: an entry
+ * that long is not a local number, and silently peeling digits off it could
+ * turn a mistyped or over-long value into a different number that passes the
+ * length check. It stays over-long for `phoneLocalDigitsValid` to reject, and
+ * the clinician sees exactly what she entered. Then a single trunk "0" is
+ * dropped, but only for countries whose numbers carry one (see `PHONE_PLANS`).
+ * Never truncates.
  */
 export const normaliseLocalDigits = (raw: string, countryCode: string): string => {
   let digits = raw.replace(/\D/g, "");
@@ -64,15 +108,18 @@ export const normaliseLocalDigits = (raw: string, countryCode: string): string =
     digits = digits.slice(cc.length);
   } else if (digits.startsWith(`00${cc}`)) {
     digits = digits.slice(2 + cc.length);
-  } else if (digits.startsWith(cc) && digits.length - cc.length === 9) {
-    digits = digits.slice(cc.length);
   }
-  return digits.replace(/^0/, "");
+  return PHONE_PLANS[countryCode]?.trunkZero === false
+    ? digits
+    : digits.replace(/^0/, "");
 };
 
-/** Strip a dial-code prefix and any separators off a stored phone value. */
-export const localDigitsOf = (phone: string, countryCode: string): string =>
-  phone.replace(countryCode, "").replace(/\D/g, "");
+/**
+ * Strip a dial-code prefix and any separators off a stored phone value. A
+ * BSUID-only mother has no phone on file (`null`), which reads as empty.
+ */
+export const localDigitsOf = (phone: string | null, countryCode: string): string =>
+  (phone ?? "").replace(countryCode, "").replace(/\D/g, "");
 
 // ── Gravida / para ──────────────────────────────────────────────────
 
@@ -216,10 +263,12 @@ export const applyExclusiveChoice = (
   prev: string[],
   exclusive: readonly string[],
 ): string[] => {
-  const added = next.filter((value) => !prev.includes(value));
-  const addedExclusive = added.find((value) => exclusive.includes(value));
+  const before = new Set(prev);
+  const exclusiveSet = new Set(exclusive);
+  const added = next.filter((value) => !before.has(value));
+  const addedExclusive = added.find((value) => exclusiveSet.has(value));
   if (addedExclusive) return [addedExclusive];
-  if (added.length > 0) return next.filter((value) => !exclusive.includes(value));
+  if (added.length > 0) return next.filter((value) => !exclusiveSet.has(value));
   return next;
 };
 

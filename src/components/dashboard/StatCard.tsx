@@ -1,79 +1,39 @@
-import { Card, CardContent } from "../ui/card";
+import { Link } from "react-router-dom";
 
 interface StatCardProps {
   label: string;
   sublabel: string;
   value: string | number;
-  /** Brand pastel, used in sequence across the dashboard cards (see docs/AI_CONTEXT.md). */
-  tint?: 1 | 2 | 3 | 4;
+  loading?: boolean;
   footerText?: string;
-  footerColor?: string;
-  onViewAll?: () => void;
+  /** Route for the "View all" link, when the card has a list behind it. */
+  to?: string;
 }
 
-// Static map so Tailwind sees the literal class names.
-const TINT_BG: Record<number, string> = {
-  1: "bg-surface-tint-1",
-  2: "bg-surface-tint-2",
-  3: "bg-surface-tint-3",
-  4: "bg-surface-tint-4",
-};
-
-const StatCard = ({
-  label,
-  sublabel,
-  value,
-  tint = 1,
-  footerText,
-  footerColor,
-  onViewAll,
-}: StatCardProps) => {
+export function StatCard({ label, sublabel, value, loading, footerText, to }: StatCardProps) {
   return (
-    <Card
-      className={`border-0 shadow-none rounded-2xl ${TINT_BG[tint]} transition-[box-shadow,transform] duration-200 hover:shadow-md hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0`}
-    >
-      <CardContent className="p-3 md:p-4">
-        <div className="flex justify-between items-start">
-          <div className="flex flex-col">
-            <span className="text-xs md:text-sm font-medium text-surface-stat-label">
-              {label}
-            </span>
-            <span className="text-xs font-normal text-surface-stat-label/70">
-              {sublabel}
-            </span>
-          </div>
-        </div>
+    <div className="rounded-2xl bg-surface-tint-3 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)] transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+      <div className="flex flex-col">
+        <span className="text-sm font-medium text-surface-stat-label">{label}</span>
+        <span className="text-xs text-surface-stat-label/70">{sublabel}</span>
+      </div>
 
-        <div className="text-2xl md:text-4xl font-bold text-primary-900 mt-1.5 md:mt-2">
-          {value}
-        </div>
+      {loading ? (
+        <div className="mt-2 h-9 w-16 animate-pulse rounded-md bg-primary-200" />
+      ) : (
+        <div className="mt-2 text-2xl font-bold text-primary-900 md:text-4xl">{value}</div>
+      )}
 
-        {(footerText || onViewAll) && (
-          <div className="mt-2.5 flex justify-between items-center">
-            <div>
-              {footerText && (
-                <span
-                  className="text-xs font-normal"
-                  style={{ color: footerColor }}
-                >
-                  {footerText}
-                </span>
-              )}
-            </div>
-            {onViewAll && (
-              <button
-                type="button"
-                onClick={onViewAll}
-                className="text-sm font-medium text-primary hover:opacity-80 transition-opacity ml-auto"
-              >
-                View all
-              </button>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {(footerText || to) && (
+        <div className="mt-2.5 flex items-center justify-between">
+          <span className="text-xs text-red-600">{footerText}</span>
+          {to && (
+            <Link to={to} className="ml-auto text-sm font-medium text-primary transition-opacity hover:opacity-80">
+              View all
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
   );
-};
-
-export { StatCard };
+}

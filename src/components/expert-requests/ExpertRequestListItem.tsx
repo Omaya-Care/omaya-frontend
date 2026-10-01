@@ -1,85 +1,65 @@
-import { Clock } from "lucide-react";
-import { ExpertRequestItem, MyExpertRequestItem } from "../../types";
-import { Badge } from "../ui/Badge";
-import {
-  getExpertCategoryLabel,
-  getExpertRequestStatusBadgeClass,
-  getExpertRequestStatusLabel,
-} from "../../lib/badge-helpers";
-import { formatDateTime } from "../../lib/format";
+import { formatDateTime } from "@/lib/format";
+import type { ExpertRequestItem, MyExpertRequestItem } from "@/hooks/useExpertRequests";
+import { expertCategoryLabel, expertStatusClass, expertStatusLabel } from "./expert-display";
 
-interface ExpertRequestListItemProps {
-  item: ExpertRequestItem | MyExpertRequestItem;
-  isSelected: boolean;
-  onClick: () => void;
-}
-
-function hasThreadPreview(
-  item: ExpertRequestItem | MyExpertRequestItem,
-): item is MyExpertRequestItem {
+function hasThreadPreview(item: ExpertRequestItem | MyExpertRequestItem): item is MyExpertRequestItem {
   return "messageCount" in item;
 }
 
-const ExpertRequestListItem = ({ item, isSelected, onClick }: ExpertRequestListItemProps) => {
-  const preview = hasThreadPreview(item)
-    ? item.lastMessage?.textBody ?? item.questionText
-    : item.questionText;
+/** One row of the expert queue / "mine" list. Shared by /expert-requests and
+ *  the expert dashboard. */
+export function ExpertRequestListItem({
+  item,
+  selected = false,
+  onSelect,
+}: {
+  item: ExpertRequestItem | MyExpertRequestItem;
+  selected?: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const category = expertCategoryLabel(item.category);
+  const preview = hasThreadPreview(item) ? (item.lastMessage?.textBody ?? item.questionText) : item.questionText;
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`View ${getExpertCategoryLabel(item.category)} request`}
-      data-slide-active={isSelected ? "true" : undefined}
-      className={`
-        relative z-10 w-full px-4 py-3 text-left transition-[background-color,transform] duration-200 ease-out
-        ${isSelected ? "" : "hover:bg-gray-50 hover:translate-x-0.5"}
-      `}
-    >
-      <div className="flex items-center gap-3">
-        <div className="shrink-0 w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-bold text-primary">
-          {getExpertCategoryLabel(item.category).charAt(0)}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-center gap-2">
-            <span className="block text-sm font-medium text-gray-900 truncate">
-              {getExpertCategoryLabel(item.category)}
+    <li>
+      <button
+        type="button"
+        onClick={() => onSelect(item.id)}
+        aria-current={selected || undefined}
+        aria-label={`View ${category} request`}
+        className={`flex w-full min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${
+          selected ? "bg-[#F7E8F0]" : "hover:bg-black/[0.04]"
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#7A2850]/10 text-xs text-[#7A2850]"
+        >
+          {category.charAt(0)}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium text-gray-900">{category}</span>
+            {item.urgent && (
+              <span className="shrink-0 rounded-full bg-red-50 px-2 py-px text-[11px] font-medium text-red-600">
+                Urgent
+              </span>
+            )}
+            <span
+              className={`ml-auto shrink-0 rounded-full px-2 py-px text-[11px] font-medium ${expertStatusClass(item.status)}`}
+            >
+              {expertStatusLabel(item.status)}
             </span>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {item.urgent && (
-                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200" size="sm">
-                  Urgent
-                </Badge>
-              )}
-              {hasThreadPreview(item) && item.messageCount > 0 && (
-                <span className="text-[11px] text-gray-400 font-normal">
-                  {item.messageCount}
-                </span>
-              )}
-              <Badge
-                variant="outline"
-                className={getExpertRequestStatusBadgeClass(item.status)}
-                size="sm"
-                dot
-              >
-                {getExpertRequestStatusLabel(item.status)}
-              </Badge>
-            </div>
-          </div>
-
-          <p className="mt-1 text-xs text-gray-500 font-normal truncate">{preview}</p>
-
-          <div className="mt-1 flex items-center gap-1.5">
-            <Clock size={11} className="text-gray-400 shrink-0" />
-            <span className="text-xs text-gray-400 font-normal truncate">
-              {formatDateTime(item.requestedAt)}
-            </span>
-          </div>
-        </div>
-      </div>
-    </button>
+          </span>
+          <span className="truncate text-xs text-gray-500">{preview}</span>
+          <span className="truncate text-xs text-gray-400">
+            {formatDateTime(item.requestedAt)}
+            {hasThreadPreview(item) && item.messageCount > 0 && (
+              <> · {item.messageCount} message{item.messageCount === 1 ? "" : "s"}</>
+            )}
+          </span>
+        </span>
+      </button>
+    </li>
   );
-};
-
-export { ExpertRequestListItem };
+}
