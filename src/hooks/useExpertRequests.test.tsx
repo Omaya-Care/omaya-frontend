@@ -199,4 +199,27 @@ describe("overlapping loads", () => {
     await act(async () => first.resolve({ data: { request: { ...MINE_ROW }, messages: [] } }));
     expect(latest.data?.messages.map((m) => m.id)).toEqual(["m9"]);
   });
+
+  it("does not let interval ticks discard a slow thread response", async () => {
+    let resolveSlow!: (v: unknown) => void;
+    const slow = new Promise((r) => (resolveSlow = r));
+    get.mockReturnValueOnce(slow);
+    let latest!: ReturnType<typeof useExpertThread>;
+    await mount(() => {
+      latest = useExpertThread("r1");
+      return null;
+    });
+    // The thread GET takes longer than THREAD_POLL_MS: the tick must not
+    // start a superseding load while this one is still running.
+    await act(async () => vi.advanceTimersByTime(mod.THREAD_POLL_MS));
+    expect(get).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      resolveSlow({ data: { request: { ...MINE_ROW }, messages: [{ id: "m1", speaker: "mother", text_body: "Hi", created_at: "x" }] } }),
+    );
+    expect(latest.data?.messages.map((m) => m.id)).toEqual(["m1"]);
+    // Once it has landed, the next tick polls again.
+    get.mockResolvedValue({ data: { request: { ...MINE_ROW }, messages: [] } });
+    await act(async () => vi.advanceTimersByTime(mod.THREAD_POLL_MS));
+    expect(get).toHaveBeenCalledTimes(2);
+  });
 });

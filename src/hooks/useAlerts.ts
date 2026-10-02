@@ -125,7 +125,14 @@ function pollOpen() {
       }
       // Keep the last good rows, but count the failure: after
       // STALE_AFTER_FAILURES the UI must say the feed is paused, never let a
-      // stale list pass for a live one.
+      // stale list pass for a live one. A non-403 failure is an outage, not a
+      // permission answer: leave the forbidden state (whose `[]` is not a real
+      // list) and its slow cadence, so the UI shows a paused feed instead.
+      if (openState.forbidden) {
+        scheduleOpen(POLL_MS);
+        setOpen({ ...INITIAL_OPEN, failures: 1 });
+        return;
+      }
       setOpen({ ...openState, failures: openState.failures + 1 });
     });
 }

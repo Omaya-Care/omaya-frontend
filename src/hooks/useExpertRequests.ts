@@ -154,9 +154,15 @@ function useExpertResource<T>(path: string | null, map: (raw: Raw) => T, pollMs:
     // request or dropping a just-sent message. Only the newest issued load
     // may apply; a reload (tick) cancels this whole effect's loads anyway.
     let seq = 0;
+    // An interval tick never supersedes a load that is still running: on a
+    // slow endpoint (thread GETs taking longer than THREAD_POLL_MS) every
+    // response would otherwise be discarded by the next tick and new messages
+    // would never appear. Visibility and refresh loads still supersede.
+    let inFlight = false;
     const load = () => {
       const mine = ++seq;
       const stale = () => cancelled || mine !== seq;
+      inFlight = true;
       return api
         .get(path)
         .then((res) => {
@@ -175,12 +181,15 @@ function useExpertResource<T>(path: string | null, map: (raw: Raw) => T, pollMs:
             failed: true,
             forbidden: false,
           }));
+        })
+        .finally(() => {
+          if (mine === seq) inFlight = false;
         });
     };
     // Polls pause in a hidden tab (prod's React Query default) and catch up on
     // return. Matters most for the thread: every GET writes a PHI audit row.
     const poll = () => {
-      if (!document.hidden) load();
+      if (!document.hidden && !inFlight) load();
     };
     const onVisible = () => {
       if (!document.hidden) load();

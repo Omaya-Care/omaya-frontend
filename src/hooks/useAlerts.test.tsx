@@ -178,4 +178,17 @@ describe("useAlerts", () => {
     expect(get).toHaveBeenCalledTimes(2);
     expect(latest.forbidden).toBe(false);
   });
+
+  it("shows an outage after a 403 as a paused feed, not as forbidden", async () => {
+    get.mockRejectedValueOnce(httpError(403)).mockRejectedValue(httpError(500));
+    await mount(<Harness status="open" />);
+    expect(latest.forbidden).toBe(true);
+    await act(async () => vi.advanceTimersByTime(FORBIDDEN_RETRY_MS));
+    expect(latest.forbidden).toBe(false);
+    expect(latest.failed).toBe(true);
+    // Back on the normal cadence, so the outage is retried every 15s.
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(get).toHaveBeenCalledTimes(3);
+    expect(latest.stale).toBe(true);
+  });
 });
