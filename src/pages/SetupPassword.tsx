@@ -11,7 +11,7 @@ import {
   type VerifyTokenResult,
 } from "../lib/auth-api";
 import { extractApiError } from "../lib/api";
-import { isAuthenticated } from "../lib/auth";
+import { defaultRouteFor, getClinician, isAuthenticated } from "../lib/auth";
 
 type Phase = "verifying" | "invalid" | "ready";
 
@@ -74,7 +74,7 @@ const SetupPassword = () => {
     setSubmitting(true);
     try {
       await setPassword(info!.setup_token, password);
-      navigate("/dashboard", { replace: true });
+      navigate(defaultRouteFor(getClinician()?.hospital_name), { replace: true });
     } catch (err) {
       const apiErr = extractApiError(err);
       // The 15-min setup token can lapse while the user types. The link
@@ -85,7 +85,7 @@ const SetupPassword = () => {
           const fresh = await verifyToken(rawToken);
           setInfo(fresh);
           await setPassword(fresh.setup_token, password);
-          navigate("/dashboard", { replace: true });
+          navigate(defaultRouteFor(getClinician()?.hospital_name), { replace: true });
           return;
         } catch {
           // Racy first-login: the initial setPassword may have already
@@ -93,7 +93,7 @@ const SetupPassword = () => {
           // against the now-consumed link token. If we're signed in, it
           // succeeded — go to the dashboard instead of stranding the user.
           if (isAuthenticated()) {
-            navigate("/dashboard", { replace: true });
+            navigate(defaultRouteFor(getClinician()?.hospital_name), { replace: true });
             return;
           }
           setError("This link has expired. Request a new one.");

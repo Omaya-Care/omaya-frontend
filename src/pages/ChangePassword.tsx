@@ -12,8 +12,7 @@ import { defaultRouteFor, getClinician, isAuthenticated } from "../lib/auth";
  * Forced rotation for a seat that signed in with must_change_password=true.
  * Reachable only with a valid session (the JWT is already stored); on
  * success the re-issued token clears the flag and we land on the dashboard —
- * or, for an expert-roster account, its own work queue (see Login.tsx's
- * defaultRouteFor: Dashboard has nothing to show an account with no mothers).
+ * or, for an expert-roster account, its own work queue (see defaultRouteFor).
  */
 const ChangePassword = () => {
   const navigate = useNavigate();

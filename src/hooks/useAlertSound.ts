@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import {
   subscribeAlertSound,
   getAlertSoundSnapshot,
-} from "../lib/alert-prefs";
+} from "@/lib/alert-prefs";
 
 /**
  * Live-reactive read of the alert-sound (mute) preference. Mirrors the

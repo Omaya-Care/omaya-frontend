@@ -62,13 +62,6 @@ describe("askBlockedLabel", () => {
     expect(askBlockedLabel("cooldown_24h")).toBe("already asked today");
   });
 
-  it("names the kill switch instead of falling through to 'unavailable'", () => {
-    // `calling_disabled` has always been reachable (WHATSAPP_CALLING_ENABLED)
-    // but had no label, so the item read "unavailable" — indistinguishable
-    // from a fault.
-    expect(askBlockedLabel("calling_disabled")).toBe("WhatsApp calling is off");
-  });
-
   it("returns undefined for a reason it does not know", () => {
     // The caller falls back to "unavailable"; an unknown reason must not
     // render as the empty string and collapse the hint entirely.

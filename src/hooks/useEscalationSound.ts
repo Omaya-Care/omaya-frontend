@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
-import { EscalationItem } from "../types";
-import { isAlertSoundEnabled } from "../lib/alert-prefs";
+import { isAlertSoundEnabled } from "@/lib/alert-prefs";
+import { toast } from "@/lib/notify";
+import type { AlertRow } from "./useAlerts";
+
+type EscalationItem = Pick<AlertRow, "id" | "callId" | "severity" | "motherName" | "provisionalReason">;
+
+/** "New crisis alert" — but a provisional post_call_failed row's severity is
+ *  a placeholder (the call couldn't be classified), so it says so instead. */
+function newAlertTitle(e: EscalationItem): string {
+  return e.provisionalReason === "post_call_failed" ? "New alert needs review" : `New ${e.severity} alert`;
+}
 
 // Singleton AudioContext shared across the tab lifetime.
 // Creating a new context per chime leaks suspended contexts — browsers cap at
@@ -106,7 +115,7 @@ function buildAlertSummary(items: EscalationItem[]): { title: string; body: stri
   if (items.length === 1) {
     // severity is already a lowercase tier enum ('crisis' | 'elevated' | …).
     return {
-      title: `New ${items[0].severity} alert`,
+      title: newAlertTitle(items[0]),
       body: "A patient needs attention — open Omaya to view.",
     };
   }
@@ -125,7 +134,7 @@ function fireOsNotification(newItems: EscalationItem[]) {
       // Collapse repeat notifications so a churning poll doesn't stack a pile of
       // OS toasts — the newest replaces the previous.
       tag: "omaya-escalation",
-      icon: "/logo.png",
+      icon: "/android-chrome-192x192.png",
       requireInteraction: true,
     });
     // Focusing the tab is the useful action; the escalations already live on
@@ -143,14 +152,24 @@ function fireOsNotification(newItems: EscalationItem[]) {
 // ─── Hidden-tab title flash ──────────────────────────────────────────────────
 // When the tab is backgrounded, briefly rewrite the document title so a glance
 // at the tab strip reveals a new alert. Restored the moment the tab regains
-// focus. Kept module-level so overlapping alerts don't clobber the saved title.
-let _titleFlashOriginal: string | null = null;
+// focus. This module is the ONE owner of document.title inside the app: the
+// layout sets the BASE title (hospital name, "⚠ Alerts paused") via
+// setBaseTitle, and a flash always restores to the current base — never to a
+// stale snapshot, so a flash can't resurrect or swallow the paused warning.
+let _baseTitle = "Omaya Care";
+let _flashing = false;
 let _titleFlashTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Set the title shown whenever no new-alert flash is active. */
+export function setBaseTitle(title: string) {
+  _baseTitle = title;
+  if (!_flashing) document.title = title;
+}
+
 function restoreTitle() {
-  if (_titleFlashOriginal !== null) {
-    document.title = _titleFlashOriginal;
-    _titleFlashOriginal = null;
+  if (_flashing) {
+    _flashing = false;
+    document.title = _baseTitle;
   }
   if (_titleFlashTimer !== null) {
     clearTimeout(_titleFlashTimer);
@@ -160,7 +179,7 @@ function restoreTitle() {
 
 function flashTitle(newItems: EscalationItem[]) {
   if (typeof document === "undefined" || !document.hidden || newItems.length === 0) return;
-  if (_titleFlashOriginal === null) _titleFlashOriginal = document.title;
+  _flashing = true;
   const label =
     newItems.length === 1
       ? "🔔 New alert"
@@ -224,7 +243,10 @@ export function useEscalationSound(escalations: EscalationItem[] | undefined) {
   }, [resumeAudio]);
 
   useEffect(() => {
-    const list = escalations ?? [];
+    // Not loaded yet — don't seed the baseline with an empty set, or every
+    // existing alert would chime as "new" once the first fetch lands.
+    if (escalations === undefined) return;
+    const list = escalations;
     const keys = new Set(list.map((e) => e.callId || e.id));
     // prevKeys must persist across renders for the whole component lifetime —
     // it's how we detect a genuinely new escalation. First run stays silent
@@ -238,6 +260,13 @@ export function useEscalationSound(escalations: EscalationItem[] | undefined) {
         // still fire so a muted clinician on a backgrounded tab isn't left with
         // no signal at all.
         if (isAlertSoundEnabled()) playSuccessChime();
+        // In-app toast (behind auth, so the name is fine here — unlike the OS
+        // notification above, which can surface on a lock screen).
+        newItems.forEach((e) =>
+          toast.alert(newAlertTitle(e), {
+            description: e.motherName || "A patient needs attention.",
+          }),
+        );
         fireOsNotification(newItems);
         flashTitle(newItems);
       }

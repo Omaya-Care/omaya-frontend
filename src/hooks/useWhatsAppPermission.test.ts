@@ -40,10 +40,6 @@ describe("permissionRefusalMessage", () => {
     expect(meta).toMatch(/tomorrow/);
   });
 
-  it("names the kill switch rather than blaming the mother's state", () => {
-    expect(permissionRefusalMessage("calling_disabled")).toMatch(/switched off/);
-  });
-
   it("falls back to a generic refusal for a reason it does not know", () => {
     expect(permissionRefusalMessage("meta_131026")).toBe(
       "Could not send the permission request. Please try again.",

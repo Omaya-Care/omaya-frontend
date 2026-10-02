@@ -17,4 +17,9 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { value: "twi", label: "Twi", disabled: true },
   { value: "ga", label: "Ga", disabled: true },
   { value: "ewe", label: "Ewe", disabled: true },
+  { value: "dagbani", label: "Dagbani", disabled: true },
 ];
+
+/** Display label for a stored language value; an unknown value shows as-is. */
+export const languageLabel = (value: string): string =>
+  LANGUAGE_OPTIONS.find((o) => o.value === value)?.label ?? value;

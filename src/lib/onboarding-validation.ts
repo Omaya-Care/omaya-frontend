@@ -43,7 +43,7 @@ export const startOfToday = (): Date => {
 
 /**
  * Numbering plan for each dial code the phone selectors offer (AddMother,
- * NewDischarge, the emergency-contacts editor, EditMotherSheet).
+ * the discharge wizard, the emergency-contacts editor).
  *
  * `nsnLength` is the national significant number length — the digits after the
  * country code — taken from libphonenumber's metadata, which is what the
@@ -114,9 +114,12 @@ export const normaliseLocalDigits = (raw: string, countryCode: string): string =
     : digits.replace(/^0/, "");
 };
 
-/** Strip a dial-code prefix and any separators off a stored phone value. */
-export const localDigitsOf = (phone: string, countryCode: string): string =>
-  phone.replace(countryCode, "").replace(/\D/g, "");
+/**
+ * Strip a dial-code prefix and any separators off a stored phone value. A
+ * BSUID-only mother has no phone on file (`null`), which reads as empty.
+ */
+export const localDigitsOf = (phone: string | null, countryCode: string): string =>
+  (phone ?? "").replace(countryCode, "").replace(/\D/g, "");
 
 // ── Gravida / para ──────────────────────────────────────────────────
 
@@ -260,10 +263,12 @@ export const applyExclusiveChoice = (
   prev: string[],
   exclusive: readonly string[],
 ): string[] => {
-  const added = next.filter((value) => !prev.includes(value));
-  const addedExclusive = added.find((value) => exclusive.includes(value));
+  const before = new Set(prev);
+  const exclusiveSet = new Set(exclusive);
+  const added = next.filter((value) => !before.has(value));
+  const addedExclusive = added.find((value) => exclusiveSet.has(value));
   if (addedExclusive) return [addedExclusive];
-  if (added.length > 0) return next.filter((value) => !exclusive.includes(value));
+  if (added.length > 0) return next.filter((value) => !exclusiveSet.has(value));
   return next;
 };
 

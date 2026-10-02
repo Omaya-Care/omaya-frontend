@@ -7,15 +7,15 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "../ui/dialog";
-import { Button } from "../ui/Button";
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Alert, AlertDescription } from "../ui/alert";
-import { Skeleton } from "../ui/skeleton";
-import { useAddStaff } from "../../hooks/useMutations";
-import { useRoles } from "../../hooks/useRoles";
-import { StaffRole } from "../../types";
-import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAddStaff } from "@/hooks/useStaffMutations";
+import { useRoles } from "@/hooks/useRoles";
+import { isCreatableRole, staffErrorMessage, type StaffRole } from "@/hooks/useStaff";
+import { toast } from "@/lib/notify";
 
 interface AddStaffModalProps {
   isOpen: boolean;
@@ -30,7 +30,9 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
   const [inviteWarning, setInviteWarning] = useState(false);
 
   const addStaff = useAddStaff();
-  const { data: roles = [], isLoading: rolesLoading } = useRoles();
+  const { data: allRoles = [], isLoading: rolesLoading } = useRoles();
+  // Only the system roles a seat can be created with (see `isCreatableRole`).
+  const roles = allRoles.filter((r) => r.isSystem && isCreatableRole(r.name));
 
   const canSubmit =
     name.trim() !== "" &&
@@ -61,7 +63,10 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
       }
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 409) {
+      const known = staffErrorMessage(err);
+      if (known) {
+        setError(known);
+      } else if (status === 409) {
         setError("This email is already registered. Use a different email address.");
       } else if (status === 403) {
         setError("You don't have permission to add staff members.");
@@ -76,12 +81,12 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
   if (inviteWarning) {
     return (
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-gray-900">
+            <DialogTitle>
               Account created
             </DialogTitle>
-            <DialogDescription className="text-sm text-gray-500 mt-1">
+            <DialogDescription>
               The staff member was added but the invite email failed to send.
             </DialogDescription>
           </DialogHeader>
@@ -94,7 +99,7 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
             </AlertDescription>
           </Alert>
 
-          <DialogFooter className="mt-6">
+          <DialogFooter className="mt-2 gap-2 sm:gap-2">
             <Button variant="default" onClick={handleClose}>Done</Button>
           </DialogFooter>
         </DialogContent>
@@ -104,12 +109,12 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-gray-900">
+          <DialogTitle>
             Add a staff member
           </DialogTitle>
-          <DialogDescription className="text-sm text-gray-500 mt-1">
+          <DialogDescription>
             They'll receive an email to set their own password.
           </DialogDescription>
         </DialogHeader>
@@ -133,7 +138,7 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
           <Input
             label="Work email"
             type="email"
-            placeholder="name@korlebu.gov.gh"
+            placeholder="name@hospital.org"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             fullWidth
@@ -177,8 +182,8 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
           </div>
         </div>
 
-        <DialogFooter className="flex justify-end gap-3 mt-7">
-          <Button variant="outline" onClick={handleClose} disabled={addStaff.isPending}>
+        <DialogFooter className="mt-2 gap-2 sm:gap-2">
+          <Button variant="ghost" onClick={handleClose} disabled={addStaff.isPending}>
             Cancel
           </Button>
           <Button

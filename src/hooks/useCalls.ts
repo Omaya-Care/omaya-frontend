@@ -1,50 +1,59 @@
-import { useQuery } from "@tanstack/react-query";
-import { api } from "../lib/api";
-import { Call } from "../types";
+import { useCallback, useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
-function toCall(raw: Record<string, unknown>): Call {
-  return {
-    id: raw.id as string,
-    motherId: raw.mother_id as string,
-    motherName: raw.mother_name as string,
-    callType: raw.call_type as string,
-    status: raw.status as Call["status"],
-    scheduledAt: raw.scheduled_at as string,
-    durationSeconds: raw.duration_seconds as number | undefined,
-    dayInCare: raw.day_in_care as number | undefined,
-    deliveryType: raw.delivery_type as string | undefined,
-    flagsRaised: raw.flags_raised as number | undefined,
-    severity: raw.severity as Call["severity"],
-    summary: raw.summary as string | undefined,
-    transcript: raw.transcript as Call["transcript"],
-    audioUrl: raw.audio_url as string | undefined,
-    recordingConsent: raw.recording_consent as boolean | undefined,
-    channel: raw.channel as Call["channel"],
-    direction: raw.direction as Call["direction"],
-  };
+export interface CallRow {
+  id: string;
+  motherId: string;
+  motherName: string;
+  scheduledAt: string;
+  status: string;
+  severity: string;
+  channel: string;
+  /** "inbound" = she rang us; "outbound" = Omaya placed it. */
+  direction: string;
+  callType: string;
 }
 
-export const useCalls = (date?: string) => {
-  return useQuery<Call[]>({
-    queryKey: ["calls", date ?? "all"],
-    queryFn: async () => {
-      const params: Record<string, string | boolean> = date
-        ? { date }
-        : { all_dates: true };
-      const response = await api.get("/calls", { params });
-      const raw = (response.data.calls ?? []) as Record<string, unknown>[];
-      return raw.map(toCall);
-    },
-  });
-};
+/** GET /calls?all_dates=true — every call (and still-scheduled placement)
+ *  across all days, oldest first. A failed fetch is reported as `failed`,
+ *  never as an empty list. */
+export function useCalls() {
+  const [data, setData] = useState<CallRow[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [version, setVersion] = useState(0);
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
 
-export const useCall = (id: string) => {
-  return useQuery<Call | null>({
-    queryKey: ["call", id],
-    queryFn: async () => {
-      const response = await api.get(`/calls/${id}`);
-      return response.data ? toCall(response.data as Record<string, unknown>) : null;
-    },
-    enabled: !!id,
-  });
-};
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get("/calls", { params: { all_dates: true } })
+      .then((res) => {
+        if (cancelled) return;
+        const rows = (res.data?.calls ?? []) as Record<string, unknown>[];
+        setFailed(false);
+        setData(
+          rows.map((r) => ({
+            id: r.id as string,
+            motherId: r.mother_id as string,
+            motherName: (r.mother_name as string) ?? "",
+            scheduledAt: (r.scheduled_at as string) ?? "",
+            status: (r.status as string) ?? "",
+            severity: (r.severity as string) ?? "",
+            channel: (r.channel as string) ?? "voice",
+            direction: (r.direction as string) ?? "outbound",
+            callType: (r.call_type as string) ?? "",
+          })),
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFailed(true);
+        setData((prev) => prev ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [version]);
+
+  return { data: data ?? [], loading: data === null, failed, reload };
+}

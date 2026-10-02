@@ -11,7 +11,8 @@ import { isAuthenticated, getMustChange } from "../../lib/auth";
  */
 export function DocsGate({ children }: { children: ReactNode }) {
   if (!isAuthenticated()) {
-    return <Navigate to="/?next=%2Fdocs" replace />;
+    // Straight to /login (not "/", whose redirect would drop the query).
+    return <Navigate to="/login?next=%2Fdocs" replace />;
   }
   if (getMustChange()) {
     return <Navigate to="/change-password" replace />;

@@ -7,21 +7,26 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "../ui/dialog";
-import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/select";
-import { Alert, AlertDescription } from "../ui/alert";
-import { useUpdateClinician } from "../../hooks/useMutations";
-import { useRoles } from "../../hooks/useRoles";
-import { StaffMember, StaffRole } from "../../types";
-import { toast } from "sonner";
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useUpdateClinician } from "@/hooks/useStaffMutations";
+import { useRoles } from "@/hooks/useRoles";
+import {
+  CLINICIAN_ROLES,
+  staffErrorMessage,
+  type StaffMember,
+  type StaffRole,
+} from "@/hooks/useStaff";
+import { toast } from "@/lib/notify";
 
 interface EditClinicianModalProps {
   isOpen: boolean;
@@ -33,14 +38,14 @@ const EditClinicianModal = ({ isOpen, onClose, member }: EditClinicianModalProps
   // Seeding local edit state from `member` is correct here: the call site
   // (StaffRow) passes key={member.id}, so this modal remounts per member and
   // never holds a stale copy.
-  // react-doctor-disable-next-line react-doctor/no-derived-useState
   const [name, setName] = useState(member.name);
-  // react-doctor-disable-next-line react-doctor/no-derived-useState
   const [selectedRole, setSelectedRole] = useState<StaffRole>(member.role);
   const [error, setError] = useState<string | null>(null);
 
   const updateClinician = useUpdateClinician();
-  const { data: roles = [], isLoading: rolesLoading } = useRoles();
+  const { data: allRoles = [], isLoading: rolesLoading } = useRoles();
+  // Only the system roles the backend accepts on a clinician seat.
+  const roles = allRoles.filter((r) => r.isSystem && CLINICIAN_ROLES.includes(r.name));
 
   const hasChanges = name.trim() !== member.name || selectedRole !== member.role;
   const canSubmit = name.trim() !== "" && hasChanges && !updateClinician.isPending;
@@ -64,8 +69,11 @@ const EditClinicianModal = ({ isOpen, onClose, member }: EditClinicianModalProps
       onClose();
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 403) {
-        setError("You cannot change your own role.");
+      const known = staffErrorMessage(err);
+      if (known) {
+        setError(known);
+      } else if (status === 403) {
+        setError("You don't have permission to make this change.");
       } else if (status === 404) {
         setError("This staff member no longer exists.");
       } else {
@@ -76,12 +84,12 @@ const EditClinicianModal = ({ isOpen, onClose, member }: EditClinicianModalProps
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-gray-900">
+          <DialogTitle>
             Edit staff member
           </DialogTitle>
-          <DialogDescription className="text-sm text-gray-500 mt-1">
+          <DialogDescription>
             Update {member.name.split(" ")[0]}'s name or role.
           </DialogDescription>
         </DialogHeader>
@@ -120,8 +128,8 @@ const EditClinicianModal = ({ isOpen, onClose, member }: EditClinicianModalProps
           </div>
         </div>
 
-        <DialogFooter className="mt-7">
-          <Button variant="outline" onClick={handleClose} disabled={updateClinician.isPending}>
+        <DialogFooter className="mt-2 gap-2 sm:gap-2">
+          <Button variant="ghost" onClick={handleClose} disabled={updateClinician.isPending}>
             Cancel
           </Button>
           <Button
