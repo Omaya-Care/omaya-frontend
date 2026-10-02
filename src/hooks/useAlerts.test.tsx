@@ -8,7 +8,7 @@ vi.mock("@/lib/api", async (importActual) => ({
   api: { get: (...args: unknown[]) => get(...args) },
 }));
 
-const { useAlerts, invalidateAlerts } = await import("./useAlerts");
+const { useAlerts, invalidateAlerts, FORBIDDEN_RETRY_MS } = await import("./useAlerts");
 type Result = ReturnType<typeof useAlerts>;
 
 // React 19's act() warns unless the environment opts in.
@@ -149,5 +149,33 @@ describe("useAlerts", () => {
     await act(async () => second.resolve({ data: { alerts: [] } }));
     await act(async () => first.resolve({ data: { alerts: [{ ...ROW, status: "open" }] } }));
     expect(latest.data).toHaveLength(0);
+  });
+
+  it("backs off on an open-feed 403 but keeps retrying, and resumes 15s cadence on recovery", async () => {
+    get.mockRejectedValue(httpError(403));
+    await mount(<Harness status="open" />);
+    expect(latest.forbidden).toBe(true);
+    expect(get).toHaveBeenCalledTimes(1);
+    // No 15s poll while forbidden…
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(get).toHaveBeenCalledTimes(1);
+    // …but the slow retry still fires.
+    get.mockResolvedValue({ data: { alerts: [{ ...ROW, status: "open" }] } });
+    await act(async () => vi.advanceTimersByTime(FORBIDDEN_RETRY_MS - 15_000));
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(latest.forbidden).toBe(false);
+    expect(latest.data).toHaveLength(1);
+    // Normal cadence is back.
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(get).toHaveBeenCalledTimes(3);
+  });
+
+  it("refetches on manual invalidation even while forbidden", async () => {
+    get.mockRejectedValueOnce(httpError(403)).mockResolvedValue({ data: { alerts: [] } });
+    await mount(<Harness status="open" />);
+    expect(latest.forbidden).toBe(true);
+    await act(async () => invalidateAlerts());
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(latest.forbidden).toBe(false);
   });
 });

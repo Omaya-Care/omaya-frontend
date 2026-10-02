@@ -5,6 +5,7 @@
 
 import { api } from "./api";
 import { setSession, getClinician, clearMustChange, type Clinician } from "./auth";
+import { clearNotifications } from "./notify";
 
 interface TokenResponse {
   // TODO(cookie-migration): backend still returns `token` in the body for
@@ -70,6 +71,8 @@ function startNewSession(): void {
  *  per-session cache, PHI drafts included. Call AFTER clearSession(), so the
  *  resetters see no owner and don't refetch. */
 export function endSession(): void {
+  // Cross-tab sign-out reaches here without a local clearSession().
+  clearNotifications();
   invalidateMe();
   sessionResetters.forEach((reset) => reset());
 }

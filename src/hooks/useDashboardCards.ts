@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { format } from "date-fns";
 import { api } from "@/lib/api";
 import { fetchMe } from "@/lib/auth-api";
 
@@ -56,6 +57,11 @@ export interface DashboardCards {
   failed: boolean;
 }
 
+/** The clinician's LOCAL calendar day as `YYYY-MM-DD` — the same day the
+ *  dashboard header shows. `toISOString()` is the UTC day, which is a
+ *  different date around midnight anywhere east/west of UTC. */
+export const localDateParam = (d: Date = new Date()): string => format(d, "yyyy-MM-dd");
+
 /** Same endpoints as the main portal dashboard: /mothers and /calls?date=
  *  (only with `view_mothers`), /alerts (only with `escalate` — alerts carry
  *  PHI and the backend 403s otherwise), and /dashboard/stats. A failed request leaves its fields null
@@ -70,7 +76,7 @@ export function useDashboardCards() {
 
   useEffect(() => {
     let cancelled = false;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateParam();
 
     (async () => {
       const me = await fetchMe().catch(() => null);

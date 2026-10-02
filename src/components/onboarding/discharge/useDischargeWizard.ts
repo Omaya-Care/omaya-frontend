@@ -46,7 +46,10 @@ const useDischargeFields = (reveal: ErrorReveal) => {
   const [serverErrors, setServerErrors] = useState<FieldErrors>({});
   // Whether the free-text "Other" risk chip is toggled on (the typed value
   // lives in form.risksOther and is sent as `risks_other`, NOT in `risks`).
-  const [riskOtherOn, setRiskOtherOn] = useState(false);
+  // Turning it off clears the text in the same update.
+  const riskOtherOn = form.riskOtherOn;
+  const setRiskOtherOn = (on: boolean) =>
+    setForm((prev) => ({ ...prev, riskOtherOn: on, risksOther: on ? prev.risksOther : "" }));
   const [countryCode, setCountryCode] = useState("+233");
   // 1–3 emergency contacts (index 0 = primary). Each carries its own country
   // code since each phone is independent. Resets on unmount (drawer close).
@@ -230,7 +233,6 @@ export const useDischargeWizard = () => {
     form,
     {
       existing: foundMother !== null,
-      riskOtherOn: fields.riskOtherOn,
       emergencyValid: emergencyContactsValid(fields.emergencyContacts),
       countryCode: fields.countryCode,
     },

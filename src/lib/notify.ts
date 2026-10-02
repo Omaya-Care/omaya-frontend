@@ -39,6 +39,15 @@ export function dismissNotification(id: number): void {
   emit();
 }
 
+/** Drop every toast. Called on any session end (sign-out, a 401-driven logout,
+ *  cross-tab sign-out): the toaster is mounted outside the protected routes,
+ *  so a named escalation toast would otherwise linger on the login screen. */
+export function clearNotifications(): void {
+  if (items.length === 0) return;
+  items = [];
+  emit();
+}
+
 function push(kind: NotificationKind, message: ReactNode, opts?: { description?: ReactNode }) {
   const id = nextId++;
   items = [...items, { id, kind, message, description: opts?.description }];

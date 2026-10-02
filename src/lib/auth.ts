@@ -1,3 +1,5 @@
+import { clearNotifications } from "./notify";
+
 // Auth session storage — the current clinician profile. The real session
 // credential is the HttpOnly `omaya_session` cookie the browser holds (set
 // by the backend, unreadable from JS); we can't store or inspect the JWT.
@@ -75,6 +77,8 @@ export function clearSession(): void {
   localStorage.removeItem(LEGACY_TOKEN_KEY);
   localStorage.removeItem(LEGACY_CLINICIAN_KEY);
   localStorage.removeItem(LEGACY_MUST_CHANGE_KEY);
+  // Toasts can carry a patient's name and outlive the protected routes.
+  clearNotifications();
 }
 
 

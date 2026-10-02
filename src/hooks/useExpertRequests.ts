@@ -149,14 +149,21 @@ function useExpertResource<T>(path: string | null, map: (raw: Raw) => T, pollMs:
     if (!path) return;
     let cancelled = false;
     let timer: number | undefined;
-    const load = () =>
-      api
+    // Latest-wins: an interval poll and a visibility/refresh load can overlap,
+    // and the older response may land last — bringing back a just-claimed
+    // request or dropping a just-sent message. Only the newest issued load
+    // may apply; a reload (tick) cancels this whole effect's loads anyway.
+    let seq = 0;
+    const load = () => {
+      const mine = ++seq;
+      const stale = () => cancelled || mine !== seq;
+      return api
         .get(path)
         .then((res) => {
-          if (!cancelled) setState({ path, data: map(res.data as Raw), failed: false, forbidden: false });
+          if (!stale()) setState({ path, data: map(res.data as Raw), failed: false, forbidden: false });
         })
         .catch((err) => {
-          if (cancelled) return;
+          if (stale()) return;
           if (extractApiError(err).status === 403) {
             window.clearInterval(timer);
             setState({ path, data: null, failed: false, forbidden: true });
@@ -169,6 +176,7 @@ function useExpertResource<T>(path: string | null, map: (raw: Raw) => T, pollMs:
             forbidden: false,
           }));
         });
+    };
     // Polls pause in a hidden tab (prod's React Query default) and catch up on
     // return. Matters most for the thread: every GET writes a PHI audit row.
     const poll = () => {

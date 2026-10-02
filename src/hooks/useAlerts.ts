@@ -27,6 +27,10 @@ export interface AlertRow {
 }
 
 const POLL_MS = 15_000;
+/** While the caller is 403'd, keep retrying slowly: access can come back
+ *  (role re-grant, tenant restored) and the L4 feed must resume without a
+ *  reload. Normal cadence returns on the first successful poll. */
+export const FORBIDDEN_RETRY_MS = 60_000;
 /** Consecutive failed polls before the live feed reads as paused (~30s). */
 export const STALE_AFTER_FAILURES = 2;
 
@@ -71,7 +75,8 @@ interface OpenState {
   failures: number;
   /** ms epoch of the last successful poll; null until the first one. */
   lastSuccessAt: number | null;
-  /** 403 — the caller's role lacks `escalate`. Terminal: polling stops. */
+  /** 403 — the caller's role lacks `escalate` (for now). Polling backs off to
+   *  FORBIDDEN_RETRY_MS and recovers on the next success. */
   forbidden: boolean;
 }
 
@@ -79,6 +84,7 @@ const INITIAL_OPEN: OpenState = { rows: null, failures: 0, lastSuccessAt: null, 
 let openState: OpenState = INITIAL_OPEN;
 const openListeners = new Set<() => void>();
 let openTimer: number | undefined;
+let openTimerMs = POLL_MS;
 let openGeneration = 0;
 // Latest-wins: only the most recently ISSUED poll may apply. An interval poll
 // in flight when an ack triggers invalidateAlerts() can otherwise land last
@@ -90,6 +96,14 @@ function setOpen(next: OpenState) {
   openListeners.forEach((l) => l());
 }
 
+/** (Re)arm the shared poll interval at `ms`; no-op if already at that cadence. */
+function scheduleOpen(ms: number) {
+  if (openTimer !== undefined && openTimerMs === ms) return;
+  window.clearInterval(openTimer);
+  openTimerMs = ms;
+  openTimer = window.setInterval(pollOpen, ms);
+}
+
 function pollOpen() {
   const gen = openGeneration;
   const seq = ++openSeq;
@@ -97,13 +111,15 @@ function pollOpen() {
   fetchRows("open")
     .then((rows) => {
       if (!current()) return;
+      scheduleOpen(POLL_MS);
       setOpen({ rows, failures: 0, lastSuccessAt: Date.now(), forbidden: false });
     })
     .catch((err) => {
       if (!current()) return;
       if (extractApiError(err).status === 403) {
-        window.clearInterval(openTimer);
-        openTimer = undefined;
+        // Back off, never stop: the layout keeps this subscription mounted,
+        // so a stopped poller would leave the bell/chime dead until reload.
+        scheduleOpen(FORBIDDEN_RETRY_MS);
         setOpen({ ...INITIAL_OPEN, rows: [], forbidden: true });
         return;
       }
@@ -123,7 +139,7 @@ function onOpenVisible() {
 function subscribeOpen(listener: () => void) {
   openListeners.add(listener);
   if (openListeners.size === 1) {
-    openTimer = window.setInterval(pollOpen, POLL_MS);
+    scheduleOpen(POLL_MS);
     document.addEventListener("visibilitychange", onOpenVisible);
     pollOpen();
   }
@@ -144,7 +160,7 @@ function subscribeOpen(listener: () => void) {
 /** Re-poll open alerts now — after an acknowledge/resolve, so the bell, the
  *  chime baseline and the Escalations list all drop the alert together. */
 export function invalidateAlerts() {
-  if (openListeners.size > 0 && !openState.forbidden) pollOpen();
+  if (openListeners.size > 0) pollOpen();
 }
 
 const getOpen = () => openState;

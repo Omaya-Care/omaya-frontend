@@ -46,6 +46,9 @@ export interface DischargeFormData {
   gravida: string;
   para: string;
   risks: string[];
+  /** The free-text "Other" risk chip is on (new-patient flow only). Kept in
+   *  the form so the payload can never carry text from a deselected chip. */
+  riskOtherOn: boolean;
   risksOther: string;
   /** Free text behind the "Other" medication chip; sent as `medications_other`. */
   medicationsOther: string;
@@ -69,6 +72,7 @@ export const initialDischargeForm = (): DischargeFormData => ({
   gravida: "",
   para: "",
   risks: [],
+  riskOtherOn: false,
   risksOther: "",
   medicationsOther: "",
   consentCalls: false,
@@ -92,8 +96,6 @@ export interface MotherSearchResult {
 export interface DischargeStepContext {
   /** An existing patient was picked on the search screen (5-step flow). */
   existing: boolean;
-  /** The free-text "Other" risk chip is on (new-patient flow only). */
-  riskOtherOn: boolean;
   emergencyValid: boolean;
   /** Dial code selected for her phone — sets the expected local length. */
   countryCode: string;
@@ -178,6 +180,11 @@ export const DATE_AND_PARITY_PAIRS = [
 /** The typed "Other" medication, or empty while the chip is off. */
 export const medicationOtherText = (form: DischargeFormData): string =>
   form.medications.includes("other") ? form.medicationsOther.trim() : "";
+
+/** The typed "Other" risk, or empty while the chip is off — so text left
+ *  behind by a deselected chip is never saved or summarised. */
+export const riskOtherText = (form: DischargeFormData): string =>
+  form.riskOtherOn ? form.risksOther.trim() : "";
 
 /** A toggled-on "Other" medication chip must be described. */
 export const medicationOtherError = (form: DischargeFormData): string | null =>
@@ -299,7 +306,7 @@ const newPatientStepErrors = (
   if (step === 3) return medicationErrors(form);
   if (step === 4)
     // Optional step, but a toggled-on "Other" must be described.
-    return ctx.riskOtherOn && form.risksOther.trim() === ""
+    return form.riskOtherOn && riskOtherText(form) === ""
       ? { risksOther: "Please describe the other risk factor" }
       : {};
   if (step === 5)
@@ -437,7 +444,7 @@ export const buildDischargeRequest = (
   discharge.consent_calls = form.consentCalls;
   discharge.consent_recording = form.consentRecording;
   discharge.whatsapp_opt_in = form.whatsappOptIn;
-  const risksOther = form.risksOther.trim();
+  const risksOther = riskOtherText(form);
   return {
     url: "/mothers/enroll-with-discharge",
     body: {
@@ -597,7 +604,7 @@ const firstCallRow = (form: DischargeFormData): SummaryRow => ({
 });
 
 const risksSummary = (form: DischargeFormData): string => {
-  const other = form.risksOther.trim();
+  const other = riskOtherText(form);
   if (form.risks.length === 0 && !other) return "None recorded";
   return [
     ...form.risks.map((r) => r.replace(/_/g, " ")),

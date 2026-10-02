@@ -155,3 +155,48 @@ describe("mutations", () => {
     await act(async () => {});
   });
 });
+
+describe("overlapping loads", () => {
+  it("never lets an older response overwrite a newer one (latest wins)", async () => {
+    const deferred = () => {
+      let resolve!: (v: unknown) => void;
+      const promise = new Promise((r) => (resolve = r));
+      return { promise, resolve };
+    };
+    const first = deferred();
+    const second = deferred();
+    get.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    let latest!: ReturnType<typeof useMyExpertRequests>;
+    await mount(() => {
+      latest = useMyExpertRequests();
+      return null;
+    });
+    // The tab regains focus while the first load is still in flight.
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+    expect(get).toHaveBeenCalledTimes(2);
+    await act(async () => second.resolve({ data: { requests: [] } }));
+    // The older load (from before the request was claimed) lands last.
+    await act(async () => first.resolve({ data: { requests: [MINE_ROW] } }));
+    expect(latest.data).toHaveLength(0);
+  });
+
+  it("drops a stale in-flight load when a write triggers a refresh", async () => {
+    const deferred = () => {
+      let resolve!: (v: unknown) => void;
+      const promise = new Promise((r) => (resolve = r));
+      return { promise, resolve };
+    };
+    const first = deferred();
+    get
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue({ data: { request: { ...MINE_ROW }, messages: [{ id: "m9", speaker: "expert", text_body: "New", created_at: "x" }] } });
+    let latest!: ReturnType<typeof useExpertThread>;
+    await mount(() => {
+      latest = useExpertThread("r1");
+      return null;
+    });
+    await act(async () => mod.invalidateExpertRequests());
+    await act(async () => first.resolve({ data: { request: { ...MINE_ROW }, messages: [] } }));
+    expect(latest.data?.messages.map((m) => m.id)).toEqual(["m9"]);
+  });
+});
