@@ -151,6 +151,26 @@ describe("useAlerts", () => {
     expect(latest.data).toHaveLength(0);
   });
 
+  it("counts a poll that times out on a slow link instead of superseding it", async () => {
+    // The API timeout equals the 15s cadence. If the next tick started a new
+    // poll first, every slow poll would be discarded uncounted and a frozen
+    // feed would pass for a live one.
+    const timeout = Object.assign(new Error("timeout of 15000ms exceeded"), {
+      isAxiosError: true,
+      code: "ECONNABORTED",
+    });
+    get.mockImplementation(
+      () => new Promise((_, reject) => window.setTimeout(() => reject(timeout), 15_000)),
+    );
+    await mount(<Harness status="open" />);
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(latest.failed).toBe(true);
+    await act(async () => vi.advanceTimersByTime(30_000));
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(latest.stale).toBe(true);
+  });
+
   it("backs off on an open-feed 403 but keeps retrying, and resumes 15s cadence on recovery", async () => {
     get.mockRejectedValue(httpError(403));
     await mount(<Harness status="open" />);
