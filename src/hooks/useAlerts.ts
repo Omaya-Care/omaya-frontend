@@ -90,11 +90,12 @@ let openGeneration = 0;
 // in flight when an ack triggers invalidateAlerts() can otherwise land last
 // and bring the acknowledged alert back (and re-chime it).
 let openSeq = 0;
-// Polls in flight. A scheduled poll never stacks on one still running: the
-// API timeout equals the 15s cadence, so on a slow link every poll would be
-// superseded by the next tick before it timed out — no failure ever counted,
-// the feed never read as paused, and new alerts never shown or chimed.
-// invalidateAlerts() still supersedes an in-flight poll (latest wins).
+// Polls in flight. An interval tick never stacks on a poll still running:
+// the API timeout equals the 15s cadence, so on a slow link every poll would
+// be superseded by the next tick before it timed out — no failure ever
+// counted, the feed never read as paused, and new alerts never shown or
+// chimed. A tab return and invalidateAlerts() still supersede an in-flight
+// poll (latest wins): they are one-off events that need fresh data now.
 let openInFlight = 0;
 
 function setOpen(next: OpenState) {
@@ -154,7 +155,7 @@ function pollOpen() {
 // Hidden tabs get their timers throttled (to ~1/min in Chrome), so re-poll the
 // moment the clinician comes back rather than up to a minute later.
 function onOpenVisible() {
-  if (!document.hidden && openTimer !== undefined) pollOpenScheduled();
+  if (!document.hidden && openTimer !== undefined) pollOpen();
 }
 
 function subscribeOpen(listener: () => void) {

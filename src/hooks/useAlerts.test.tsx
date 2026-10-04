@@ -171,6 +171,19 @@ describe("useAlerts", () => {
     expect(latest.stale).toBe(true);
   });
 
+  it("refreshes immediately on tab return even while a poll is in flight", async () => {
+    let settleSlow!: (v: unknown) => void;
+    const slow = new Promise((resolve) => (settleSlow = resolve));
+    get.mockReturnValueOnce(slow).mockResolvedValue({ data: { alerts: [] } });
+    await mount(<Harness status="open" />);
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(latest.data).toEqual([]);
+    // The superseded slow poll settles late and must not overwrite the fresh data.
+    await act(async () => settleSlow({ data: { alerts: [{ ...ROW, status: "open" }] } }));
+    expect(latest.data).toEqual([]);
+  });
+
   it("backs off on an open-feed 403 but keeps retrying, and resumes 15s cadence on recovery", async () => {
     get.mockRejectedValue(httpError(403));
     await mount(<Harness status="open" />);
