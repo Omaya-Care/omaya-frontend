@@ -90,6 +90,14 @@ let openGeneration = 0;
 // in flight when an ack triggers invalidateAlerts() can otherwise land last
 // and bring the acknowledged alert back (and re-chime it).
 let openSeq = 0;
+// Seq of the newest poll the server ANSWERED (rows or a 403). A failure counts
+// toward the paused state even from a superseded poll — the API timeout equals
+// the 15s cadence, so on a slow link the next tick (or a tab return) supersedes
+// every poll before it times out, and dropping those failures let a frozen
+// feed pass for a live one with new L4 alerts never shown. A newer answer
+// cancels it, and a superseded failure only ever counts: it never changes
+// the forbidden state or the cadence.
+let openAnsweredSeq = 0;
 
 function setOpen(next: OpenState) {
   openState = next;
@@ -111,12 +119,15 @@ function pollOpen() {
   fetchRows("open")
     .then((rows) => {
       if (!current()) return;
+      openAnsweredSeq = seq;
       scheduleOpen(POLL_MS);
       setOpen({ rows, failures: 0, lastSuccessAt: Date.now(), forbidden: false });
     })
     .catch((err) => {
-      if (!current()) return;
+      if (gen !== openGeneration || seq < openAnsweredSeq) return;
       if (extractApiError(err).status === 403) {
+        if (!current()) return;
+        openAnsweredSeq = seq;
         // Back off, never stop: the layout keeps this subscription mounted,
         // so a stopped poller would leave the bell/chime dead until reload.
         scheduleOpen(FORBIDDEN_RETRY_MS);
@@ -129,6 +140,7 @@ function pollOpen() {
       // permission answer: leave the forbidden state (whose `[]` is not a real
       // list) and its slow cadence, so the UI shows a paused feed instead.
       if (openState.forbidden) {
+        if (!current()) return;
         scheduleOpen(POLL_MS);
         setOpen({ ...INITIAL_OPEN, failures: 1 });
         return;

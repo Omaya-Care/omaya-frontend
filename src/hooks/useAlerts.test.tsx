@@ -151,6 +151,85 @@ describe("useAlerts", () => {
     expect(latest.data).toHaveLength(0);
   });
 
+  it("counts a poll that times out on a slow link even after the next tick superseded it", async () => {
+    // The API timeout equals the 15s cadence, so each tick supersedes the
+    // previous poll before it times out. Dropping those failures let a frozen
+    // feed pass for a live one; the cadence itself must not slow down either.
+    const timeout = Object.assign(new Error("timeout of 15000ms exceeded"), {
+      isAxiosError: true,
+      code: "ECONNABORTED",
+    });
+    get.mockImplementation(
+      () => new Promise((_, reject) => window.setTimeout(() => reject(timeout), 15_000)),
+    );
+    await mount(<Harness status="open" />);
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(latest.failed).toBe(true);
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(get).toHaveBeenCalledTimes(3);
+    expect(latest.stale).toBe(true);
+  });
+
+  it("refreshes immediately on tab return even while a poll is in flight", async () => {
+    let settleSlow!: (v: unknown) => void;
+    const slow = new Promise((resolve) => (settleSlow = resolve));
+    get.mockReturnValueOnce(slow).mockResolvedValue({ data: { alerts: [] } });
+    await mount(<Harness status="open" />);
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(latest.data).toEqual([]);
+    // The superseded slow poll settles late and must not overwrite the fresh data.
+    await act(async () => settleSlow({ data: { alerts: [{ ...ROW, status: "open" }] } }));
+    expect(latest.data).toEqual([]);
+  });
+
+  it("counts timed-out polls that tab returns superseded, so an outage still reads as paused", async () => {
+    const timeout = Object.assign(new Error("timeout of 15000ms exceeded"), {
+      isAxiosError: true,
+      code: "ECONNABORTED",
+    });
+    get.mockImplementation(
+      () => new Promise((_, reject) => window.setTimeout(() => reject(timeout), 15_000)),
+    );
+    await mount(<Harness status="open" />);
+    for (let i = 0; i < 4; i++) {
+      await act(async () => vi.advanceTimersByTime(5_000));
+      await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+    }
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(latest.stale).toBe(true);
+  });
+
+  it("a superseded failure never marks a feed failed once a newer poll succeeded", async () => {
+    let failOld!: (e: unknown) => void;
+    get
+      .mockReturnValueOnce(new Promise((_, reject) => (failOld = reject)))
+      .mockResolvedValue({ data: { alerts: [] } });
+    await mount(<Harness status="open" />);
+    await act(async () => invalidateAlerts());
+    expect(latest.failed).toBe(false);
+    await act(async () => failOld(httpError(500)));
+    expect(latest.failed).toBe(false);
+    expect(latest.data).toEqual([]);
+  });
+
+  it("an older poll's timeout never undoes a newer 403 backoff", async () => {
+    let failOld!: (e: unknown) => void;
+    get
+      .mockReturnValueOnce(new Promise((_, reject) => (failOld = reject)))
+      .mockRejectedValueOnce(httpError(403))
+      .mockResolvedValue({ data: { alerts: [] } });
+    await mount(<Harness status="open" />);
+    await act(async () => invalidateAlerts());
+    expect(latest.forbidden).toBe(true);
+    await act(async () => failOld(httpError(500)));
+    expect(latest.forbidden).toBe(true);
+    // Still on the slow retry: no 15s poll.
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
   it("backs off on an open-feed 403 but keeps retrying, and resumes 15s cadence on recovery", async () => {
     get.mockRejectedValue(httpError(403));
     await mount(<Harness status="open" />);
