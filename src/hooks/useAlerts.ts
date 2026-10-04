@@ -90,13 +90,12 @@ let openGeneration = 0;
 // in flight when an ack triggers invalidateAlerts() can otherwise land last
 // and bring the acknowledged alert back (and re-chime it).
 let openSeq = 0;
-// Polls in flight. An interval tick never stacks on a poll still running:
-// the API timeout equals the 15s cadence, so on a slow link every poll would
-// be superseded by the next tick before it timed out — no failure ever
-// counted, the feed never read as paused, and new alerts never shown or
-// chimed. A tab return and invalidateAlerts() still supersede an in-flight
-// poll (latest wins): they are one-off events that need fresh data now.
-let openInFlight = 0;
+// Seq of the newest poll that SUCCEEDED. A failure counts toward the paused
+// state even from a superseded poll — the API timeout equals the 15s cadence,
+// so on a slow link the next tick (or a tab return) supersedes every poll
+// before it times out, and dropping those failures let a frozen feed pass for
+// a live one with new L4 alerts never shown. Only a newer success cancels it.
+let openSuccessSeq = 0;
 
 function setOpen(next: OpenState) {
   openState = next;
@@ -108,27 +107,24 @@ function scheduleOpen(ms: number) {
   if (openTimer !== undefined && openTimerMs === ms) return;
   window.clearInterval(openTimer);
   openTimerMs = ms;
-  openTimer = window.setInterval(pollOpenScheduled, ms);
-}
-
-function pollOpenScheduled() {
-  if (openInFlight === 0) pollOpen();
+  openTimer = window.setInterval(pollOpen, ms);
 }
 
 function pollOpen() {
   const gen = openGeneration;
   const seq = ++openSeq;
   const current = () => gen === openGeneration && seq === openSeq;
-  openInFlight += 1;
   fetchRows("open")
     .then((rows) => {
       if (!current()) return;
+      openSuccessSeq = seq;
       scheduleOpen(POLL_MS);
       setOpen({ rows, failures: 0, lastSuccessAt: Date.now(), forbidden: false });
     })
     .catch((err) => {
-      if (!current()) return;
+      if (gen !== openGeneration || seq < openSuccessSeq) return;
       if (extractApiError(err).status === 403) {
+        if (!current()) return;
         // Back off, never stop: the layout keeps this subscription mounted,
         // so a stopped poller would leave the bell/chime dead until reload.
         scheduleOpen(FORBIDDEN_RETRY_MS);
@@ -146,9 +142,6 @@ function pollOpen() {
         return;
       }
       setOpen({ ...openState, failures: openState.failures + 1 });
-    })
-    .finally(() => {
-      openInFlight -= 1;
     });
 }
 
