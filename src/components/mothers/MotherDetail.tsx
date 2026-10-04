@@ -1,562 +1,478 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
-  UserRound,
-  Clock,
-  ShieldCheck,
-  MessageCircle,
   AlertTriangle,
-  XCircle,
   ClipboardList,
+  Clock,
+  MessageCircle,
   Pencil,
-  Loader2,
   PhoneCall,
-  ChevronDown,
-  BellRing,
+  ShieldCheck,
+  XCircle,
 } from "lucide-react";
-import { Mother } from "../../types";
-import { Badge } from "../ui/Badge";
+import { Button } from "@/components/ui/Button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "../ui/dialog";
-import { getSeverityBadgeClass } from "../../lib/badge-helpers";
-import { Button } from "../ui/Button";
+  MEDICATION_OPTIONS,
+  PREGNANCY_RISKS,
+  PRE_EXISTING_RISKS,
+} from "@/components/onboarding/discharge/discharge-form";
+import { RISK_OPTIONS } from "@/components/onboarding/add-mother/add-mother-form";
+import { usePermissions } from "@/hooks/usePermissions";
+import { CALL_NOW_ENABLED } from "@/lib/env";
+import { CallNowMenu } from "./CallNowMenu";
+import { EditMotherDialog } from "./EditMotherDialog";
+import { LogVisitModal } from "./LogVisitModal";
+import { WithdrawModal } from "./WithdrawModal";
+import { useMother, type MotherProfile } from "@/hooks/useMother";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
-import { Alert, AlertDescription } from "../ui/alert";
-import { formatDate, formatDateTime, formatPhone } from "../../lib/format";
-import { useCallNow } from "../../hooks/useCallNow";
-import { useRequestWhatsAppCallPermission } from "../../hooks/useWhatsAppPermission";
-import {
-  permissionLabel,
-  permissionWindowLabel,
-  askBlockedLabel,
-  askHeldLabel,
-} from "../../lib/whatsappPermission";
-import { useRefreshMother } from "../../hooks/useMothers";
+  formatDate,
+  formatDateTime,
+  humanize,
+  initials,
+  severityClass,
+} from "./mother-display";
 
-interface MotherDetailProps {
-  mother: Mother | null;
-  onWithdrawClick?: () => void;
-  onLogVisitClick?: () => void;
-  onEditClick?: () => void;
-}
-
-const consentConfig = {
-  active:    { label: "Active",    className: "bg-primary-100 text-primary-700" },
-  withdrawn: { label: "Withdrawn", className: "bg-red-50 text-red-600" },
-  pending:   { label: "Pending",   className: "bg-yellow-50 text-yellow-700" },
+const CONSENT_CLASS: Record<string, string> = {
+  active: "bg-[#F7E8F0] text-[#7A2850]",
+  withdrawn: "bg-red-50 text-red-600",
+  pending: "bg-yellow-50 text-yellow-700",
 };
 
-const callWindowLabels: Record<string, string> = {
-  morning: "Morning", afternoon: "Afternoon", evening: "Evening", inbound: "Inbound",
+const CALL_WINDOW: Record<string, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening",
+  inbound: "Inbound",
 };
 
 type Tab = "details" | "checkins";
 
-const MotherDetail = ({
-  mother,
-  onWithdrawClick,
-  onLogVisitClick,
-  onEditClick,
-}: MotherDetailProps) => {
-  // Above the early return below — `mother` may be null, but the hook only
-  // closes over the id, it doesn't fetch.
-  const { callNow, isPending: isCallPending } = useCallNow(mother?.id ?? "");
-  const {
-    requestPermission,
-    isPending: isAskingPermission,
-    blocked: askBlocked,
-  } = useRequestWhatsAppCallPermission(mother?.id ?? "");
-  const refreshMother = useRefreshMother();
-  const [activeTab, setActiveTab] = useState<Tab>("details");
-  const [transcriptModal, setTranscriptModal] = useState<{ open: boolean; text: string }>({
-    open: false,
-    text: "",
-  });
+/** Right-hand profile panel of the Mothers page. */
+export function MotherDetail({
+  motherId,
+  onWithdrawn,
+  onUpdated,
+}: {
+  motherId: string | null;
+  /** Called after a withdrawal so the list can move her to the Withdrawn tab. */
+  onWithdrawn: () => void;
+  /** Called after an edit so the list picks up a changed phone etc. */
+  onUpdated?: () => void;
+}) {
+  const { data, loading, failed, reload } = useMother(motherId);
 
-  const handleTranscriptClick = (transcript: string) => {
-    if (transcript.startsWith("http")) {
-      window.open(transcript, "_blank", "noopener,noreferrer");
-    } else {
-      setTranscriptModal({ open: true, text: transcript });
-    }
-  };
-
-  if (!mother) {
+  if (!motherId) {
     return (
-      // react-doctor-disable-next-line react-doctor/no-transition-all -- animate-in enter keyframe (duration-N is animation-duration), not a CSS transition:all
-      <div className="flex flex-col items-center justify-center h-full animate-in fade-in-0 zoom-in-95 duration-300 motion-reduce:animate-none">
-        <UserRound className="text-gray-300 mb-2" size={48} />
-        <p className="text-sm text-gray-400 font-normal">
-          Select a mother to view her profile
-        </p>
+      <Centered>
+        {/* Masked so the single-colour SVG takes our palette, like the sidebar logo. */}
+        <span
+          aria-hidden="true"
+          className="mb-3 block h-20 w-16 bg-gray-300 [mask:url(/brand/mother-baby-icon.svg)_center/contain_no-repeat]"
+        />
+        <p className="text-sm text-gray-400">Select a mother to view her profile</p>
+      </Centered>
+    );
+  }
+  if (loading) return <DetailSkeleton />;
+  if (failed || !data) {
+    return (
+      <Centered>
+        <p className="text-sm text-gray-400">Couldn't load this mother's profile.</p>
+      </Centered>
+    );
+  }
+  // key: reset the tab when switching mothers.
+  return (
+    <Profile
+      key={data.id}
+      mother={data}
+      reload={reload}
+      onUpdated={() => {
+        reload();
+        onUpdated?.();
+      }}
+      onWithdrawn={() => {
+        reload();
+        onWithdrawn();
+      }}
+    />
+  );
+}
+
+function Profile({
+  mother,
+  reload,
+  onUpdated,
+  onWithdrawn,
+}: {
+  mother: MotherProfile;
+  reload: () => void;
+  onUpdated: () => void;
+  onWithdrawn: () => void;
+}) {
+  const [tab, setTab] = useState<Tab>("details");
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [logVisitOpen, setLogVisitOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const { can } = usePermissions();
+  const canMessage = can("message_mothers");
+  const isWithdrawn = mother.consentStatus === "withdrawn";
+
+  // Profile is keyed by mother id, so this entrance replays on every switch.
+  return (
+    <div className="flex min-h-0 flex-1 flex-col animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out motion-reduce:animate-none">
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* ── Header ── */}
+      <header className="flex items-center gap-4 pb-6">
+        <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-[#7A2850]/10 text-xl text-[#7A2850]">
+          {initials(mother.name)}
+        </span>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <h2 className="truncate text-2xl font-normal tracking-tight text-gray-900">
+            {mother.name}
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {mother.severity && (
+              <span
+                className={`rounded-full px-2 py-px text-[11px] font-medium capitalize ${severityClass(mother.severity)}`}
+              >
+                {mother.severity}
+              </span>
+            )}
+            {mother.hospital && <span className="text-xs text-gray-500">{mother.hospital}</span>}
+          </div>
+          {isWithdrawn && (
+            <p className="text-xs text-red-500">Record is read-only. Consent has been withdrawn.</p>
+          )}
+        </div>
+        {/* PATCH /mothers/{id} has no backend permission dependency; gated on
+            `message_mothers` like the production portal. Hidden on a withdrawn
+            (read-only) record. */}
+        {canMessage && !isWithdrawn && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditOpen(true)}
+            className="ml-auto self-start"
+          >
+            <Pencil />
+            Edit
+          </Button>
+        )}
+        <InfoTip className={canMessage && !isWithdrawn ? "self-start" : "ml-auto self-start"}>
+          Severity labels are system-set and read-only for audit integrity.
+        </InfoTip>
+      </header>
+
+      {/* ── Key stats (same layout as call details) ── */}
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-5">
+        <Stat icon={<Clock className="size-3.5 text-[#7A2850]" />} label="Postpartum">
+          {mother.dayPostpartum != null ? `Day ${mother.dayPostpartum}` : "—"}
+        </Stat>
+        <Stat icon={<ShieldCheck className="size-3.5 text-[#7A2850]" />} label="Consent">
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${CONSENT_CLASS[mother.consentStatus] ?? "bg-gray-100 text-gray-500"}`}
+          >
+            {mother.consentStatus || "—"}
+          </span>
+        </Stat>
+        <Stat icon={<MessageCircle className="size-3.5 text-[#7A2850]" />} label="Last call">
+          {mother.lastInteraction ? formatDateTime(mother.lastInteraction) : "None"}
+        </Stat>
+        <Stat icon={<PhoneCall className="size-3.5 text-[#7A2850]" />} label="Check-ins">
+          {mother.checkIns.length}
+        </Stat>
+      </dl>
+
+      {mother.currentFlag && (
+        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+          <p className="text-sm leading-snug text-amber-700">{mother.currentFlag}</p>
+        </div>
+      )}
+
+      {/* ── Tabs ── */}
+      <div role="tablist" className="relative mt-6 grid w-fit grid-cols-2 rounded-full bg-gray-100 p-1">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none"
+          style={{ transform: tab === "checkins" ? "translateX(100%)" : "translateX(0)" }}
+        />
+        {(
+          [
+            { value: "details", label: "Details" },
+            { value: "checkins", label: "Check-ins" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.value}
+            onClick={() => setTab(t.value)}
+            className={`relative z-10 rounded-full px-3.5 py-1 text-sm transition-colors ${
+              tab === t.value ? "text-[#7A2850]" : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="py-6">
+        {tab === "details" ? <DetailsTab mother={mother} /> : <CheckInsTab mother={mother} />}
+      </div>
+    </div>
+
+      {/* ── Actions (pinned footer) ── */}
+      <footer className="flex shrink-0 items-center justify-between border-t border-gray-100 pt-4">
+        {/* Withdrawing needs `message_mothers` — hidden rather than offered and 403'd. */}
+        {isWithdrawn || !canMessage ? (
+          <span />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setWithdrawOpen(true)}
+            title="This will stop all scheduled calls for this mother."
+            className="flex items-center gap-1.5 text-xs text-red-500 transition-colors hover:text-red-700"
+          >
+            <XCircle className="size-4" />
+            Withdraw from program
+          </button>
+        )}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setLogVisitOpen(true)}
+            disabled={!canMessage}
+            title={canMessage ? "Record a manual visit or note." : "You don't have permission to log visits"}
+          >
+            <ClipboardList />
+            Log visit
+          </Button>
+          {CALL_NOW_ENABLED && canMessage && (
+            <CallNowMenu mother={mother} disabled={isWithdrawn} onChanged={reload} />
+          )}
+        </div>
+      </footer>
+
+      <WithdrawModal
+        open={withdrawOpen}
+        onClose={() => setWithdrawOpen(false)}
+        onWithdrawn={onWithdrawn}
+        motherId={mother.id}
+        motherName={mother.name}
+      />
+      {editOpen && (
+        <EditMotherDialog mother={mother} onClose={() => setEditOpen(false)} onSaved={onUpdated} />
+      )}
+      <LogVisitModal
+        open={logVisitOpen}
+        onClose={() => setLogVisitOpen(false)}
+        onLogged={reload}
+        motherId={mother.id}
+        motherName={mother.name}
+        dayPostpartum={mother.dayPostpartum}
+      />
+    </div>
+  );
+}
+
+/** Icon-only hint; the text shows on hover or keyboard focus. */
+function InfoTip({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <span className={`group relative ${className ?? ""}`}>
+      <button
+        type="button"
+        aria-label="About severity labels"
+        className="flex size-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-black/[0.04] hover:text-gray-600"
+      >
+        <ShieldCheck className="size-4" />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute top-full right-0 z-20 mt-1 w-56 rounded-lg bg-gray-900 px-3 py-2 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
+
+function DetailsTab({ mother }: { mother: MotherProfile }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <Section title="Contact">
+        <Fields
+          rows={[
+            ["Phone", mother.phone],
+            ["Call window", CALL_WINDOW[mother.preferredCallWindow] ?? mother.preferredCallWindow],
+            ["Language", mother.language && humanize(mother.language)],
+            ["Date of birth", formatDate(mother.dateOfBirth)],
+          ]}
+        />
+        {mother.emergencyContacts.length > 0 && (
+          <div className="border-t border-gray-200 px-4 py-3">
+            <p className="text-sm text-gray-500">Emergency contacts</p>
+            <ul className="mt-1.5 flex flex-col gap-1.5">
+              {mother.emergencyContacts.map((c, i) => (
+                <li key={`${c.name}:${c.phone}`} className="text-sm text-gray-900">
+                  <span className="font-medium">{c.name || "—"}</span>
+                  {c.relationship && (
+                    <span className="capitalize text-gray-500">
+                      {" "}· {c.relationship}
+                      {i === 0 && mother.emergencyContacts.length > 1 ? " (primary)" : ""}
+                    </span>
+                  )}
+                  <span className="text-gray-500"> · </span>
+                  {c.phone || "—"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Clinical">
+        <Fields
+          rows={[
+            ["Delivery", mother.deliveryType && humanize(mother.deliveryType)],
+            [
+              "Gravida / Para",
+              mother.gravida != null && mother.para != null ? `G${mother.gravida} P${mother.para}` : "",
+            ],
+            ["Delivered", formatDate(mother.deliveryDate)],
+            ["Discharged", formatDate(mother.dischargeDate)],
+          ]}
+        />
+        <div className="grid grid-cols-2 border-t border-gray-200 px-4 py-2.5">
+          <div className="pr-6">
+            <p className="text-sm text-gray-500">Risk factors</p>
+            <Chips
+              items={mother.risks}
+              empty="None recorded"
+              className="border-amber-200 bg-amber-50 text-amber-700"
+            />
+          </div>
+          <div className="pr-6">
+            <p className="text-sm text-gray-500">Medications</p>
+            <Chips items={mother.medications} empty="None recorded" className="border-gray-200 bg-white text-gray-600" />
+          </div>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function CheckInsTab({ mother }: { mother: MotherProfile }) {
+  if (mother.checkIns.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-10">
+        <PhoneCall className="size-8 text-gray-200" />
+        <p className="text-sm text-gray-400">No check-ins recorded yet.</p>
       </div>
     );
   }
-
-  const isWithdrawn = mother.consentStatus === "withdrawn";
-  const consent = consentConfig[mother.consentStatus] ?? { label: mother.consentStatus, className: "bg-gray-100 text-gray-500" };
-
-  const initials = mother.name
-    .split(" ")
-    .slice(0, 2)
-    .map((n) => n[0] ?? "")
-    .join("")
-    .toUpperCase();
-
-  const whatsappAvailable = mother.whatsappCall?.available ?? false;
-  const canAskPermission = mother.whatsappCall?.canRequestPermission ?? false;
-
   return (
-    // react-doctor-disable-next-line react-doctor/no-transition-all -- animate-in enter keyframe (duration-N is animation-duration), not a CSS transition:all
-    <div className="flex flex-1 flex-col min-h-0 animate-in fade-in-0 slide-in-from-right-3 duration-300 ease-out motion-reduce:animate-none">
-      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
-
-        {/* ── AVATAR HEADER ─────────────────────────────────── */}
-        <div className="flex flex-col items-center pt-6 pb-5 border-b border-gray-100">
-          <div className="w-20 h-20 rounded-full bg-primary-100 flex items-center justify-center text-2xl font-bold text-primary mb-3 ring-4 ring-white shadow-sm">
-            {initials}
-          </div>
-
-          <div className="flex items-center gap-2 mb-1.5">
-            <h2 className="text-xl font-bold text-gray-900">{mother.name}</h2>
-            {!isWithdrawn && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={onEditClick}
-                    disabled={!onEditClick}
-                    aria-label="Edit mother details"
-                    className="text-gray-300 hover:text-gray-500 transition-colors disabled:cursor-not-allowed"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>{onEditClick ? "Edit mother details" : "You don't have permission to edit"}</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className={getSeverityBadgeClass(mother.severity)} size="sm" dot>
-              {mother.severity.charAt(0).toUpperCase() + mother.severity.slice(1)}
-            </Badge>
-            <span className="text-xs text-gray-400">{mother.hospital}</span>
-          </div>
-
-          {isWithdrawn && (
-            <p className="text-xs text-red-400 mt-2 font-normal">
-              Record is read-only. Consent has been withdrawn.
-            </p>
-          )}
-        </div>
-
-        {/* ── STATUS STRIP ──────────────────────────────────── */}
-        <div className="grid grid-cols-3 border-b border-gray-100">
-          <div className="flex flex-col items-center py-3.5 gap-0.5">
-            <div className="flex items-center gap-1 mb-0.5">
-              <Clock size={11} className="text-gray-400" />
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Day</span>
-            </div>
-            <span className="text-sm font-medium text-gray-800">
-              {mother.dayPostpartum != null ? `Day ${mother.dayPostpartum}` : "—"}
+    <ul className="divide-y divide-gray-100">
+      {mother.checkIns.map((c) => (
+        <li key={c.id} className="py-4 first:pt-0">
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5">
+              <span className="text-sm font-medium text-gray-900">{formatDate(c.date)}</span>
+              {c.day != null && <span className="text-xs text-gray-400">· Day {c.day}</span>}
             </span>
-          </div>
-
-          <div className="flex flex-col items-center py-3.5 gap-0.5 border-x border-gray-100">
-            <div className="flex items-center gap-1 mb-0.5">
-              <ShieldCheck size={11} className="text-gray-400" />
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Consent</span>
-            </div>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${consent.className}`}>
-              {consent.label}
-            </span>
-          </div>
-
-          <div className="flex flex-col items-center py-3.5 gap-0.5">
-            <div className="flex items-center gap-1 mb-0.5">
-              <MessageCircle size={11} className="text-gray-400" />
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Last call</span>
-            </div>
-            <span className="text-sm font-medium text-gray-800 text-center leading-tight">
-              {mother.lastInteraction ? formatDateTime(mother.lastInteraction) : "None"}
-            </span>
-          </div>
-        </div>
-
-        {/* ── FLAG ──────────────────────────────────────────── */}
-        {mother.currentFlag && (
-          <div className="mx-4 mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 flex gap-2.5 items-start">
-            <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-amber-700 font-normal leading-snug">{mother.currentFlag}</p>
-          </div>
-        )}
-
-        {/* ── TABS ──────────────────────────────────────────── */}
-        <div className="flex justify-center gap-8 px-4 mt-4 border-b border-gray-100">
-          <button
-            type="button"
-            onClick={() => setActiveTab("details")}
-            className={`pb-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === "details"
-                ? "border-primary text-primary"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            Details
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("checkins")}
-            className={`pb-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${
-              activeTab === "checkins"
-                ? "border-primary text-primary"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            Check-ins
-            {mother.checkIns.length > 0 && (
-              <span className="text-[10px] bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-medium">
-                {mother.checkIns.length}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* ── TAB CONTENT ───────────────────────────────────── */}
-        <div className="px-4 py-4">
-
-          {activeTab === "details" && (
-            <div className="flex flex-col gap-7">
-
-              {/* Contact */}
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200">Contact</p>
-                <div className="divide-y divide-gray-100">
-                  {[
-                    { label: "Phone",         value: formatPhone(mother.phone) },
-                    { label: "Call window",   value: mother.preferredCallWindow ? (callWindowLabels[mother.preferredCallWindow] ?? mother.preferredCallWindow) : "" },
-                    { label: "Language",      value: mother.language ? mother.language.charAt(0).toUpperCase() + mother.language.slice(1) : "" },
-                    { label: "Date of birth", value: formatDate(mother.dateOfBirth ?? "") },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between py-2">
-                      <span className="text-sm text-gray-500 font-normal">{item.label}</span>
-                      <span className="text-sm font-medium text-gray-900">{item.value || "—"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Clinical */}
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200">Clinical</p>
-                <div className="divide-y divide-gray-100">
-                  {[
-                    { label: "Delivery",       value: mother.deliveryType ? mother.deliveryType.charAt(0).toUpperCase() + mother.deliveryType.slice(1) : "" },
-                    { label: "Gravida / Para", value: mother.gravida != null && mother.para != null ? `G${mother.gravida} P${mother.para}` : "" },
-                    { label: "Delivered",      value: formatDate(mother.deliveryDate ?? "") },
-                    { label: "Discharged",     value: formatDate(mother.dischargeDate) },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between py-2">
-                      <span className="text-sm text-gray-500 font-normal">{item.label}</span>
-                      <span className="text-sm font-medium text-gray-900">{item.value || "—"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Emergency contacts (1–3). Falls back to the deprecated single
-                  fields for records saved before the array existed. */}
-              {(() => {
-                const contacts =
-                  mother.emergencyContacts && mother.emergencyContacts.length > 0
-                    ? mother.emergencyContacts
-                    : mother.emergencyContactName
-                      ? [
-                          {
-                            name: mother.emergencyContactName,
-                            phone: mother.emergencyContactPhone ?? "",
-                            relationship: mother.emergencyContactRelationship ?? "",
-                          },
-                        ]
-                      : [];
-                if (contacts.length === 0) return null;
-                return (
-                  <div>
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200">
-                      Emergency contacts
-                    </p>
-                    <div className="divide-y divide-gray-100">
-                      {contacts.map((c, idx) => (
-                        <div key={`${c.name}:${c.phone}`} className="flex items-center justify-between py-2">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-gray-900">
-                              {c.name || "—"}
-                            </span>
-                            {c.relationship && (
-                              <span className="text-xs text-gray-400 font-normal capitalize">
-                                {c.relationship}
-                                {idx === 0 && contacts.length > 1 ? " · Primary" : ""}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-sm font-medium text-gray-900">
-                            {c.phone ? formatPhone(c.phone) : "—"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Alerts */}
-              {((mother.risks && mother.risks.length > 0) || (mother.medications && mother.medications.length > 0)) && (
-                <div className="flex flex-col gap-3">
-                  {mother.risks && mother.risks.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200 mb-2">Risk factors</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {mother.risks.map((r) => (
-                          <span key={r} className="px-2.5 py-1 rounded-full text-amber-700 text-xs font-medium border border-amber-200 bg-amber-50">
-                            {r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {mother.medications && mother.medications.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-200 mb-2">Medications</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {mother.medications.map((m) => (
-                          <span key={m} className="px-2.5 py-1 rounded-full text-gray-600 text-xs font-medium border border-gray-200 bg-white">
-                            {m.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <Alert className="border-gray-100 bg-gray-50">
-                <ShieldCheck className="h-4 w-4 text-gray-400" />
-                <AlertDescription className="text-gray-400 text-xs">
-                  Severity labels are system-set and read-only for audit integrity.
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
-
-          {activeTab === "checkins" && (
-            <div>
-              {mother.checkIns.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2">
-                  <PhoneCall size={32} className="text-gray-200" />
-                  <p className="text-sm text-gray-400 font-normal">No check-ins recorded yet.</p>
-                </div>
-              ) : (
-                <div className="flex flex-col divide-y divide-gray-100">
-                  {mother.checkIns.map((checkIn) => (
-                    <div key={checkIn.id} className="py-3.5 first:pt-0">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium text-gray-800">{formatDate(checkIn.date)}</span>
-                          <span className="text-gray-200">·</span>
-                          <span className="text-xs text-gray-400 font-normal">Day {checkIn.day}</span>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={getSeverityBadgeClass(checkIn.severity)}
-                          size="sm"
-                          dot
-                        >
-                          {checkIn.severity.charAt(0).toUpperCase() + checkIn.severity.slice(1)}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 font-normal leading-snug line-clamp-2">
-                        {checkIn.summary}
-                      </p>
-                      {checkIn.transcript && (
-                        <button
-                          type="button"
-                          onClick={() => handleTranscriptClick(checkIn.transcript!)}
-                          className="mt-1.5 text-xs text-primary font-medium hover:underline"
-                        >
-                          View transcript →
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-        </div>
-      </div>
-
-      {/* ── TRANSCRIPT MODAL ──────────────────────────────── */}
-      <Dialog
-        open={transcriptModal.open}
-        onOpenChange={(open) => !open && setTranscriptModal({ open: false, text: "" })}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Call transcript</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto mt-2">
-            <pre className="whitespace-pre-wrap text-xs text-gray-700 font-mono leading-relaxed">
-              {transcriptModal.text}
-            </pre>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── ACTIONS (pinned footer) ────────────────────────── */}
-      <div className="shrink-0 pt-4 border-t border-gray-100 flex justify-between items-center bg-white">
-        <div>
-          {!isWithdrawn && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={onWithdrawClick}
-                  className="text-xs text-red-400 font-normal flex items-center gap-1.5 hover:text-red-600 transition-colors"
-                >
-                  <XCircle size={15} />
-                  <span>Withdraw from program</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>This will stop all scheduled calls for this mother.</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className={!onLogVisitClick ? "cursor-not-allowed" : ""}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1.5"
-                  onClick={onLogVisitClick}
-                  disabled={!onLogVisitClick}
-                >
-                  <ClipboardList size={15} />
-                  <span className="font-medium">Log visit</span>
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>{onLogVisitClick ? "Record a manual visit or note." : "You don't have permission to log visits"}</p>
-            </TooltipContent>
-          </Tooltip>
-          {/* See CallActions: refresh on OPEN rather than on an interval. Her
-              permission changes on a Meta webhook this tab never sees, so the
-              cached record can be stale — but only the moment she is about to
-              be called does that staleness cost anything. */}
-          <DropdownMenu onOpenChange={(open) => { if (open) refreshMother(mother.id); }}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex">
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="flex items-center gap-1.5"
-                      disabled={isWithdrawn || isCallPending}
-                    >
-                      {isCallPending
-                        ? <Loader2 size={15} className="animate-spin" />
-                        : <PhoneCall size={15} />}
-                      <span className="font-medium">Call now</span>
-                      <ChevronDown size={13} className="opacity-70" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{isWithdrawn ? "Cannot call. Consent withdrawn." : "Trigger an immediate check-in call."}</p>
-              </TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => callNow("phone")}>
-                <PhoneCall size={14} className="mr-2" />
-                Phone call
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!whatsappAvailable}
-                onClick={() => callNow("whatsapp")}
+            {c.severity && (
+              <span
+                className={`rounded-full px-2 py-px text-[11px] font-medium capitalize ${severityClass(c.severity)}`}
               >
-                <MessageCircle size={14} className="mr-2" />
-                WhatsApp call
-                {!whatsappAvailable && (
-                  <span className="ml-2 text-[10px] text-gray-400">
-                    {permissionLabel(mother.whatsappCall?.permissionStatus)}
-                  </span>
-                )}
-                {/* Gap A: show how long the grant actually lasts — the window
-                    was on the payload but never rendered. */}
-                {whatsappAvailable && permissionWindowLabel(
-                  mother.whatsappCall?.permissionStatus,
-                  mother.whatsappCall?.permissionExpiresAt,
-                ) && (
-                  <span className="ml-2 text-[10px] text-gray-400">
-                    {permissionWindowLabel(
-                      mother.whatsappCall?.permissionStatus,
-                      mother.whatsappCall?.permissionExpiresAt,
-                    )}
-                  </span>
-                )}
-              </DropdownMenuItem>
-              {/* Mirrors CallActions: the unblock sits next to the thing it
-                  unblocks, and only while the route is blocked on her
-                  permission — re-asking a granted mother would burn one of
-                  Meta's two weekly slots for nothing. */}
-              {!whatsappAvailable && (
-                <DropdownMenuItem
-                  disabled={!canAskPermission || isAskingPermission || askBlocked !== null}
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    void requestPermission();
-                  }}
-                >
-                  {isAskingPermission ? (
-                    <Loader2 size={14} className="mr-2 animate-spin" />
-                  ) : (
-                    <BellRing size={14} className="mr-2" />
-                  )}
-                  Ask her to allow WhatsApp calls
-                  {(askBlocked !== null || !canAskPermission) && (
-                    <span className="ml-2 text-[10px] text-gray-400">
-                      {askHeldLabel(askBlocked) ??
-                        askBlockedLabel(mother.whatsappCall?.canRequestReason) ??
-                        "unavailable"}
-                    </span>
-                  )}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+                {c.severity}
+              </span>
+            )}
+          </div>
+          <p className="text-sm leading-snug text-gray-600">{c.summary}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Stat({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <dt className="flex items-center gap-1.5 text-sm text-gray-500">
+        {icon}
+        {label}
+      </dt>
+      <dd className="truncate text-base text-gray-900">{children}</dd>
     </div>
   );
-};
+}
 
-export { MotherDetail };
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)]">
+      <h3 className="border-b border-gray-200 px-4 py-2.5 text-base font-medium text-gray-900">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+/** Label-above-value grid; empty values are left out. */
+function Fields({ rows }: { rows: [string, string][] }) {
+  const filled = rows.filter(([, value]) => value);
+  if (filled.length === 0) return <p className="px-4 py-3 text-sm text-gray-400">Nothing recorded</p>;
+  return (
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 px-4 py-3">
+      {filled.map(([label, value]) => (
+        <div key={label} className="min-w-0">
+          <dt className="text-sm text-gray-500">{label}</dt>
+          <dd className="truncate text-sm font-medium text-gray-900">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+// Enum codes the wizards write; anything else is a free-text "Other" entry
+// and is shown exactly as typed.
+const KNOWN_CHIP_CODES = new Set(
+  [...MEDICATION_OPTIONS, ...PRE_EXISTING_RISKS, ...PREGNANCY_RISKS, ...RISK_OPTIONS].map((o) => o.value),
+);
+
+function Chips({ items, empty, className }: { items: string[]; empty: string; className: string }) {
+  if (items.length === 0) return <p className="mt-0.5 text-sm text-gray-400">{empty}</p>;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {items.map((it) => (
+        <span key={it} className={`rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
+          {KNOWN_CHIP_CODES.has(it) ? humanize(it) : it}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function Centered({ children }: { children: ReactNode }) {
+  return <div className="flex flex-1 flex-col items-center justify-center">{children}</div>;
+}
+
+function DetailSkeleton() {
+  return (
+    <div className="flex flex-col gap-6 animate-in fade-in duration-150 motion-reduce:animate-none">
+      <div className="flex items-center gap-4">
+        <div className="size-16 animate-pulse rounded-full bg-gray-100" />
+        <div className="flex flex-col gap-2">
+          <div className="h-6 w-48 animate-pulse rounded bg-gray-100" />
+          <div className="h-4 w-32 animate-pulse rounded bg-gray-100" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-11 animate-pulse rounded bg-gray-100" />
+        ))}
+      </div>
+      <div className="h-48 animate-pulse rounded-xl bg-gray-100" />
+    </div>
+  );
+}

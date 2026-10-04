@@ -2,7 +2,7 @@
 // Kept separate from the component file so Fast Refresh can preserve component
 // state (a file should export only components for that to work).
 
-import { phoneLocalDigitsValid } from "../../lib/onboarding-validation";
+import { phoneLocalDigitsValid } from "@/lib/onboarding-validation";
 
 // One editable emergency-contact row. `phone` holds ONLY the local digits
 // (no dial code); `countryCode` is the dial code for that row's phone.

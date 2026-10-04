@@ -7,19 +7,19 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '../ui/dialog';
-import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
-import { Textarea } from '../ui/textarea';
-import { Alert, AlertDescription } from '../ui/alert';
-import { useAddRole } from '../../hooks/useMutations';
-import { RolePermissions } from '../../types';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAddRole } from "@/hooks/useStaffMutations";
+import type { RolePermissions } from "@/hooks/usePermissions";
+import { toast } from "@/lib/notify";
 
 const PERMISSIONS: Array<{ key: keyof RolePermissions; label: string }> = [
-  { key: 'view_mothers',      label: 'View mothers & alerts' },
+  { key: 'view_mothers',      label: 'View mothers & calls' },
   { key: 'message_mothers',   label: 'Message mothers' },
-  { key: 'escalate',          label: 'Escalate & resolve alerts' },
+  { key: 'escalate',          label: 'View, acknowledge & resolve escalations' },
   { key: 'create_discharges', label: 'Create discharges' },
   { key: 'manage_staff',      label: 'Manage staff & roles' },
 ];
@@ -83,10 +83,10 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-gray-900">Add a role</DialogTitle>
-          <DialogDescription className="text-sm text-gray-500 mt-1">
+          <DialogTitle>Add a role</DialogTitle>
+          <DialogDescription>
             Define the role name and set its permissions.
           </DialogDescription>
         </DialogHeader>
@@ -148,8 +148,8 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
           </div>
         </div>
 
-        <DialogFooter className="flex justify-end gap-3 mt-7">
-          <Button variant="outline" onClick={handleClose} disabled={addRole.isPending}>
+        <DialogFooter className="mt-2 gap-2 sm:gap-2">
+          <Button variant="ghost" onClick={handleClose} disabled={addRole.isPending}>
             Cancel
           </Button>
           <Button

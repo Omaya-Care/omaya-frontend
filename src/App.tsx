@@ -1,79 +1,43 @@
-import { lazy, Suspense, type ReactNode } from "react";
-import { Loader2 } from "lucide-react";
-import axios from "axios";
+import { lazy, Suspense } from "react";
 import * as Sentry from "@sentry/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-  useLocation,
-} from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import SetupPassword from "./pages/SetupPassword";
 import ChangePassword from "./pages/ChangePassword";
-import { AppShell } from "./components/layout/AppShell";
+import Dashboard from "./pages/Dashboard";
+import Mothers from "./pages/Mothers";
+import Calls from "./pages/Calls";
+import Escalations from "./pages/Escalations";
+import Settings from "./pages/Settings";
+import NewMother from "./pages/NewMother";
+import Staff from "./pages/Staff";
+import { AppLayout } from "./components/layout/AppLayout";
 import { RequireAuth } from "./components/auth/RequireAuth";
+import { RequirePermission } from "./components/auth/RequirePermission";
+import { NotificationToaster } from "./components/layout/NotificationToaster";
+import { RequireExpert } from "./components/auth/RequireExpert";
 import { DocsGate } from "./components/auth/DocsGate";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { RolePermissions } from "./types";
-import { EXPERT_HOSPITAL_NAME, getClinician } from "./lib/auth";
-import { DrawerProvider } from "./contexts/DrawerContext";
-import { Toaster } from "./components/ui/sonner";
-import { TooltipProvider } from "./components/ui/tooltip";
 import DocsLoading from "./components/DocsLoading";
+import ExpertRequests from "./pages/ExpertRequests";
+import { ExpertDashboard } from "./components/expert-requests/ExpertDashboard";
+import { isExpertAccount } from "./lib/auth";
 
-// Authenticated dashboard pages are code-split: each loads on first navigation
-// instead of riding in the initial bundle, so sign-in stays light. The auth
-// pages (Login etc.) are kept eager — they're on the critical first-paint path.
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const MothersPage = lazy(() => import("./pages/Mothers"));
-const CallsPage = lazy(() => import("./pages/Calls"));
-const ExpertRequestsPage = lazy(() => import("./pages/ExpertRequests"));
-const StaffPage = lazy(() => import("./pages/Staff"));
-const SettingsPage = lazy(() => import("./pages/Settings"));
+// The Scalar API reference is heavy and only ever used on the docs.* host —
+// code-split so it never rides in the main app bundle.
 const Docs = lazy(() => import("./Docs"));
 
-// Loader shown in the content area while a code-split page chunk loads.
-function PageLoading() {
-  return (
-    <div className="flex flex-1 items-center justify-center py-24">
-      <Loader2 className="animate-spin text-muted-foreground" size={24} />
-    </div>
-  );
-}
-
 // The docs.* host (a Vercel alias of this same project) serves the API
-// reference. It's a separate origin, so it has its own session — users
-// sign in there too; the docs gate (auth + the server-side `docs_access`
-// allowlist) applies either way.
+// reference. It's a separate origin with its own session — users sign in
+// there too; the docs gate (auth + the server-side `docs_access` allowlist)
+// applies either way.
 const isDocsHost = window.location.hostname.startsWith("docs.");
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Don't retry client-error responses — a 401/403/404/422 won't succeed on
-      // a second try; retrying just doubles backend load and delays the error /
-      // forced-sign-out path. Retry once for everything else (network, 5xx).
-      retry: (count, error) => {
-        const status = axios.isAxiosError(error)
-          ? error.response?.status
-          : undefined;
-        if (status && [401, 403, 404, 422].includes(status)) return false;
-        return count < 1;
-      },
-      staleTime: 30_000,
-    },
-  },
-});
 
 // Sentry-instrumented <SentryRoutes> — parameterized route names on errors/breadcrumbs.
 const SentryRoutes = Sentry.withSentryReactRouterV7Routing(Routes);
 
-// ErrorBoundary fallback. Deliberately shows NO error detail in the DOM (this
-// is a PHI screen); the detail goes to Sentry, not the clinician.
+// ErrorBoundary fallback. Deliberately shows NO error detail in the DOM; the
+// detail goes to Sentry.
 function ErrorFallback() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-2 p-8 text-center">
@@ -85,65 +49,16 @@ function ErrorFallback() {
   );
 }
 
-const routePermissions: Partial<Record<string, keyof RolePermissions>> = {
-  "/mothers": "view_mothers",
-  "/calls": "view_mothers",
-  "/staff": "manage_staff",
-};
-
-// Routes gated on account TYPE rather than a RolePermissions key —
-// /expert-requests is only for accounts on the dedicated Omaya expert
-// roster (see EXPERT_HOSPITAL_NAME); an ordinary hospital clinician with
-// view_mothers=true is not an expert, so this can't be a routePermissions
-// entry the way /mothers or /calls are.
-const expertOnlyRoutes = new Set(["/expert-requests"]);
-
-/** Protected page: requires a session + permission, rendered inside the app shell. */
-function Protected({ children }: { children: ReactNode }) {
-  const { pathname } = useLocation();
-  const { user, can, isLoading } = useAuth();
-  const required = routePermissions[pathname];
-
-  if (required && !isLoading && !can(required)) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  // Fall back to the persisted profile when /auth/me has no answer for us.
-  // AppShell decides which nav items to show from `getClinician()`, so when
-  // that request fails with anything other than a 401 this guard used to
-  // disagree with the nav it sits behind: the sidebar still offered Expert
-  // Requests and clicking it bounced the expert straight back to /dashboard.
-  // A transient profile-service blip should not lock an expert out of their
-  // only work queue while the expert-request endpoints are still answering.
-  // A 401 is different and already handled upstream — lib/api.ts clears the
-  // stored profile, so this falls through to the redirect as it should.
-  const expertHospitalName = user?.hospitalName ?? getClinician()?.hospital_name;
-  if (
-    expertOnlyRoutes.has(pathname) &&
-    !isLoading &&
-    expertHospitalName !== EXPERT_HOSPITAL_NAME
-  ) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // While /auth/me is still loading for a permission- or account-type-gated
-  // route, render a loader inside the shell instead of mounting the page —
-  // otherwise the page fetches its data and 403s before the post-load
-  // redirect can fire.
-  const isGated = !!required || expertOnlyRoutes.has(pathname);
-  const content = isGated && isLoading ? <PageLoading /> : children;
-
-  return (
-    <RequireAuth>
-      <AppShell>
-        <Suspense fallback={<PageLoading />}>{content}</Suspense>
-      </AppShell>
-    </RequireAuth>
-  );
+/** /dashboard: pick the view BEFORE either one's data hooks mount. An expert
+ *  account has no mothers, so the hospital dashboard's /mothers, /calls,
+ *  /alerts and /dashboard/stats requests must never fire for it. */
+function DashboardRoute() {
+  return isExpertAccount() ? <ExpertDashboard /> : <Dashboard />;
 }
 
 // API docs — gated by sign-in + the server-side `docs_access` allowlist.
-// DocsGate requires a session; the gated backend `/openapi.json` returns
-// 403 for a non-allowlisted email, which Docs renders as a "No access" state.
+// DocsGate requires a session; the gated backend `/openapi.json` returns 403
+// for a non-allowlisted email, which Docs renders as a "No access" state.
 const gatedDocs = (
   <DocsGate>
     <Suspense fallback={<DocsLoading />}>
@@ -153,95 +68,74 @@ const gatedDocs = (
 );
 
 export default function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
+  if (isDocsHost) {
+    // Docs host: only sign-in + the gated docs. Everything funnels to /docs
+    // so the host never exposes the app surface.
+    return (
       <BrowserRouter>
-        <AuthProvider>
-        <DrawerProvider>
-          <TooltipProvider delayDuration={150}>
-            <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
-              {isDocsHost ? (
-                // Docs host: only sign-in + the gated docs. Everything funnels
-                // to /docs so the host never exposes the app surface.
-                <SentryRoutes>
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/" element={<Navigate to="/login" replace />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/change-password" element={<ChangePassword />} />
-                  <Route path="/docs" element={gatedDocs} />
-                  <Route path="*" element={<Navigate to="/docs" replace />} />
-                </SentryRoutes>
-              ) : (
-                <SentryRoutes>
-                  {/* Public auth routes */}
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/" element={<Navigate to="/login" replace />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/activate" element={<SetupPassword />} />
-                  <Route path="/reset" element={<SetupPassword />} />
-                  <Route path="/change-password" element={<ChangePassword />} />
-
-                  {/* Protected app */}
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <Protected>
-                        <Dashboard />
-                      </Protected>
-                    }
-                  />
-                  <Route
-                    path="/mothers"
-                    element={
-                      <Protected>
-                        <MothersPage />
-                      </Protected>
-                    }
-                  />
-                  <Route
-                    path="/calls"
-                    element={
-                      <Protected>
-                        <CallsPage />
-                      </Protected>
-                    }
-                  />
-                  <Route
-                    path="/expert-requests"
-                    element={
-                      <Protected>
-                        <ExpertRequestsPage />
-                      </Protected>
-                    }
-                  />
-                  <Route
-                    path="/staff"
-                    element={
-                      <Protected>
-                        <StaffPage />
-                      </Protected>
-                    }
-                  />
-                  <Route
-                    path="/settings"
-                    element={
-                      <Protected>
-                        <SettingsPage />
-                      </Protected>
-                    }
-                  />
-
-                  {/* API docs — sign-in + server-side docs_access allowlist */}
-                  <Route path="/docs" element={gatedDocs} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </SentryRoutes>
-              )}
-            </Sentry.ErrorBoundary>
-          </TooltipProvider>
-        </DrawerProvider>
-        </AuthProvider>
-        <Toaster />
+        <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
+          <SentryRoutes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/change-password" element={<ChangePassword />} />
+            <Route path="/docs" element={gatedDocs} />
+            <Route path="*" element={<Navigate to="/docs" replace />} />
+          </SentryRoutes>
+        </Sentry.ErrorBoundary>
+        <NotificationToaster />
       </BrowserRouter>
-    </QueryClientProvider>
+    );
+  }
+
+
+  return (
+    <BrowserRouter>
+      <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
+        <SentryRoutes>
+          {/* Public auth routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/activate" element={<SetupPassword />} />
+          <Route path="/reset" element={<SetupPassword />} />
+          <Route path="/change-password" element={<ChangePassword />} />
+
+          {/* Protected app — one shared layout route, so the sidebar mounts
+              once and is reused across every page below. */}
+          <Route
+            element={
+              <RequireAuth>
+                <AppLayout />
+              </RequireAuth>
+            }
+          >
+            <Route path="/dashboard" element={<DashboardRoute />} />
+            {/* Permission-gated pages (same map as the source portal's
+                routePermissions): denied → /dashboard, loading → spinner. */}
+            <Route element={<RequirePermission permission="view_mothers" />}>
+              <Route path="/mothers" element={<Mothers />} />
+              <Route path="/calls" element={<Calls />} />
+            </Route>
+            <Route element={<RequirePermission permission="manage_staff" />}>
+              <Route path="/staff" element={<Staff />} />
+            </Route>
+            <Route path="/escalations" element={<Escalations />} />
+            <Route path="/settings" element={<Settings />} />
+            {/* Expert-roster accounts only (account type, not a permission). */}
+            <Route element={<RequireExpert />}>
+              <Route path="/expert-requests" element={<ExpertRequests />} />
+            </Route>
+            <Route element={<RequirePermission permission="create_discharges" />}>
+              <Route path="/new-mother" element={<NewMother />} />
+            </Route>
+          </Route>
+          {/* API docs — sign-in + server-side docs_access allowlist */}
+          <Route path="/docs" element={gatedDocs} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </SentryRoutes>
+      </Sentry.ErrorBoundary>
+      <NotificationToaster />
+    </BrowserRouter>
   );
 }

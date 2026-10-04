@@ -1,292 +1,276 @@
-import { useState, useMemo, useRef } from "react";
-import { Search, ArrowLeft, SlidersHorizontal, X } from "lucide-react";
-import { useCalls, useCall } from "../hooks/useCalls";
-import { CallListItem } from "../components/calls/CallListItem";
-import { CallDetail } from "../components/calls/CallDetail";
-import { Input } from "../components/ui/Input";
-import { Skeleton } from "../components/ui/skeleton";
-import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
-import { useSlideIndicator } from "../hooks/useSlideIndicator";
-import { getStatusDotClass, matchesDirectionFilter } from "../lib/badge-helpers";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { ArrowDownLeft, ArrowUpRight, Info, Search } from "lucide-react";
+import { Input } from "@/components/ui/Input";
+import { MobileBackButton } from "@/components/layout/MobileBackButton";
+import { LoadError } from "@/components/ui/LoadError";
+import { useCalls, type CallRow } from "@/hooks/useCalls";
+import { FilterMenu, type FilterGroup } from "@/components/mothers/MotherFilters";
+import { CallDetail } from "@/components/calls/CallDetail";
+import { formatDateTime, initials, severityClass } from "@/components/mothers/mother-display";
 
-const CallsPage = () => {
-  const [pickedCallId, setPickedCallId] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [directionFilter, setDirectionFilter] = useState<string>("all");
-  const [dateFilter, setDateFilter] = useState<string>("all");
-  const [search, setSearch] = useState("");
-  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+type Tab = "recents" | "scheduled";
+const TABS: { value: Tab; label: string }[] = [
+  { value: "recents", label: "Recents" },
+  { value: "scheduled", label: "Scheduled" },
+];
 
-  // react-doctor-disable-next-line react-doctor/no-event-handler
-  const apiDate = dateFilter === "today" ? new Date().toISOString().slice(0, 10) : undefined;
-  const { data: calls = [], isLoading } = useCalls(apiDate);
+type CallFilterState = { severities: string[]; statuses: string[]; channels: string[] };
+const EMPTY_FILTERS: CallFilterState = { severities: [], statuses: [], channels: [] };
 
-  // The selection is derived, not effected: a click wins, otherwise the first
-  // call in the fetched list is the default. A pick that's no longer in that
-  // list (switching the date filter refetches a different set) falls back to
-  // the first call rather than pointing at a call the list doesn't show.
-  // Validity is checked against `calls`, NOT `filteredCalls` — searching or
-  // filtering by status must not yank the detail pane to a different call.
-  const pickIsValid = calls.some((c) => c.id === pickedCallId);
-  const selectedCallId = (pickIsValid ? pickedCallId : "") || calls[0]?.id || "";
+const FILTER_GROUPS: FilterGroup<CallFilterState>[] = [
+  {
+    key: "severities",
+    label: "Severity",
+    options: [
+      { value: "crisis", label: "Crisis" },
+      { value: "elevated", label: "Elevated" },
+      { value: "monitor", label: "Monitor" },
+      { value: "routine", label: "Routine" },
+    ],
+  },
+  {
+    key: "statuses",
+    label: "Status",
+    options: [
+      { value: "completed", label: "Completed" },
+      { value: "in_progress", label: "In progress" },
+      { value: "missed", label: "Missed" },
+    ],
+  },
+  {
+    key: "channels",
+    label: "Channel",
+    options: [
+      { value: "voice", label: "Voice" },
+      { value: "whatsapp", label: "WhatsApp" },
+    ],
+  },
+];
 
-  const { data: selectedCall = null, isLoading: isCallLoading } = useCall(selectedCallId);
+/** The filter's "WhatsApp" covers both WhatsApp chats and WhatsApp calls. */
+const filterChannel = (channel: string) => (channel === "whatsapp_call" ? "whatsapp" : channel);
 
-  const listRef = useRef<HTMLDivElement>(null);
-
-  const activeFilterCount =
-    (statusFilter !== "all" ? 1 : 0) +
-    (dateFilter !== "all" ? 1 : 0) +
-    (directionFilter !== "all" ? 1 : 0);
-
-  const filteredCalls = useMemo(() => {
-    return calls.filter((call) => {
-      if (statusFilter !== "all" && call.status !== statusFilter) return false;
-
-      if (!matchesDirectionFilter(call.direction, directionFilter)) return false;
-
-if (search.trim()) {
-        const q = search.toLowerCase();
-        if (!call.motherName.toLowerCase().includes(q) && !call.callType.toLowerCase().includes(q)) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-    // dateFilter intentionally excluded — date filtering happens server-side via apiDate.
-  }, [calls, statusFilter, directionFilter, search]);
-
-  const callIndicator = useSlideIndicator(listRef, '[data-slide-active="true"]', [
-    selectedCallId,
-    filteredCalls,
-  ]);
-  const activeCall = filteredCalls.find((c) => c.id === selectedCallId);
-  const activeAccent = activeCall ? getStatusDotClass(activeCall.status) : "";
-
-  const handleSelectCall = (id: string) => {
-    setPickedCallId(id);
-    setMobileDetailOpen(true);
-  };
-
-  if (isLoading && calls.length === 0) {
-    return (
-      <div className="flex flex-1 min-h-0 flex-row gap-6">
-        <div className="w-full lg:w-80 bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3">
-          <Skeleton className="h-6 w-16" />
-          <Skeleton className="h-9 w-full rounded-md" />
-          <div className="flex gap-1.5">
-            {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-7 w-16 rounded-lg" />)}
-          </div>
-          <div className="space-y-1 mt-1">
-            {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-[64px] w-full rounded-lg" />)}
-          </div>
-        </div>
-        <div className="flex-1 bg-white rounded-2xl shadow-sm p-6 hidden lg:block">
-          <Skeleton className="h-7 w-48 mb-1" />
-          <Skeleton className="h-4 w-32 mb-5" />
-          <div className="grid grid-cols-2 gap-3 mb-5">
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
-          </div>
-          <Skeleton className="h-4 w-24 mb-3" />
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full rounded-lg mb-2" />)}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-1 min-h-0 flex-row gap-6">
-      {/* ── LEFT PANEL ──────────────────────────────────────── */}
-      <div
-        className={`
-          flex-shrink-0 flex-col bg-white rounded-2xl overflow-hidden shadow-sm
-          w-full lg:w-80 h-full
-          ${mobileDetailOpen ? "hidden lg:flex" : "flex"}
-        `}
-      >
-        <div className="px-4 pt-5 pb-3 flex-shrink-0">
-          <h2 className="text-lg font-bold text-gray-900">Calls</h2>
-        </div>
-
-        <div className="px-4 pb-3 flex-shrink-0">
-          <Input
-            placeholder="Search mother or call type"
-            leftIcon={<Search size={16} />}
-            className="bg-gray-50/50"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        <div className="px-4 pb-3 flex-shrink-0 flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <button type="button" className="flex items-center gap-1.5 text-xs border border-gray-200 bg-white rounded-md py-1.5 px-2.5 font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                <SlidersHorizontal size={14} />
-                <span>Filter</span>
-                {activeFilterCount > 0 && (
-                  // react-doctor-disable-next-line react-doctor/no-transition-all -- animate-in enter keyframe (duration-N is animation-duration), not a CSS transition:all
-                  <span className="ml-1 w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center animate-in zoom-in-50 duration-150 motion-reduce:animate-none">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-56 p-3">
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Status</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {["all", "upcoming", "in_progress", "completed", "missed"].map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => setStatusFilter(val)}
-                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
-                          statusFilter === val
-                            ? "border-primary bg-primary-100 text-primary font-medium"
-                            : "border-gray-200 text-gray-600 hover:border-gray-300"
-                        }`}
-                      >
-                        {val === "all" ? "All" : val === "in_progress" ? "In progress" : val.charAt(0).toUpperCase() + val.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Direction</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {["all", "inbound", "outbound"].map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => setDirectionFilter(val)}
-                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
-                          directionFilter === val
-                            ? "border-primary bg-primary-100 text-primary font-medium"
-                            : "border-gray-200 text-gray-600 hover:border-gray-300"
-                        }`}
-                      >
-                        {val === "all" ? "All" : val === "inbound" ? "Incoming" : "Outgoing"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Date</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {["all", "today"].map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => setDateFilter(val)}
-                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
-                          dateFilter === val
-                            ? "border-primary bg-primary-100 text-primary font-medium"
-                            : "border-gray-200 text-gray-600 hover:border-gray-300"
-                        }`}
-                      >
-                        {val === "all" ? "All dates" : "Today"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          {activeFilterCount > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setStatusFilter("all");
-                setDateFilter("all");
-                setDirectionFilter("all");
-              }}
-              className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-primary transition-colors"
-            >
-              <X size={13} />
-              <span>Clear</span>
-            </button>
-          )}
-        </div>
-
-        <div
-          ref={listRef}
-          className="relative flex-1 overflow-y-auto overflow-x-hidden border-t border-gray-200"
-        >
-          {/* Sliding selection — background block + status accent bar */}
-          {callIndicator && (
-            <>
-              <div
-                aria-hidden
-                className="absolute left-0 right-0 top-0 z-0 h-px origin-top bg-gray-50 transition-transform duration-300 ease-out pointer-events-none"
-                style={{
-                  transform: `translateY(${callIndicator.top}px) scaleY(${callIndicator.height})`,
-                }}
-              />
-              <div
-                aria-hidden
-                className={`absolute left-0 top-0 z-0 w-1 h-px origin-top transition-transform duration-300 ease-out pointer-events-none ${activeAccent}`}
-                style={{
-                  transform: `translateY(${callIndicator.top}px) scaleY(${callIndicator.height})`,
-                }}
-              />
-            </>
-          )}
-          {filteredCalls.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-1 px-4">
-              <p className="text-sm text-gray-400 font-normal text-center">No calls match this filter.</p>
-            </div>
-          ) : (
-            filteredCalls.map((call) => (
-              <CallListItem
-                key={call.id}
-                call={call}
-                isSelected={selectedCallId === call.id}
-                onClick={() => handleSelectCall(call.id)}
-              />
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* ── RIGHT PANEL ─────────────────────────────────────── */}
-      <div
-        className={`
-          flex-col bg-white rounded-2xl overflow-hidden shadow-sm p-6
-          flex-1 h-full
-          ${mobileDetailOpen ? "flex" : "hidden lg:flex"}
-        `}
-      >
-        <button
-          type="button"
-          className="lg:hidden flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4 -mt-1 self-start"
-          onClick={() => setMobileDetailOpen(false)}
-        >
-          <ArrowLeft size={16} />
-          <span>Back to list</span>
-        </button>
-
-        {isCallLoading ? (
-          <div className="flex flex-col gap-4">
-            <div className="pb-4 border-b border-gray-100">
-              <Skeleton className="h-7 w-48 mb-1" />
-              <Skeleton className="h-4 w-32" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
-            </div>
-            <Skeleton className="h-4 w-24 mt-1" />
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full rounded-xl mb-1" />)}
-          </div>
-        ) : (
-          <CallDetail key={selectedCallId} call={selectedCall} />
-        )}
-      </div>
-    </div>
-  );
+const CHANNEL_LABEL: Record<string, string> = {
+  voice: "Phone call",
+  whatsapp_call: "WhatsApp call",
+  whatsapp: "WhatsApp chat",
 };
 
-export default CallsPage;
+/** Direction arrow + channel — missed calls get a red arrow. */
+function CallMeta({ call }: { call: CallRow }) {
+  const inbound = call.direction === "inbound";
+  const Arrow = inbound ? ArrowDownLeft : ArrowUpRight;
+  return (
+    <span className="flex min-w-0 items-center gap-1 text-xs text-gray-500">
+      <Arrow
+        aria-label={inbound ? "Incoming" : "Outgoing"}
+        className={`size-3.5 shrink-0 ${call.status === "missed" ? "text-red-500" : "text-gray-400"}`}
+      />
+      <span className="truncate">
+        {CHANNEL_LABEL[call.channel] ?? "Call"} · {formatDateTime(call.scheduledAt)}
+      </span>
+    </span>
+  );
+}
+
+/** Deep link from the dashboard: /calls?call=<id>&tab=<tab> opens that call.
+ *  Applied during render (not an effect) and the params are consumed, so a
+ *  repeat click on the same row re-applies it. */
+function useCallDeepLink(
+  tab: Tab,
+  setTab: (tab: Tab) => void,
+  selectedId: string | null,
+  setSelectedId: (id: string | null) => void,
+) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedId = searchParams.get("call");
+  if (linkedId) {
+    const linkedTab: Tab = searchParams.get("tab") === "scheduled" ? "scheduled" : "recents";
+    if (tab !== linkedTab) setTab(linkedTab);
+    if (selectedId !== linkedId) setSelectedId(linkedId);
+    queueMicrotask(() =>
+      setSearchParams((p) => {
+        p.delete("call");
+        p.delete("tab");
+        return p;
+      }, { replace: true }),
+    );
+  }
+}
+
+/** Calls page — same split layout as Mothers: 1/3 call list | 2/3 the
+ *  selected call's mother. Recents = placed calls (newest first);
+ *  Scheduled = upcoming placements (soonest first). */
+export default function Calls() {
+  const { data, loading, failed, reload } = useCalls();
+  const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<CallFilterState>(EMPTY_FILTERS);
+  const [tab, setTab] = useState<Tab>("recents");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useCallDeepLink(tab, setTab, selectedId, setSelectedId);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const severities = new Set(filters.severities);
+    const statuses = new Set(filters.statuses);
+    const channels = new Set(filters.channels);
+    const rows = data.filter(
+      (c) =>
+        (tab === "scheduled" ? c.status === "upcoming" : c.status !== "upcoming") &&
+        (severities.size === 0 || severities.has(c.severity)) &&
+        (statuses.size === 0 || statuses.has(c.status)) &&
+        (channels.size === 0 || channels.has(filterChannel(c.channel))) &&
+        (!q || c.motherName.toLowerCase().includes(q)),
+    );
+    // Recents: most recent on top. Scheduled: next call on top.
+    const time = (iso: string) => new Date(iso).getTime() || 0;
+    return rows.sort((a, b) =>
+      tab === "recents"
+        ? time(b.scheduledAt) - time(a.scheduledAt)
+        : time(a.scheduledAt) - time(b.scheduledAt),
+    );
+  }, [data, query, tab, filters]);
+
+  const filterCount = Object.values(filters).reduce((n, v) => n + v.length, 0);
+
+  return (
+    <div className="flex h-full flex-col px-4 py-6 sm:px-12 sm:py-14 md:grid md:grid-cols-3 lg:px-20 lg:py-16">
+      <section
+        className={`col-span-1 min-h-0 min-w-0 flex-1 flex-col md:flex md:border-r md:border-border md:pr-6 ${
+          selectedId ? "hidden" : "flex"
+        }`}
+      >
+        <header className="flex flex-col gap-4 pb-4">
+          <h1 className="flex items-center gap-2 text-2xl font-normal tracking-tight text-foreground">
+            Calls
+            {!loading && !failed && (
+              <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#F7E8F0] px-1.5 text-xs font-medium text-[#7A2850] tabular-nums">
+                {filtered.length}
+              </span>
+            )}
+          </h1>
+          <div
+            role="tablist"
+            className="relative grid grid-cols-2 self-start rounded-full bg-gray-100 p-1"
+          >
+            {/* Sliding highlight — transform-only so it stays on the compositor. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none"
+              style={{ transform: tab === "scheduled" ? "translateX(100%)" : "translateX(0)" }}
+            />
+            {TABS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.value}
+                onClick={() => setTab(t.value)}
+                className={`relative z-10 rounded-full px-3.5 py-1 text-sm transition-colors ${
+                  tab === t.value ? "text-[#7A2850]" : "text-gray-500 hover:text-gray-900"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <Input
+            type="search"
+            placeholder="Search by name"
+            aria-label="Search calls"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            leftIcon={<Search className="size-4" />}
+            rightIcon={
+              <FilterMenu
+                groups={FILTER_GROUPS}
+                value={filters}
+                empty={EMPTY_FILTERS}
+                onChange={setFilters}
+                label="Filter calls"
+              />
+            }
+            fullWidth
+          />
+          {failed && <LoadError message="Couldn't load calls." onRetry={reload} />}
+        </header>
+
+        <ul className="-mx-3 min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto">
+          {loading ? (
+            Array.from({ length: 6 }, (_, i) => (
+              <li key={i} className="flex items-center gap-3 px-3 py-3">
+                <div className="size-9 shrink-0 animate-pulse rounded-full bg-gray-100" />
+                <div className="flex-1">
+                  <div className="h-4 w-32 animate-pulse rounded bg-gray-100" />
+                  <div className="mt-2 h-3 w-24 animate-pulse rounded bg-gray-100" />
+                </div>
+              </li>
+            ))
+          ) : filtered.length === 0 ? (
+            <li className="px-3 py-10 text-center text-sm text-gray-400">
+              {failed
+                ? "Calls couldn't be loaded."
+                : query || filterCount > 0
+                  ? "No calls match your search or filters."
+                  : tab === "scheduled"
+                    ? "No scheduled calls."
+                    : "No recent calls."}
+            </li>
+          ) : (
+            filtered.map((c) => {
+              const selected = c.id === selectedId;
+              return (
+                <li key={c.id} className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(c.id)}
+                    aria-current={selected || undefined}
+                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${
+                      selected ? "bg-[#F7E8F0]" : "hover:bg-black/[0.04]"
+                    }`}
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#7A2850]/10 text-xs text-[#7A2850]">
+                      {initials(c.motherName)}
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium text-gray-900">{c.motherName}</span>
+                        {c.severity && (
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-px text-[11px] font-medium capitalize ${severityClass(c.severity)}`}
+                          >
+                            {c.severity}
+                          </span>
+                        )}
+                      </span>
+                      <CallMeta call={c} />
+                    </span>
+                  </button>
+                  <Link
+                    to={`/mothers?mother=${encodeURIComponent(c.motherId)}`}
+                    aria-label={`Open ${c.motherName}'s profile`}
+                    title="Open mother's profile"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-black/[0.04] hover:text-[#7A2850]"
+                  >
+                    <Info className="size-[18px]" strokeWidth={1.75} />
+                  </Link>
+                </li>
+              );
+            })
+          )}
+        </ul>
+      </section>
+      <section
+        className={`col-span-2 min-h-0 min-w-0 flex-1 flex-col md:flex md:pl-6 ${
+          selectedId ? "flex" : "hidden"
+        }`}
+      >
+        <MobileBackButton onClick={() => setSelectedId(null)} />
+        <CallDetail callId={selectedId} />
+      </section>
+    </div>
+  );
+}

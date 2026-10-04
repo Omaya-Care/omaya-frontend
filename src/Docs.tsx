@@ -2,15 +2,14 @@ import { useEffect, useState } from 'react'
 import type { AxiosError } from 'axios'
 import { ApiReferenceReact } from '@scalar/api-reference-react'
 import '@scalar/api-reference-react/style.css'
-import '@fontsource-variable/geist/index.css'
 import { api } from './lib/api'
 import { AuthCard } from './components/auth/AuthCard'
 import { Button } from './components/ui/Button'
 import DocsLoading from './components/DocsLoading'
 
 // The portal spec (/openapi.json) is team-gated — it's fetched WITH the
-// Bearer JWT and rendered client-side, so there's no public snapshot to
-// leak. Defaults to the local backend in dev (matches lib/api.ts).
+// HttpOnly session cookie (lib/api sends credentials) and rendered
+// client-side, so there's no public snapshot to leak. Defaults to the local backend in dev (matches lib/api.ts).
 const PORTAL_BASE = (
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 ).replace(/\/+$/, '')
@@ -29,7 +28,8 @@ const CALL_SERVERS = [
 
 const OMAYA_CUSTOM_CSS = `
 :root {
-  --scalar-font: "Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* The portal's own type stack (tailwind.config.js fontFamily.sans). */
+  --scalar-font: "Nb international pro webfont", "Google Sans", Arial, sans-serif;
 }
 
 .light-mode {
@@ -124,7 +124,7 @@ export default function Docs() {
     let active = true
     async function load() {
       try {
-        // Team-gated: the Bearer JWT rides via the api interceptor. A 403
+        // Team-gated: the session cookie rides on the request. A 403
         // here means the signed-in email isn't on the docs_access allowlist.
         const portal = await api.get(`${PORTAL_BASE}/openapi.json`)
         if (!active) return

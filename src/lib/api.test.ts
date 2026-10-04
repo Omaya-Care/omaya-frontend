@@ -12,7 +12,7 @@ import axios, { AxiosError, AxiosHeaders } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./auth", () => ({ clearSession: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("./notify", () => ({ toast: { error: vi.fn() } }));
 
 import { api, extractApiError } from "./api";
 import { clearSession } from "./auth";
@@ -179,7 +179,7 @@ describe("statuses other than 401", () => {
   });
 
   it("surfaces a 5xx as a toast without touching the session", async () => {
-    const { toast } = await import("sonner");
+    const { toast } = await import("./notify");
     await request("/mothers", 500, {
       error_code: "internal",
       message: "boom",

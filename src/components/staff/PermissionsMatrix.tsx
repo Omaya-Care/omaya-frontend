@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Check, Loader2, Trash2, AlertCircle } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '../ui/Button';
-import { Skeleton } from '../ui/skeleton';
+import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -10,17 +9,17 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '../ui/dialog';
-import { useRoles } from '../../hooks/useRoles';
-import { useDeleteRole } from '../../hooks/useMutations';
-import { api } from '../../lib/api';
-import { RolePermissions } from '../../types';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { reloadRoles, useRoles } from "@/hooks/useRoles";
+import { useDeleteRole } from "@/hooks/useStaffMutations";
+import { api } from "@/lib/api";
+import { refreshPermissions, type RolePermissions } from "@/hooks/usePermissions";
+import { toast } from "@/lib/notify";
 
 const PERMISSIONS: Array<{ key: keyof RolePermissions; label: string }> = [
-  { key: 'view_mothers',      label: 'View mothers & alerts' },
+  { key: 'view_mothers',      label: 'View mothers & calls' },
   { key: 'message_mothers',   label: 'Message mothers' },
-  { key: 'escalate',          label: 'Escalate & resolve alerts' },
+  { key: 'escalate',          label: 'View, acknowledge & resolve escalations' },
   { key: 'create_discharges', label: 'Create discharges' },
   { key: 'manage_staff',      label: 'Manage staff & roles' },
 ];
@@ -30,7 +29,6 @@ interface PermissionsMatrixProps {
 }
 
 const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
-  const queryClient = useQueryClient();
   const { data: roles = [], isLoading, isError } = useRoles();
   const deleteRole = useDeleteRole();
 
@@ -74,13 +72,13 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
           api.patch(`/admin/roles/${r.id}`, { permissions: draft[r.id] }),
         ),
       );
-      // The editing admin's own role permissions may have changed; refresh
-      // /auth/me so can() reflects it without waiting for staleTime.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['roles'] }),
-        queryClient.invalidateQueries({ queryKey: ['me'] }),
-      ]);
-      toast.success('Permissions updated.');
+      // /auth/me reports the permissions frozen into the caller's session
+      // JWT, so if the editing admin changed their OWN role it takes effect
+      // for them only after they sign in again (other staff likewise pick it
+      // up on their next sign-in). Re-read anyway so nothing reads stale.
+      reloadRoles();
+      await refreshPermissions();
+      toast.success('Permissions updated. Changes apply after each person signs in again.');
       setIsEditing(false);
     } catch {
       toast.error('Could not save some changes. Please try again.');
@@ -114,12 +112,12 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6">
-      {/* Header */}
-      <div className="flex justify-between items-start mb-6">
+    <section className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)]">
+      {/* Header — same shell as the Settings page sections. */}
+      <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-3">
         <div>
-          <h3 className="text-base font-semibold text-gray-900">Roles & permissions</h3>
-          <p className="text-sm text-gray-400 mt-0.5">What each role can do in the portal.</p>
+          <h2 className="text-base font-medium text-gray-900">Roles & permissions</h2>
+          <p className="mt-0.5 text-sm text-gray-400">What each role can do in the portal.</p>
         </div>
         <div className="flex items-center gap-2">
           {isEditing ? (
@@ -143,7 +141,6 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
               <Button
                 variant="outline"
                 size="sm"
-                className="border-primary text-primary hover:bg-primary-100"
                 onClick={startEditing}
                 disabled={isLoading || isError}
               >
@@ -157,6 +154,7 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
         </div>
       </div>
 
+      <div className="p-5">
       {/* Loading */}
       {isLoading && (
         <div className="space-y-3">
@@ -204,6 +202,7 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
                             onClick={() => setDeleteTargetId(role.id)}
                             className="text-red-300 hover:text-red-500 transition-colors ml-0.5"
                             title="Delete role"
+                            aria-label={`Delete ${role.name} role`}
                           >
                             <Trash2 size={11} />
                           </button>
@@ -254,27 +253,29 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
         </div>
       )}
 
+      </div>
+
       {/* Delete role confirm */}
       <Dialog open={!!deleteTargetId} onOpenChange={() => setDeleteTargetId(null)}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-gray-900">
+            <DialogTitle>
               Delete "{deleteTarget?.name}" role?
             </DialogTitle>
-            <DialogDescription className="text-sm text-gray-500 mt-1">
+            <DialogDescription>
               This role will be permanently removed. If staff members are still assigned to it, the deletion will be blocked.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex justify-end gap-3 mt-6">
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={() => setDeleteTargetId(null)}
               disabled={deleteRole.isPending}
             >
               Cancel
             </Button>
             <Button
-              variant="default"
+              variant="destructive"
               onClick={handleDeleteRole}
               disabled={deleteRole.isPending}
               className="flex items-center gap-2"
@@ -285,7 +286,7 @@ const PermissionsMatrix = ({ onAddRole }: PermissionsMatrixProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   );
 };
 

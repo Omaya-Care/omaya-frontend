@@ -45,8 +45,6 @@ export function askBlockedLabel(reason?: string): string | undefined {
     // path exists to fix.
     case "cooldown_meta":
       return "WhatsApp limit reached";
-    case "calling_disabled":
-      return "WhatsApp calling is off";
     case "ask_in_flight":
       return "already sending";
     case "no_phone":

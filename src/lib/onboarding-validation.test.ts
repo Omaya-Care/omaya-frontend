@@ -86,6 +86,27 @@ describe("phone", () => {
     expect(localDigitsOf("+233241234567", "+233")).toBe("241234567");
     expect(localDigitsOf("+233 24-123 4567", "+233")).toBe("241234567");
   });
+
+  it("reads a missing phone (BSUID-only mother) as empty rather than throwing", () => {
+    expect(localDigitsOf(null, "+233")).toBe("");
+  });
+});
+
+describe("emergencyPhoneValid", () => {
+  const contact = (countryCode: string, phone: string) => ({
+    ...emptyEmergencyContact(),
+    countryCode,
+    phone,
+  });
+
+  it("accepts a 10-digit Nigerian contact (an existing one must not block saving)", () => {
+    expect(emergencyPhoneValid(contact("+234", "8031234567"))).toBe(true);
+  });
+
+  it("still requires 9 digits for a Ghana contact", () => {
+    expect(emergencyPhoneValid(contact("+233", "241234567"))).toBe(true);
+    expect(emergencyPhoneValid(contact("+233", "2412345678"))).toBe(false);
+  });
 });
 
 describe("emergencyPhoneValid", () => {

@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import { useRequestWhatsAppPermission } from "./useMutations";
+import { toast } from "@/lib/notify";
+import { api } from "@/lib/api";
+
+interface WhatsAppPermissionAck {
+  status?: string;
+  reason?: string;
+}
 
 /**
  * Shared "ask her for WhatsApp call permission" action for the two surfaces
@@ -27,7 +32,6 @@ const REASON_COPY: Record<string, string> = {
   // "try again in a minute", which is never true for this limit.
   cooldown_meta:
     "WhatsApp is limiting permission requests for this mother. Try again tomorrow, or after she next speaks to you on a WhatsApp call.",
-  calling_disabled: "WhatsApp calling is switched off on this server.",
 };
 
 /** Server-side reasons that no amount of clicking will fix — they need someone
@@ -64,8 +68,8 @@ export function permissionRefusalMessage(reason: string): string {
   return REASON_COPY[reason] ?? "Could not send the permission request. Please try again.";
 }
 
-export const useRequestWhatsAppCallPermission = (motherId: string) => {
-  const request = useRequestWhatsAppPermission();
+export const useRequestWhatsAppCallPermission = (motherId: string, onChanged: () => void) => {
+  const [isPending, setIsPending] = useState(false);
   const [blocked, setBlocked] = useState<AskBlock | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -89,8 +93,12 @@ export const useRequestWhatsAppCallPermission = (motherId: string) => {
   };
 
   const requestPermission = async () => {
+    setIsPending(true);
     try {
-      const data = await request.mutateAsync({ motherId });
+      const { data } = await api.post<WhatsAppPermissionAck>(
+        `/mothers/${motherId}/whatsapp-call-permission`,
+      );
+      onChanged();
       if (data?.status === "requested") {
         // Deliberately not "she can now be called": the grant is hers to give,
         // and it arrives later. Promising availability here would have the
@@ -100,10 +108,16 @@ export const useRequestWhatsAppCallPermission = (motherId: string) => {
         );
         return;
       }
+      if (data?.status === "granted") {
+        // `already_granted`: nothing was sent because she has already said
+        // yes — the outcome the clinician wanted, not a failure.
+        toast.success(REASON_COPY.already_granted);
+        return;
+      }
       const reason = data?.reason ?? "";
       if (data?.status === "error") {
-        // The send failed server-side but still returns 200, so React Query
-        // calls this a success and re-enables the item. Without the hold below
+        // The send failed server-side but still returns 200, so the request
+        // resolves and the item re-enables. Without the hold below
         // the clinician gets an identical-looking button and a "try again" that
         // changes nothing — the documented-likely outcome while the vendor
         // transport for interactive messages is unproven.
@@ -137,8 +151,10 @@ export const useRequestWhatsAppCallPermission = (motherId: string) => {
         if (!resp) holdShut("cooloff");
         toast.error("Could not send the permission request. Please try again.");
       }
+    } finally {
+      setIsPending(false);
     }
   };
 
-  return { requestPermission, isPending: request.isPending, blocked };
+  return { requestPermission, isPending, blocked };
 };

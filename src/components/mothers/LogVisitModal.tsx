@@ -1,128 +1,134 @@
-import { useState } from 'react';
-import { ClipboardList, Info, Loader2 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '../ui/dialog';
-import { Textarea } from '../ui/textarea';
-import { Input } from '../ui/Input';
-import { Alert, AlertDescription } from '../ui/alert';
-import { Badge } from '../ui/Badge';
-import { Button } from '../ui/Button';
-import { useLogVisit } from '../../hooks/useMutations';
-import { toast } from 'sonner';
+import { useState } from "react";
+import { ClipboardList, Info, Loader2 } from "lucide-react";
+import { toast } from "@/lib/notify";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
+import { api } from "@/lib/api";
 
-interface LogVisitModalProps {
-  isOpen: boolean;
+const LABEL = "mb-1.5 ml-0.5 text-sm font-medium text-gray-700";
+
+const TEXTAREA =
+  "w-full resize-none rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
+export function LogVisitModal({
+  open,
+  onClose,
+  onLogged,
+  motherId,
+  motherName,
+  dayPostpartum,
+}: {
+  open: boolean;
   onClose: () => void;
+  onLogged: () => void;
   motherId: string;
   motherName: string;
-  dayPostpartum: number;
-}
+  dayPostpartum: number | null;
+}) {
+  const [observation, setObservation] = useState("");
+  const [advice, setAdvice] = useState("");
+  const [nextAction, setNextAction] = useState("");
+  const [pending, setPending] = useState(false);
 
-const LogVisitModal = ({ isOpen, onClose, motherId, motherName, dayPostpartum }: LogVisitModalProps) => {
-  const logVisitMutation = useLogVisit();
+  const valid = observation.trim() !== "" && advice.trim() !== "" && nextAction.trim() !== "";
 
-  const [observation, setObservation] = useState('');
-  const [advice, setAdvice] = useState('');
-  const [nextAction, setNextAction] = useState('');
-
-  const isFormValid = observation.trim() !== '' && advice.trim() !== '' && nextAction !== '';
-
-  const handleClose = () => {
-    setObservation('');
-    setAdvice('');
-    setNextAction('');
+  const close = () => {
+    if (pending) return;
+    setObservation("");
+    setAdvice("");
+    setNextAction("");
     onClose();
   };
 
-  const handleSave = async () => {
-    if (!isFormValid) return;
+  const save = async () => {
+    if (!valid) return;
+    setPending(true);
     try {
-      await logVisitMutation.mutateAsync({
-        motherId,
-        clinicalObservation: observation,
-        medicationAdvice: advice,
-        nextAction,
+      await api.post(`/mothers/${motherId}/visits`, {
+        clinical_observation: observation,
+        medication_advice: advice,
+        next_action: nextAction,
       });
-      toast.success('Visit logged successfully.');
-      handleClose();
+      toast.success("Visit logged successfully.");
+      onLogged();
+      setObservation("");
+      setAdvice("");
+      setNextAction("");
+      onClose();
     } catch {
-      toast.error('Could not log visit. Please try again.');
+      toast.error("Could not log visit. Please try again.");
+    } finally {
+      setPending(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <div className="flex items-center gap-2 mb-1">
-            <ClipboardList size={18} className="text-primary" />
-            <DialogTitle className="text-lg font-semibold text-gray-900">Log visit</DialogTitle>
-            <span className="text-sm text-gray-400 font-normal">{motherName}</span>
-            {dayPostpartum != null && (
-              <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-100" size="sm">
-                Day {dayPostpartum}
-              </Badge>
-            )}
-          </div>
-        </DialogHeader>
+    <Modal open={open} onClose={close} labelledBy="log-visit-title" className="max-w-lg">
+      <div className="flex flex-wrap items-center gap-2">
+        <ClipboardList className="size-[18px] text-[#7A2850]" />
+        <h2 id="log-visit-title" className="text-lg font-medium text-gray-900">Log visit</h2>
+        <span className="text-sm text-gray-400">{motherName}</span>
+        {dayPostpartum != null && (
+          <span className="rounded-full bg-gray-100 px-2 py-px text-[11px] font-medium text-gray-500">
+            Day {dayPostpartum}
+          </span>
+        )}
+      </div>
 
-        <div className="flex flex-col gap-4 mt-1">
-          <Textarea
-            label="Clinical observation *"
+      <div className="mt-5 flex flex-col gap-4">
+        <div className="flex flex-col">
+          <label htmlFor="visit-observation" className={LABEL}>
+            Clinical observation *
+          </label>
+          <textarea
+            id="visit-observation"
             rows={3}
             placeholder="What did you observe at this visit?"
             value={observation}
             onChange={(e) => setObservation(e.target.value)}
+            className={TEXTAREA}
           />
-
-          <Textarea
-            label="Medication / advice given *"
+        </div>
+        <div className="flex flex-col">
+          <label htmlFor="visit-advice" className={LABEL}>
+            Medication / advice given *
+          </label>
+          <textarea
+            id="visit-advice"
             rows={3}
             placeholder="What did you prescribe or advise?"
             value={advice}
             onChange={(e) => setAdvice(e.target.value)}
-          />
-
-          <Input
-            label="Next action *"
-            placeholder="e.g. Routine follow-up in 1 week"
-            value={nextAction}
-            onChange={(e) => setNextAction(e.target.value)}
-            fullWidth
+            className={TEXTAREA}
           />
         </div>
+        <Input
+          label="Next action *"
+          placeholder="e.g. Routine follow-up in 1 week"
+          value={nextAction}
+          onChange={(e) => setNextAction(e.target.value)}
+          fullWidth
+        />
+      </div>
 
-        <Alert className="border-primary-100 bg-primary-50 text-primary-700 mt-1">
-          <Info className="h-4 w-4 text-primary" />
-          <AlertDescription className="text-primary-700 font-normal">
-            Saving sends <strong className="font-semibold">{motherName}</strong> a plain-language summary within an hour.
-          </AlertDescription>
-        </Alert>
+      <p className="mt-4 flex items-start gap-2 rounded-xl bg-[#F7E8F0] px-4 py-3 text-sm text-[#7A2850]">
+        <Info className="mt-0.5 size-4 shrink-0" />
+        <span>
+          Saving sends <strong className="font-semibold">{motherName}</strong> a plain-language
+          summary within an hour.
+        </span>
+      </p>
 
-        <DialogFooter className="flex justify-end gap-3 mt-1">
-          <Button variant="outline" onClick={handleClose} disabled={logVisitMutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            variant="default"
-            className="gap-2"
-            disabled={!isFormValid || logVisitMutation.isPending}
-            onClick={handleSave}
-          >
-            {logVisitMutation.isPending
-              ? <Loader2 size={16} className="animate-spin" />
-              : null}
-            Save visit
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <div className="mt-5 flex justify-end gap-3">
+        <Button variant="outline" onClick={close} disabled={pending}>
+          Cancel
+        </Button>
+        <Button onClick={save} disabled={!valid || pending}>
+          {pending && <Loader2 className="animate-spin" />}
+          Save visit
+        </Button>
+      </div>
+    </Modal>
   );
-};
-
-export { LogVisitModal };
+}

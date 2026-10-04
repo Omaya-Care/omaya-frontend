@@ -29,7 +29,9 @@ const Login = () => {
     try {
       const { mustChangePassword, clinician } = await signIn(email, password);
       navigate(
-        mustChangePassword ? "/change-password" : next || defaultRouteFor(clinician.hospital_name),
+        mustChangePassword
+          ? "/change-password"
+          : next || defaultRouteFor(clinician.hospital_name),
         { replace: true },
       );
     } catch (err) {
