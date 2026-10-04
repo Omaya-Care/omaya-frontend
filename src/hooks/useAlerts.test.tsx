@@ -214,6 +214,22 @@ describe("useAlerts", () => {
     expect(latest.data).toEqual([]);
   });
 
+  it("an older poll's timeout never undoes a newer 403 backoff", async () => {
+    let failOld!: (e: unknown) => void;
+    get
+      .mockReturnValueOnce(new Promise((_, reject) => (failOld = reject)))
+      .mockRejectedValueOnce(httpError(403))
+      .mockResolvedValue({ data: { alerts: [] } });
+    await mount(<Harness status="open" />);
+    await act(async () => invalidateAlerts());
+    expect(latest.forbidden).toBe(true);
+    await act(async () => failOld(httpError(500)));
+    expect(latest.forbidden).toBe(true);
+    // Still on the slow retry: no 15s poll.
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
   it("backs off on an open-feed 403 but keeps retrying, and resumes 15s cadence on recovery", async () => {
     get.mockRejectedValue(httpError(403));
     await mount(<Harness status="open" />);
