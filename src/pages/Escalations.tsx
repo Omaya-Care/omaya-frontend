@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Info, Search } from "lucide-react";
 import { Input } from "@/components/ui/Input";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { MobileBackButton } from "@/components/layout/MobileBackButton";
 import { HISTORY_LIMIT, useAlerts, type AlertRow, type AlertStatus } from "@/hooks/useAlerts";
 import { FilterMenu, type FilterGroup } from "@/components/mothers/MotherFilters";
@@ -143,9 +144,10 @@ export default function Escalations() {
               </span>
             )}
           </h1>
-          <TabBar
-            tab={tab}
-            onSelect={(value) => {
+          <SegmentedTabs
+            tabs={TABS}
+            value={tab}
+            onChange={(value) => {
               setTab(value);
               setSelectedId(null);
             }}
@@ -212,33 +214,6 @@ function emptyListMessage({ failed, filtering, tab }: { failed: boolean; filteri
   return `No ${tab} escalations.`;
 }
 
-function TabBar({ tab, onSelect }: { tab: AlertStatus; onSelect: (tab: AlertStatus) => void }) {
-  const tabIndex = TABS.findIndex((t) => t.value === tab);
-  return (
-    <div role="tablist" className="relative grid grid-cols-3 self-start rounded-full bg-gray-100 p-1">
-      {/* Sliding highlight — transform-only so it stays on the compositor. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-8px)/3)] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none"
-        style={{ transform: `translateX(${tabIndex * 100}%)` }}
-      />
-      {TABS.map((t) => (
-        <button
-          key={t.value}
-          type="button"
-          role="tab"
-          aria-selected={tab === t.value}
-          onClick={() => onSelect(t.value)}
-          className={`relative z-10 rounded-full px-3.5 py-1 text-sm transition-colors ${
-            tab === t.value ? "text-[#7A2850]" : "text-gray-500 hover:text-gray-900"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function AlertList({
   loading,

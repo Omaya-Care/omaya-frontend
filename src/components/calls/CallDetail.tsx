@@ -211,6 +211,14 @@ function DetailsFooter({ call, mother }: { call: CallDetailData; mother: ReturnT
   );
 }
 
+/** Keyed by content. The classifier can repeat a signal; an identical
+ *  repeat says nothing new, so it is shown once. */
+function uniqueReasons(reasons: CallDetailData["flagReasons"]) {
+  const byKey = new Map<string, CallDetailData["flagReasons"][number]>();
+  for (const r of reasons) byKey.set(`${r.signal}|${r.severity}|${r.tier}|${r.description}`, r);
+  return [...byKey].map(([key, reason]) => ({ key, reason }));
+}
+
 export function FlagReasons({ reasons }: { reasons: CallDetailData["flagReasons"] }) {
   return (
     <div className="mb-6">
@@ -219,8 +227,8 @@ export function FlagReasons({ reasons }: { reasons: CallDetailData["flagReasons"
         Why this was flagged
       </p>
       <ul className="mt-2 divide-y divide-gray-200 rounded-2xl border border-gray-200">
-        {reasons.map((r, i) => (
-          <li key={`${r.signal}-${i}`} className="flex items-start justify-between gap-4 px-5 py-3.5 text-sm">
+        {uniqueReasons(reasons).map(({ key, reason: r }) => (
+          <li key={key} className="flex items-start justify-between gap-4 px-5 py-3.5 text-sm">
             <span className="text-gray-900">
               {r.description}
               {r.severity && <span className="text-gray-500"> · reported {r.severity}</span>}

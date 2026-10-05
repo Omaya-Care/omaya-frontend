@@ -81,13 +81,15 @@ export function EscalationDetail({ alert, onChanged }: { alert: AlertRow | null;
 /** Header: who + the clock. */
 function EscalationHeader({ alert, call }: { alert: AlertRow; call: CallDetailData | null }) {
   return (
-    <header className="flex items-center gap-4 pb-6">
+    // Mobile: the clock drops to its own row so the name and badges keep the
+    // full width. md+ keeps it on the right, unchanged.
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-4 pb-6">
       <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-[#7A2850]/10 text-xl text-[#7A2850]">
         {initials(alert.motherName)}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <h2 className="truncate text-2xl font-normal tracking-tight text-gray-900">{alert.motherName}</h2>
-        <span className="flex items-center gap-2">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
           <span
             className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${severityClass(alert.severity)}`}
           >
@@ -102,9 +104,9 @@ function EscalationHeader({ alert, call }: { alert: AlertRow; call: CallDetailDa
         </span>
       </div>
       {alert.status === "open" && (
-        <div className="shrink-0 text-right">
+        <div className="flex w-full items-baseline justify-between gap-3 rounded-2xl border border-gray-200 px-5 py-3 md:block md:w-auto md:shrink-0 md:rounded-none md:border-0 md:p-0 md:text-right">
           <p className="text-sm text-gray-500">Response due</p>
-          <p className={`text-xl tabular-nums ${timeLeftClass(alert.timeLeftMinutes)}`}>
+          <p className={`text-lg tabular-nums md:text-xl ${timeLeftClass(alert.timeLeftMinutes)}`}>
             {formatTimeLeft(alert.timeLeftMinutes)}
           </p>
         </div>
@@ -116,8 +118,8 @@ function EscalationHeader({ alert, call }: { alert: AlertRow; call: CallDetailDa
 function CallTime({ call }: { call: CallDetailData }) {
   if (!call.startedAt && !call.scheduledAt) return null;
   return (
-    <span className="flex items-center gap-1 text-sm text-gray-500">
-      <Clock className="size-3.5 text-[#7A2850]" />
+    <span className="flex basis-full items-center gap-1 text-sm text-gray-500 md:basis-auto">
+      <Clock className="size-3.5 shrink-0 text-[#7A2850]" />
       {/* started_at is when it connected; scheduled_at may be the planned slot. */}
       {call.startedAt
         ? `Call came in ${formatDateTime(call.startedAt)}`
@@ -214,17 +216,22 @@ function Handled({ alert }: { alert: AlertRow }) {
     <div className="mb-6 rounded-2xl border border-gray-200 px-5 py-3.5 text-sm">
       <ul className="flex flex-col gap-1.5">
         {alert.acknowledgedAt && (
-          <li className="flex items-center gap-2 text-gray-600">
-            <CheckCircle2 className="size-4 shrink-0 text-amber-600" />
-            Acknowledged by <span className="font-medium text-gray-900">{alert.acknowledgedByName ?? "a clinician"}</span>
-            <span className="text-gray-400">· {formatDateTime(alert.acknowledgedAt)}</span>
+          <li className="flex items-start gap-2 text-gray-600">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            {/* One inline run, so a narrow screen wraps it as a sentence. */}
+            <span>
+              Acknowledged by <span className="font-medium text-gray-900">{alert.acknowledgedByName ?? "a clinician"}</span>{" "}
+              <span className="whitespace-nowrap text-gray-400">· {formatDateTime(alert.acknowledgedAt)}</span>
+            </span>
           </li>
         )}
         {alert.resolvedAt && (
-          <li className="flex items-center gap-2 text-gray-600">
-            <CheckCircle2 className="size-4 shrink-0 text-green-600" />
-            Resolved by <span className="font-medium text-gray-900">{alert.resolvedByName ?? "a clinician"}</span>
-            <span className="text-gray-400">· {formatDateTime(alert.resolvedAt)}</span>
+          <li className="flex items-start gap-2 text-gray-600">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-600" />
+            <span>
+              Resolved by <span className="font-medium text-gray-900">{alert.resolvedByName ?? "a clinician"}</span>{" "}
+              <span className="whitespace-nowrap text-gray-400">· {formatDateTime(alert.resolvedAt)}</span>
+            </span>
           </li>
         )}
       </ul>
