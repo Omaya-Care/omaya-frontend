@@ -112,59 +112,15 @@ export function NotificationsPanel({
         </div>
 
         <div className="flex-1 overflow-y-auto pt-2">
-          {!forbidden && failed && alerts.length > 0 && (
-            <p
-              role="alert"
-              className={cn(
-                "mx-3 mb-2 rounded-lg px-3 py-2 text-xs",
-                stale ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800",
-              )}
-            >
-              {stale ? "Live alerts paused — this list may be out of date." : "Couldn't refresh alerts."}{" "}
-              {lastUpdatedLabel(lastSuccessAt)}.
-            </p>
-          )}
-          {forbidden ? (
-            <Empty title="No notifications" body="Escalation alerts go to staff who handle escalations." />
-          ) : failed && alerts.length === 0 ? (
-            <Empty title="Couldn't load alerts" body="Retrying automatically — check your connection." />
-          ) : loading ? (
-            <Empty title="Loading alerts…" pulse />
-          ) : alerts.length === 0 ? (
-            <Empty title="You're all caught up" body="Crisis and elevated alerts will appear here." />
-          ) : (
-            alerts.map((a) => {
-              const overdue = a.timeLeftMinutes <= 0;
-              const isSeen = seen.has(seenKey(a));
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => openAlerts(a)}
-                  className={cn(
-                    "flex w-full items-start gap-2.5 border-b border-gray-100 px-4 py-2.5 text-left transition-colors last:border-b-0",
-                    isSeen ? "bg-gray-50 opacity-60 hover:opacity-80" : "hover:bg-gray-50",
-                  )}
-                >
-                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-500" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium text-gray-900">{a.motherName}</span>
-                      <span className={cn("shrink-0 text-xs font-medium", overdue ? "text-red-600" : "text-gray-400")}>
-                        {formatTimeLeft(a.timeLeftMinutes)}
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      {a.provisionalReason === "post_call_failed"
-                        ? "Needs review"
-                        : a.severity.charAt(0).toUpperCase() + a.severity.slice(1)}
-                      {a.dayPostpartum != null && ` · Day ${a.dayPostpartum}`}
-                    </span>
-                  </div>
-                </button>
-              );
-            })
-          )}
+          {!forbidden && failed && alerts.length > 0 && <RefreshFailedNotice stale={stale} lastSuccessAt={lastSuccessAt} />}
+          <NotificationList
+            alerts={alerts}
+            loading={loading}
+            failed={failed}
+            forbidden={forbidden}
+            seen={seen}
+            onOpen={openAlerts}
+          />
         </div>
 
         <button
@@ -176,6 +132,81 @@ export function NotificationsPanel({
         </button>
       </aside>
     </>
+  );
+}
+
+function RefreshFailedNotice({ stale, lastSuccessAt }: { stale: boolean; lastSuccessAt: number | null }) {
+  return (
+    <p
+      role="alert"
+      className={cn(
+        "mx-3 mb-2 rounded-lg px-3 py-2 text-xs",
+        stale ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800",
+      )}
+    >
+      {stale ? "Live alerts paused — this list may be out of date." : "Couldn't refresh alerts."}{" "}
+      {lastUpdatedLabel(lastSuccessAt)}.
+    </p>
+  );
+}
+
+function NotificationList({
+  alerts,
+  loading,
+  failed,
+  forbidden,
+  seen,
+  onOpen,
+}: {
+  alerts: AlertRow[];
+  loading: boolean;
+  failed: boolean;
+  forbidden: boolean;
+  seen: Set<string>;
+  onOpen: (alert: AlertRow) => void;
+}) {
+  if (forbidden) {
+    return <Empty title="No notifications" body="Escalation alerts go to staff who handle escalations." />;
+  }
+  if (failed && alerts.length === 0) {
+    return <Empty title="Couldn't load alerts" body="Retrying automatically — check your connection." />;
+  }
+  if (loading) return <Empty title="Loading alerts…" pulse />;
+  if (alerts.length === 0) {
+    return <Empty title="You're all caught up" body="Crisis and elevated alerts will appear here." />;
+  }
+  return alerts.map((a) => (
+    <NotificationRow key={a.id} alert={a} seen={seen.has(seenKey(a))} onOpen={() => onOpen(a)} />
+  ));
+}
+
+function NotificationRow({ alert: a, seen, onOpen }: { alert: AlertRow; seen: boolean; onOpen: () => void }) {
+  const overdue = a.timeLeftMinutes <= 0;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn(
+        "flex w-full items-start gap-2.5 border-b border-gray-100 px-4 py-2.5 text-left transition-colors last:border-b-0",
+        seen ? "bg-gray-50 opacity-60 hover:opacity-80" : "hover:bg-gray-50",
+      )}
+    >
+      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-500" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-sm font-medium text-gray-900">{a.motherName}</span>
+          <span className={cn("shrink-0 text-xs font-medium", overdue ? "text-red-600" : "text-gray-400")}>
+            {formatTimeLeft(a.timeLeftMinutes)}
+          </span>
+        </div>
+        <span className="text-xs text-gray-500">
+          {a.provisionalReason === "post_call_failed"
+            ? "Needs review"
+            : a.severity.charAt(0).toUpperCase() + a.severity.slice(1)}
+          {a.dayPostpartum != null && ` · Day ${a.dayPostpartum}`}
+        </span>
+      </div>
+    </button>
   );
 }
 

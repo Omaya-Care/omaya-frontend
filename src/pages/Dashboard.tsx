@@ -6,7 +6,7 @@ import { TodaysCalls } from "@/components/dashboard/TodaysCalls";
 import { ThisWeekPanel } from "@/components/dashboard/ThisWeekPanel";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { LoadError } from "@/components/ui/LoadError";
-import { useDashboardCards } from "@/hooks/useDashboardCards";
+import { useDashboardCards, type DashboardCards } from "@/hooks/useDashboardCards";
 import { usePermissions } from "@/hooks/usePermissions";
 import { getClinician } from "@/lib/auth";
 import { formatResponseMinutes } from "@/lib/utils";
@@ -57,69 +57,82 @@ export default function Dashboard() {
         />
       )}
 
-      <section className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {/* Hidden once we know the role lacks `view_mothers` (Coordinator):
-            those endpoints 403 for it, which is not a failure. */}
-        {(loading || data?.canViewMothers) && (
-          <>
-            <StatCard
-              label="Mothers in care"
-              sublabel="Active right now"
-              value={data?.mothersInCare ?? "—"}
-              loading={loading}
-              to="/mothers"
-            />
-            <StatCard
-              label="Calls today"
-              sublabel="Scheduled & completed"
-              value={data?.callsToday ?? "—"}
-              loading={loading}
-              to="/calls"
-            />
-          </>
-        )}
-        {/* Skeleton while loading so the grid doesn't jump from 3 to 4
-            cards; hidden once we know the role lacks `escalate`. */}
-        {(loading || data?.canEscalate) && (
-          <StatCard
-            label="Need attention"
-            sublabel="Crisis & elevated unacknowledged"
-            value={data?.needAttention ?? "—"}
-            loading={loading}
-            footerText={
-              data?.needAttention ? `${data.needAttention} waiting` : undefined
-            }
-          />
-        )}
-        <StatCard
-          label="Avg. response time"
-          sublabel="To crisis & elevated alerts"
-          value={formatResponseMinutes(data?.avgResponseMinutesL3L4)}
-          loading={loading}
-        />
-      </section>
+      <StatCards data={data} loading={loading} />
+      <Panels data={data} loading={loading} />
+    </div>
+  );
+}
 
-      <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {(loading || data?.canEscalate) && (
-          <div className="lg:col-span-2">
-            <RecentEscalations
-              rows={data?.escalations ?? []}
-              loading={loading}
-              failed={data != null && data.escalations === null}
-            />
-          </div>
-        )}
-        <ThisWeekPanel data={data?.thisWeek ?? null} loading={loading} />
-        {(loading || data?.canViewMothers) && (
-          <div className="lg:col-span-3">
-            <TodaysCalls
-              rows={data?.todayCalls ?? []}
-              loading={loading}
-              failed={data != null && data.todayCalls === null}
-            />
-          </div>
-        )}
-      </div>
+type CardsProps = { data: DashboardCards | null; loading: boolean };
+
+function StatCards({ data, loading }: CardsProps) {
+  return (
+    <section className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* Hidden once we know the role lacks `view_mothers` (Coordinator):
+          those endpoints 403 for it, which is not a failure. */}
+      {(loading || data?.canViewMothers) && (
+        <>
+          <StatCard
+            label="Mothers in care"
+            sublabel="Active right now"
+            value={data?.mothersInCare ?? "—"}
+            loading={loading}
+            to="/mothers"
+          />
+          <StatCard
+            label="Calls today"
+            sublabel="Scheduled & completed"
+            value={data?.callsToday ?? "—"}
+            loading={loading}
+            to="/calls"
+          />
+        </>
+      )}
+      {/* Skeleton while loading so the grid doesn't jump from 3 to 4
+          cards; hidden once we know the role lacks `escalate`. */}
+      {(loading || data?.canEscalate) && (
+        <StatCard
+          label="Need attention"
+          sublabel="Crisis & elevated unacknowledged"
+          value={data?.needAttention ?? "—"}
+          loading={loading}
+          footerText={
+            data?.needAttention ? `${data.needAttention} waiting` : undefined
+          }
+        />
+      )}
+      <StatCard
+        label="Avg. response time"
+        sublabel="To crisis & elevated alerts"
+        value={formatResponseMinutes(data?.avgResponseMinutesL3L4)}
+        loading={loading}
+      />
+    </section>
+  );
+}
+
+function Panels({ data, loading }: CardsProps) {
+  return (
+    <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {(loading || data?.canEscalate) && (
+        <div className="lg:col-span-2">
+          <RecentEscalations
+            rows={data?.escalations ?? []}
+            loading={loading}
+            failed={data != null && data.escalations === null}
+          />
+        </div>
+      )}
+      <ThisWeekPanel data={data?.thisWeek ?? null} loading={loading} />
+      {(loading || data?.canViewMothers) && (
+        <div className="lg:col-span-3">
+          <TodaysCalls
+            rows={data?.todayCalls ?? []}
+            loading={loading}
+            failed={data != null && data.todayCalls === null}
+          />
+        </div>
+      )}
     </div>
   );
 }

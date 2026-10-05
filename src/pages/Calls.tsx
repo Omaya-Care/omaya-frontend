@@ -5,6 +5,8 @@ import { ArrowDownLeft, ArrowUpRight, Info, Search } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { MobileBackButton } from "@/components/layout/MobileBackButton";
 import { LoadError } from "@/components/ui/LoadError";
+import { ListSkeleton } from "@/components/ui/ListSkeleton";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { useCalls, type CallRow } from "@/hooks/useCalls";
 import { FilterMenu, type FilterGroup } from "@/components/mothers/MotherFilters";
 import { CallDetail } from "@/components/calls/CallDetail";
@@ -100,6 +102,34 @@ function useCallDeepLink(
   }
 }
 
+function filterCalls(data: CallRow[], tab: Tab, filters: CallFilterState, query: string): CallRow[] {
+  const q = query.trim().toLowerCase();
+  const severities = new Set(filters.severities);
+  const statuses = new Set(filters.statuses);
+  const channels = new Set(filters.channels);
+  const rows = data.filter(
+    (c) =>
+      (tab === "scheduled" ? c.status === "upcoming" : c.status !== "upcoming") &&
+      (severities.size === 0 || severities.has(c.severity)) &&
+      (statuses.size === 0 || statuses.has(c.status)) &&
+      (channels.size === 0 || channels.has(filterChannel(c.channel))) &&
+      (!q || c.motherName.toLowerCase().includes(q)),
+  );
+  // Recents: most recent on top. Scheduled: next call on top.
+  const time = (iso: string) => new Date(iso).getTime() || 0;
+  return rows.sort((a, b) =>
+    tab === "recents"
+      ? time(b.scheduledAt) - time(a.scheduledAt)
+      : time(a.scheduledAt) - time(b.scheduledAt),
+  );
+}
+
+function emptyMessage({ failed, filtering, tab }: { failed: boolean; filtering: boolean; tab: Tab }): string {
+  if (failed) return "Calls couldn't be loaded.";
+  if (filtering) return "No calls match your search or filters.";
+  return tab === "scheduled" ? "No scheduled calls." : "No recent calls.";
+}
+
 /** Calls page — same split layout as Mothers: 1/3 call list | 2/3 the
  *  selected call's mother. Recents = placed calls (newest first);
  *  Scheduled = upcoming placements (soonest first). */
@@ -112,27 +142,7 @@ export default function Calls() {
 
   useCallDeepLink(tab, setTab, selectedId, setSelectedId);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const severities = new Set(filters.severities);
-    const statuses = new Set(filters.statuses);
-    const channels = new Set(filters.channels);
-    const rows = data.filter(
-      (c) =>
-        (tab === "scheduled" ? c.status === "upcoming" : c.status !== "upcoming") &&
-        (severities.size === 0 || severities.has(c.severity)) &&
-        (statuses.size === 0 || statuses.has(c.status)) &&
-        (channels.size === 0 || channels.has(filterChannel(c.channel))) &&
-        (!q || c.motherName.toLowerCase().includes(q)),
-    );
-    // Recents: most recent on top. Scheduled: next call on top.
-    const time = (iso: string) => new Date(iso).getTime() || 0;
-    return rows.sort((a, b) =>
-      tab === "recents"
-        ? time(b.scheduledAt) - time(a.scheduledAt)
-        : time(a.scheduledAt) - time(b.scheduledAt),
-    );
-  }, [data, query, tab, filters]);
+  const filtered = useMemo(() => filterCalls(data, tab, filters, query), [data, query, tab, filters]);
 
   const filterCount = Object.values(filters).reduce((n, v) => n + v.length, 0);
 
@@ -152,31 +162,7 @@ export default function Calls() {
               </span>
             )}
           </h1>
-          <div
-            role="tablist"
-            className="relative grid grid-cols-2 self-start rounded-full bg-gray-100 p-1"
-          >
-            {/* Sliding highlight — transform-only so it stays on the compositor. */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none"
-              style={{ transform: tab === "scheduled" ? "translateX(100%)" : "translateX(0)" }}
-            />
-            {TABS.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.value}
-                onClick={() => setTab(t.value)}
-                className={`relative z-10 rounded-full px-3.5 py-1 text-sm transition-colors ${
-                  tab === t.value ? "text-[#7A2850]" : "text-gray-500 hover:text-gray-900"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <SegmentedTabs tabs={TABS} value={tab} onChange={setTab} />
           <Input
             type="search"
             placeholder="Search by name"
@@ -200,66 +186,20 @@ export default function Calls() {
 
         <ul className="-mx-3 min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto">
           {loading ? (
-            Array.from({ length: 6 }, (_, i) => (
-              <li key={i} className="flex items-center gap-3 px-3 py-3">
-                <div className="size-9 shrink-0 animate-pulse rounded-full bg-gray-100" />
-                <div className="flex-1">
-                  <div className="h-4 w-32 animate-pulse rounded bg-gray-100" />
-                  <div className="mt-2 h-3 w-24 animate-pulse rounded bg-gray-100" />
-                </div>
-              </li>
-            ))
+            <ListSkeleton />
           ) : filtered.length === 0 ? (
             <li className="px-3 py-10 text-center text-sm text-gray-400">
-              {failed
-                ? "Calls couldn't be loaded."
-                : query || filterCount > 0
-                  ? "No calls match your search or filters."
-                  : tab === "scheduled"
-                    ? "No scheduled calls."
-                    : "No recent calls."}
+              {emptyMessage({ failed, filtering: !!query || filterCount > 0, tab })}
             </li>
           ) : (
-            filtered.map((c) => {
-              const selected = c.id === selectedId;
-              return (
-                <li key={c.id} className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(c.id)}
-                    aria-current={selected || undefined}
-                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${
-                      selected ? "bg-[#F7E8F0]" : "hover:bg-black/[0.04]"
-                    }`}
-                  >
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#7A2850]/10 text-xs text-[#7A2850]">
-                      {initials(c.motherName)}
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium text-gray-900">{c.motherName}</span>
-                        {c.severity && (
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-px text-[11px] font-medium capitalize ${severityClass(c.severity)}`}
-                          >
-                            {c.severity}
-                          </span>
-                        )}
-                      </span>
-                      <CallMeta call={c} />
-                    </span>
-                  </button>
-                  <Link
-                    to={`/mothers?mother=${encodeURIComponent(c.motherId)}`}
-                    aria-label={`Open ${c.motherName}'s profile`}
-                    title="Open mother's profile"
-                    className="flex size-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-black/[0.04] hover:text-[#7A2850]"
-                  >
-                    <Info className="size-[18px]" strokeWidth={1.75} />
-                  </Link>
-                </li>
-              );
-            })
+            filtered.map((c) => (
+              <CallListItem
+                key={c.id}
+                call={c}
+                selected={c.id === selectedId}
+                onSelect={() => setSelectedId(c.id)}
+              />
+            ))
           )}
         </ul>
       </section>
@@ -272,5 +212,45 @@ export default function Calls() {
         <CallDetail callId={selectedId} />
       </section>
     </div>
+  );
+}
+
+function CallListItem({ call: c, selected, onSelect }: { call: CallRow; selected: boolean; onSelect: () => void }) {
+  return (
+    <li className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={selected || undefined}
+        className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${
+          selected ? "bg-[#F7E8F0]" : "hover:bg-black/[0.04]"
+        }`}
+      >
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#7A2850]/10 text-xs text-[#7A2850]">
+          {initials(c.motherName)}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium text-gray-900">{c.motherName}</span>
+            {c.severity && (
+              <span
+                className={`shrink-0 rounded-full px-2 py-px text-[11px] font-medium capitalize ${severityClass(c.severity)}`}
+              >
+                {c.severity}
+              </span>
+            )}
+          </span>
+          <CallMeta call={c} />
+        </span>
+      </button>
+      <Link
+        to={`/mothers?mother=${encodeURIComponent(c.motherId)}`}
+        aria-label={`Open ${c.motherName}'s profile`}
+        title="Open mother's profile"
+        className="flex size-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-black/[0.04] hover:text-[#7A2850]"
+      >
+        <Info className="size-[18px]" strokeWidth={1.75} />
+      </Link>
+    </li>
   );
 }
