@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, Clock, FileText, Phone, PhoneOff } from "lucide-react";
 import { toast } from "@/lib/notify";
@@ -11,6 +11,7 @@ import { CHANNEL_LABEL, formatDuration } from "@/components/calls/call-display";
 import { formatDateTime, initials, severityClass } from "@/components/mothers/mother-display";
 import { onSessionReset } from "@/lib/auth-api";
 import { usePermissions } from "@/hooks/usePermissions";
+import { trackAlertViewed } from "@/lib/analytics";
 import { formatTimeLeft, isUnreached, timeLeftClass } from "./alert-display";
 
 // Unsent resolution notes, per alert id, for this tab's session only — so a
@@ -43,6 +44,11 @@ export function EscalationDetail({ alert, onChanged }: { alert: AlertRow | null;
     setNoteState(next);
     if (alert) saveDraft(alert.id, next);
   };
+  // Tracking plan KPI 8: a clinician opened this alert.
+  const alertId = alert?.id;
+  useEffect(() => {
+    if (alertId) trackAlertViewed(alertId);
+  }, [alertId]);
 
   if (!alert) {
     return (
