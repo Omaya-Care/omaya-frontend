@@ -111,7 +111,7 @@ export function NotificationsPanel({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto pt-2">
+        <div className="flex-1 overflow-y-auto overscroll-none pt-2">
           {!forbidden && failed && alerts.length > 0 && <RefreshFailedNotice stale={stale} lastSuccessAt={lastSuccessAt} />}
           <NotificationList
             alerts={alerts}

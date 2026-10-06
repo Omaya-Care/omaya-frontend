@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowDownLeft,
@@ -18,6 +18,7 @@ import { useMother } from "@/hooks/useMother";
 import { CHANNEL_LABEL, formatDuration } from "./call-display";
 import { CALL_NOW_ENABLED } from "@/lib/env";
 import { usePermissions } from "@/hooks/usePermissions";
+import { trackConversationOpened } from "@/lib/analytics";
 import { CallNowMenu } from "@/components/mothers/CallNowMenu";
 import { formatDateTime, humanize, initials, severityClass } from "@/components/mothers/mother-display";
 
@@ -249,6 +250,8 @@ export function FlagReasons({ reasons }: { reasons: CallDetailData["flagReasons"
 
 export function Transcript({ call, onBack }: { call: CallDetailData; onBack: () => void }) {
   const firstName = call.motherName.split(" ")[0] || "Mother";
+  // Tracking plan KPI 8: a clinician opened a transcript.
+  useEffect(() => trackConversationOpened(call.id), [call.id]);
   return (
     <div className="flex min-h-0 flex-1 flex-col animate-in fade-in slide-in-from-right-2 duration-200 motion-reduce:animate-none">
       <header className="flex items-center gap-3 border-b border-gray-100 pb-4">
