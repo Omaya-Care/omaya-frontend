@@ -182,17 +182,14 @@
     * {
         @apply border-border;
     }
-    /* No rubber-band bounce or scroll chaining anywhere in the app.
-       Scoped to real scrollers only: on `*` it also hit every overflow:hidden
-       box (cards, `truncate` text), which Chrome treats as a scroll container,
-       so a wheel over them dead-ended instead of scrolling the page. */
+    /* No rubber-band bounce on the document. The outermost scroll panels
+       (app <main>, auth/onboarding shells, notifications panel) opt in with
+       `overscroll-none` themselves. Never put this on nested scrollers: it
+       also stops scroll chaining, so a wheel over any inner scroller — even
+       one that can't scroll that way, like an `overflow-x-auto` table
+       wrapper — dead-ends there and the page looks scroll-locked. */
     html,
-    body,
-    [class*="overflow-auto"],
-    [class*="overflow-y-auto"],
-    [class*="overflow-x-auto"],
-    [class*="overflow-scroll"],
-    [class*="overflow-y-scroll"] {
+    body {
         overscroll-behavior: none;
     }
     body {
