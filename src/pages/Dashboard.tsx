@@ -68,7 +68,7 @@ type CardsProps = { data: DashboardCards | null; loading: boolean };
 function StatCards({ data, loading }: CardsProps) {
   return (
     <section className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {/* Hidden once we know the role lacks `view_mothers` (Coordinator):
+      {/* Hidden once we know the role lacks `view_mothers` (Receptionist):
           those endpoints 403 for it, which is not a failure. */}
       {(loading || data?.canViewMothers) && (
         <>
