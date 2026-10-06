@@ -21,7 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useUpdateClinician } from "@/hooks/useStaffMutations";
 import { useRoles } from "@/hooks/useRoles";
 import {
-  CLINICIAN_ROLES,
+  assignableRoles,
   staffErrorMessage,
   type StaffMember,
   type StaffRole,
@@ -45,7 +45,7 @@ const EditClinicianModal = ({ isOpen, onClose, member }: EditClinicianModalProps
   const updateClinician = useUpdateClinician();
   const { data: allRoles = [], isLoading: rolesLoading } = useRoles();
   // Only the system roles the backend accepts on a clinician seat.
-  const roles = allRoles.filter((r) => r.isSystem && CLINICIAN_ROLES.includes(r.name));
+  const roles = assignableRoles(allRoles);
 
   const hasChanges = name.trim() !== member.name || selectedRole !== member.role;
   const canSubmit = name.trim() !== "" && hasChanges && !updateClinician.isPending;
