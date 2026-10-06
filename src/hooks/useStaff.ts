@@ -7,11 +7,10 @@ export type StaffRole = string;
  *  (`app/schemas/enums.py`). Custom roles from /admin/roles can't be assigned
  *  to a clinician yet, so the pickers offer only these. */
 export const CLINICIAN_ROLES: readonly string[] = [
+  "Receptionist",
   "Administrator",
-  "Physician",
   "Midwife",
-  "Coordinator",
-  "Paediatrician",
+  "Doctor",
   "Psychologist",
   "Lactation Consultant",
   "Postpartum Wellness Expert",

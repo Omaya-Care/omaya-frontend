@@ -30,7 +30,7 @@ const STEP_SCREENS: Record<number, ComponentType<{ wizard: AddMotherWizard }>> =
 
 const AddMother = ({ onClose, onBackToSearch }: AddMotherProps) => {
   const navigate = useNavigate();
-  // A Coordinator (create_discharges without view_mothers) can't open /mothers.
+  // A Receptionist (create_discharges without view_mothers) can't open /mothers.
   const { can } = usePermissions();
   const handleClose = onClose ?? (() => navigate(can("view_mothers") ? "/mothers" : "/dashboard"));
   const wizard = useAddMotherForm();
