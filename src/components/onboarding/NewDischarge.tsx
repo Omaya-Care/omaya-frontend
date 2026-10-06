@@ -51,7 +51,7 @@ const NEW_PATIENT_STEPS: Record<number, StepScreen> = {
 const NewDischarge = ({ onClose, onEnrollAntenatal, onBackToIntro }: NewDischargeProps) => {
   const navigate = useNavigate();
   // Raw close — used on successful submit (no prompt).
-  // A Coordinator (create_discharges without view_mothers) can't open /mothers.
+  // A Receptionist (create_discharges without view_mothers) can't open /mothers.
   const { can } = usePermissions();
   const handleClose = onClose ?? (() => navigate(can("view_mothers") ? "/mothers" : "/dashboard"));
   const wizard = useDischargeWizard();

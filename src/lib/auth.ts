@@ -7,11 +7,10 @@ import { clearNotifications } from "./notify";
 // a page refresh keeps it until sign-out or a 401.
 
 export type ClinicianRole =
+  | "Receptionist"
   | "Administrator"
-  | "Physician"
   | "Midwife"
-  | "Coordinator"
-  | "Paediatrician"
+  | "Doctor"
   | "Psychologist"
   | "Lactation Consultant"
   | "Postpartum Wellness Expert";
@@ -87,8 +86,8 @@ export function clearSession(): void {
 export const EXPERT_HOSPITAL_NAME = "Omaya (Expert Roster)";
 
 /** True for an account on the dedicated expert roster. Hospital name, not
- *  role, identifies an expert ("Psychologist" is also an ordinary hospital
- *  role). Reads the stored profile so the answer is synchronous — routing and
+ *  role, identifies an expert (role names are display strings; gating keys
+ *  off permissions and the tenant). Reads the stored profile so the answer is synchronous — routing and
  *  the sidebar decide before /auth/me answers, and never disagree. */
 export function isExpertAccount(clinician: Clinician | null = getClinician()): boolean {
   return clinician?.hospital_name === EXPERT_HOSPITAL_NAME;

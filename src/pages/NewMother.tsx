@@ -12,7 +12,7 @@ import { usePermissions } from "@/hooks/usePermissions";
  */
 export default function NewMother() {
   const navigate = useNavigate();
-  // A Coordinator (create_discharges without view_mothers) can't open /mothers.
+  // A Receptionist (create_discharges without view_mothers) can't open /mothers.
   const { can } = usePermissions();
   const [flow, setFlow] = useState<"intro" | "discharge" | "antenatal">("intro");
 
