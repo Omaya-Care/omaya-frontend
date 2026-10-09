@@ -8,6 +8,7 @@ import ChangePassword from "./pages/ChangePassword";
 import Dashboard from "./pages/Dashboard";
 import Mothers from "./pages/Mothers";
 import Calls from "./pages/Calls";
+import Chats from "./pages/Chats";
 import Escalations from "./pages/Escalations";
 import Settings from "./pages/Settings";
 import NewMother from "./pages/NewMother";
@@ -116,6 +117,7 @@ export default function App() {
             <Route element={<RequirePermission permission="view_mothers" />}>
               <Route path="/mothers" element={<Mothers />} />
               <Route path="/calls" element={<Calls />} />
+              <Route path="/chats" element={<Chats />} />
             </Route>
             <Route element={<RequirePermission permission="manage_staff" />}>
               <Route path="/staff" element={<Staff />} />

@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import type { TodayCall } from "@/hooks/useDashboardCards";
+import { isChat } from "@/hooks/useCalls";
 
 // Same palette as the main portal's getStatusBadgeClass.
 const STATUS: Record<string, { label: string; className: string }> = {
@@ -70,8 +71,11 @@ export function TodaysCalls({ rows, loading, failed, limit = 5 }: TodaysCallsPro
               {rows.slice(0, limit).map((row) => {
                 const status = STATUS[row.status] ?? { label: row.status, className: "bg-gray-100 text-gray-600" };
                 const isWhatsApp = row.channel === "whatsapp" || row.channel === "whatsapp_call";
-                // Calls page splits upcoming placements onto its Scheduled tab.
-                const href = `/calls?call=${encodeURIComponent(row.id)}&tab=${row.status === "upcoming" ? "scheduled" : "recents"}`;
+                // WhatsApp text chats live on /chats; the Calls page splits
+                // upcoming placements onto its Scheduled tab.
+                const href = isChat(row.channel)
+                  ? `/chats?chat=${encodeURIComponent(row.id)}`
+                  : `/calls?call=${encodeURIComponent(row.id)}&tab=${row.status === "upcoming" ? "scheduled" : "recents"}`;
                 return (
                   <tr
                     key={row.id}
