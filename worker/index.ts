@@ -31,6 +31,9 @@ const SIGN_IN_PATH = "/_auth/sign-in";
 const SIGN_OUT_PATH = "/_auth/sign-out";
 // Served without a session so the sign-in page can render its branding.
 const PUBLIC_PATHS = new Set(["/logo.png", "/favicon.ico", "/robots.txt"]);
+// The sign-in page's own assets (public/_auth/: fonts, logo, hero photo) —
+// copied from the portal so the page matches its login screen.
+const PUBLIC_PREFIX = "/_auth/";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
@@ -98,34 +101,99 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
-function signInPage(next: string, error = "", status = 200): Response {
+// Mirrors the portal's login screen (frontend AuthShell + Login.tsx): logo
+// mark + wordmark over the form on the left, the hero photo with the
+// "built in collaboration" card on the right (hidden below 1024px).
+const SIGN_IN_CSS = `
+@font-face{font-family:"Nb international pro webfont";font-weight:400;font-display:swap;src:url(/_auth/nb-international-pro-400.woff2) format("woff2")}
+@font-face{font-family:"Nb international pro webfont";font-weight:700;font-display:swap;src:url(/_auth/nb-international-pro-700.woff2) format("woff2")}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;overscroll-behavior:none}
+body{font-family:"Nb international pro webfont",Arial,sans-serif;color:hsl(224 71% 4%);background:#fff;-webkit-font-smoothing:antialiased}
+.shell{height:100vh;height:100dvh;overflow:hidden;display:grid;grid-template-columns:2fr 3fr;background:#fff}
+.left{height:100%;overflow-y:auto;overscroll-behavior:none;display:flex;align-items:center;justify-content:center;padding:40px 32px}
+.panel{width:100%;max-width:24rem}
+.mark{display:flex;justify-content:center;margin-bottom:24px}.mark img{height:64px;width:auto;display:block}
+.brand{text-align:center;margin-bottom:32px}.brand img{height:28px;width:auto;display:block;margin:0 auto 8px}
+.sub{font-size:14px;line-height:20px;color:#6B7280;margin:4px 0 0}
+form{display:flex;flex-direction:column;gap:20px}
+.field{display:flex;flex-direction:column}
+label{font-size:14px;line-height:20px;font-weight:500;color:#374151;margin:0 0 6px 2px}
+input{height:40px;width:100%;border-radius:6px;border:1px solid hsl(220 13% 88%);background:#fff;padding:8px 12px;font:inherit;font-size:14px;color:#0F172A;outline:none;transition:box-shadow .15s}
+input::placeholder{color:#9CA3AF}
+input:focus{border-color:transparent;box-shadow:0 0 0 2px #fff,0 0 0 4px #7a2850}
+.pw{position:relative}.pw input{padding-right:40px}
+.eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);padding:4px;border:0;background:none;color:#9CA3AF;cursor:pointer;display:flex}
+.eye:hover{color:#7a2850}.eye:focus{outline:none}.eye svg{width:20px;height:20px}
+.submit{width:100%;height:44px;border:0;border-radius:6px;background:#7a2850;color:#fff;font:inherit;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .15s}
+.submit:hover{background:#5d1f3d}.submit:active{background:#4a1830}
+.submit:focus{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #7a2850}
+.submit:disabled{opacity:.6;cursor:not-allowed}
+.spin{display:none;width:16px;height:16px;margin-right:8px;animation:spin 1s linear infinite}
+.busy .spin{display:block}@keyframes spin{to{transform:rotate(360deg)}}
+.alert{position:relative;width:100%;margin-bottom:12px;border-radius:8px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;padding:16px 16px 16px 44px;font-size:14px;line-height:20px}
+.alert svg{position:absolute;left:16px;top:16px;width:16px;height:16px}
+.alert strong{display:block;font-weight:500;margin-bottom:4px;line-height:1}
+.links{margin-top:24px;text-align:center}
+.links a,.foot a{font-size:14px;text-underline-offset:4px;text-decoration:none;transition:color .15s}
+.links a{font-weight:500;color:#6B7280}.links a:hover{color:#7a2850;text-decoration:underline}
+.foot{margin-top:32px;padding-top:24px;border-top:1px solid hsl(220 13% 88%);text-align:center;font-size:14px;color:#6B7280}
+.foot p{margin:0}.foot a{font-weight:500;color:#7a2850}.foot a:hover{text-decoration:underline}
+.photo{position:relative;overflow:hidden;height:100%;width:100%;border-radius:24px 0 0 24px}
+.photo>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.collab{position:absolute;bottom:24px;right:24px;z-index:1;width:20rem;max-width:calc(100% - 3rem);border-radius:16px;background:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.05);padding:16px;display:flex;align-items:center;gap:12px}
+.avatars{display:flex;align-items:center;flex-shrink:0}
+.avatars img{width:36px;height:36px;border-radius:9999px;object-fit:cover;object-position:top;box-shadow:0 0 0 2px #fff;flex-shrink:0}
+.avatars img+img{margin-left:-12px}
+.collab h4{margin:0;font-size:12px;font-weight:500;line-height:1.375;color:#374151}
+@media (max-width:1023px){.shell{grid-template-columns:1fr}.photo{display:none}}
+`;
+
+const EYE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>`;
+const ALERT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`;
+const SPINNER = `<svg class="spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
+
+// Show-password toggle + the busy state on submit — the page's only script,
+// allowed by its exact hash in the CSP (no 'unsafe-inline').
+const SIGN_IN_SCRIPT = `(()=>{const pw=document.getElementById("password"),eye=document.getElementById("eye"),on=${JSON.stringify(EYE)},off=${JSON.stringify(EYE_OFF)};eye.addEventListener("click",()=>{const show=pw.type==="password";pw.type=show?"text":"password";eye.innerHTML=show?off:on;eye.setAttribute("aria-label",show?"Hide password":"Show password")});document.querySelector("form").addEventListener("submit",()=>{const b=document.getElementById("submit");b.disabled=true;b.classList.add("busy")})})();`;
+
+let scriptHash: Promise<string> | undefined;
+function signInScriptHash(): Promise<string> {
+  scriptHash ??= crypto.subtle
+    .digest("SHA-256", encoder.encode(SIGN_IN_SCRIPT))
+    .then((d) => `'sha256-${btoa(String.fromCharCode(...new Uint8Array(d)))}'`);
+  return scriptHash;
+}
+
+async function signInPage(next: string, error = "", status = 200, email = ""): Promise<Response> {
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign in · Omaya API</title><link rel="icon" href="/favicon.ico">
-<style>
-:root{--accent:#7a2850;--fg:#0a0a0a;--muted:#5a5a5a;--bg:#fafafa;--card:#fff;--border:#e5e5e5}
-@media (prefers-color-scheme:dark){:root{--accent:#c45a8a;--fg:#f5f5f5;--muted:#a3a3a3;--bg:#0a0a0a;--card:#171717;--border:#2a2a2a}}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--bg);color:var(--fg);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{width:100%;max-width:380px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:28px}
-img{height:32px;margin-bottom:16px}h1{font-size:20px;margin:0 0 4px}p{margin:0 0 20px;color:var(--muted)}
-label{display:block;font-weight:600;margin:12px 0 4px}input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:inherit;font:inherit}
-button{width:100%;margin-top:20px;padding:11px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
-.err{margin:0 0 4px;padding:10px 12px;border-radius:8px;background:rgba(196,48,48,.1);color:#c43030}
-</style></head><body><main>
-<img src="/logo.png" alt="Omaya">
-<h1>Omaya API reference</h1>
-<p>Sign in with your Omaya portal account. Access is limited to the API-docs allowlist.</p>
-${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ""}
+<link rel="preload" href="/_auth/nb-international-pro-400.woff2" as="font" type="font/woff2" crossorigin>
+<style>${SIGN_IN_CSS}</style></head><body>
+<div class="shell">
+<div class="left"><div class="panel">
+<div class="mark"><img src="/_auth/logo-mark.svg" alt="Omaya Care"></div>
+<div class="brand"><img src="/_auth/wordmark.svg" alt="Omaya Care"><p class="sub">Sign in to the API reference</p></div>
 <form method="post" action="${SIGN_IN_PATH}">
+${error ? `<div class="alert" role="alert">${ALERT_ICON}<div><strong>Error</strong>${escapeHtml(error)}</div></div>` : ""}
 <input type="hidden" name="next" value="${escapeHtml(next)}">
-<label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" required autofocus>
-<label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required>
-<button type="submit">Sign in</button>
-</form></main></body></html>`;
+<div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" placeholder="name@hospital.com" autocomplete="email" value="${escapeHtml(email)}" required${email ? "" : " autofocus"}></div>
+<div class="field"><label for="password">Password</label><div class="pw"><input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required${email ? " autofocus" : ""}><button type="button" id="eye" class="eye" aria-label="Show password">${EYE}</button></div></div>
+<button type="submit" id="submit" class="submit">${SPINNER}Sign In</button>
+</form>
+<div class="links"><a href="https://app.omayacare.com/forgot-password">Forgot password?</a></div>
+<div class="foot"><p>Need access? <a href="https://omayacare.com/contact" target="_blank" rel="noopener noreferrer">Contact the Omaya team</a></p></div>
+</div></div>
+<div class="photo"><img src="/_auth/hero-mother.jpg" alt="Mother holding newborn while on a phone call">
+<div class="collab"><div class="avatars"><img src="/_auth/team-1.jpeg" alt="" loading="lazy" decoding="async"><img src="/_auth/team-2.jpeg" alt="" loading="lazy" decoding="async"><img src="/_auth/team-3.jpeg" alt="" loading="lazy" decoding="async"></div><h4>Built in collaboration with top professionals</h4></div></div>
+</div>
+<script>${SIGN_IN_SCRIPT}</script>
+</body></html>`;
   return withHeaders(new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8" } }), {
     "Cache-Control": "no-store",
-    "Content-Security-Policy":
-      "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    "Content-Security-Policy": `default-src 'none'; img-src 'self'; font-src 'self'; style-src 'unsafe-inline'; script-src ${await signInScriptHash()}; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`,
   });
 }
 
@@ -178,17 +246,21 @@ export default {
     }
 
     if (url.pathname === SIGN_IN_PATH) {
-      if (req.method === "GET") return signInPage(safeNext(url.searchParams.get("next")));
+      if (req.method === "GET") return await signInPage(safeNext(url.searchParams.get("next")));
       if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
 
       const form = await req.formData();
       const email = String(form.get("email") ?? "").trim().toLowerCase();
       const password = String(form.get("password") ?? "");
       const next = safeNext(String(form.get("next") ?? "/"));
-      if (!email || !password) return signInPage(next, "Enter your email and password.", 400);
+      if (!email || !password) return await signInPage(next, "Enter your email and password.", 400, email);
 
-      const denied = await checkAccess(env, email, password, req.headers.get("CF-Connecting-IP"));
-      if (denied) return signInPage(next, denied, 401);
+      // A backend that's down or unreachable throws from fetch — show the
+      // sign-in page's "unavailable" message rather than a bare 500.
+      const denied = await checkAccess(env, email, password, req.headers.get("CF-Connecting-IP")).catch(
+        () => "Sign-in is unavailable right now. Try again shortly.",
+      );
+      if (denied) return await signInPage(next, denied, 401, email);
 
       const exp = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
       const session = await sign(env.DOCS_SESSION_SECRET, JSON.stringify({ email, exp }));
@@ -198,7 +270,7 @@ export default {
       });
     }
 
-    if (!PUBLIC_PATHS.has(url.pathname)) {
+    if (!PUBLIC_PATHS.has(url.pathname) && !url.pathname.startsWith(PUBLIC_PREFIX)) {
       const email = await readSession(env.DOCS_SESSION_SECRET, req.headers.get("Cookie"));
       if (!email) {
         const next = encodeURIComponent(url.pathname + url.search);
