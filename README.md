@@ -11,7 +11,6 @@ This is the **hospital portal SPA**. It is distinct from the internal ops dashbo
 - **React Router 7** (`react-router-dom`) — client-side routing
 - **TanStack Query 5** (`@tanstack/react-query`) — server state / data fetching
 - **axios** — HTTP client (JWT bearer auth)
-- **@scalar/api-reference-react** — renders the team-gated API docs page
 
 Brand color: `#93406B`. Severity strings used throughout: `crisis` / `elevated` / `monitor` / `routine` (plus `inactive`). See `docs/AI_CONTEXT.md` for the full design system, severity SLAs/colors, and coding rules.
 
@@ -38,11 +37,11 @@ Point `VITE_API_BASE_URL` at a running backend portal API (local FastAPI on `htt
 | `/calls` | `Calls` | Protected |
 | `/staff` | `Staff` | Protected |
 | `/settings` | `Settings` | Protected |
-| `/docs` | API reference (Scalar) | Protected + server-side `docs_access` allowlist |
+| `/docs` | Redirects to `https://docs.omayacare.com` | Public redirect (the docs site itself is gated by Cloudflare Access) |
 
 `AddMother` and `NewDischarge` are not routes — they are lazy-loaded drawer panels rendered inside the app shell (opened from the dashboard's "New discharge" action).
 
-A separate `docs.*` host (a Vercel alias of this same project) funnels everything to sign-in + the gated `/docs` reference, so it never exposes the app surface.
+The API reference is no longer part of this app: `/docs` just redirects to the separate Blume docs site.
 
 ### Authentication
 
@@ -98,7 +97,7 @@ Deployed to **Vercel via git integration** — pushing to `main` triggers a prod
 
 ## API docs
 
-The live, team-gated API reference is served by the backend at **`https://backend-api.omayacare.com`** and surfaced in-app at `/docs` (or via the `docs.*` host). Access requires a signed-in clinician whose email is on the backend `docs_access` allowlist; non-allowlisted users get a "no access" state.
+The team-gated API reference lives in a separate Blume static site (the `api-docs` project, deployed as the Cloudflare Worker `omaya-api-docs`) at **`https://docs.omayacare.com`**, behind Cloudflare Access. This app no longer renders it — the old in-app `/docs` route redirects there.
 
 ## Reference
 
