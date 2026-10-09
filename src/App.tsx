@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { useEffect } from "react";
 import * as Sentry from "@sentry/react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
@@ -18,21 +18,13 @@ import { RequireAuth } from "./components/auth/RequireAuth";
 import { RequirePermission } from "./components/auth/RequirePermission";
 import { NotificationToaster } from "./components/layout/NotificationToaster";
 import { RequireExpert } from "./components/auth/RequireExpert";
-import { DocsGate } from "./components/auth/DocsGate";
-import DocsLoading from "./components/DocsLoading";
 import ExpertRequests from "./pages/ExpertRequests";
 import { ExpertDashboard } from "./components/expert-requests/ExpertDashboard";
 import { isExpertAccount } from "./lib/auth";
 
-// The Scalar API reference is heavy and only ever used on the docs.* host —
-// code-split so it never rides in the main app bundle.
-const Docs = lazy(() => import("./Docs"));
-
-// The docs.* host (a Vercel alias of this same project) serves the API
-// reference. It's a separate origin with its own session — users sign in
-// there too; the docs gate (auth + the server-side `docs_access` allowlist)
-// applies either way.
-const isDocsHost = window.location.hostname.startsWith("docs.");
+// The API reference moved to the Blume docs site (Cloudflare Worker
+// `omaya-api-docs`, with its own sign-in gate) on its own host.
+const API_DOCS_URL = "https://docs.omayacare.com";
 
 // Sentry-instrumented <SentryRoutes> — parameterized route names on errors/breadcrumbs.
 const SentryRoutes = Sentry.withSentryReactRouterV7Routing(Routes);
@@ -57,39 +49,16 @@ function DashboardRoute() {
   return isExpertAccount() ? <ExpertDashboard /> : <Dashboard />;
 }
 
-// API docs — gated by sign-in + the server-side `docs_access` allowlist.
-// DocsGate requires a session; the gated backend `/openapi.json` returns 403
-// for a non-allowlisted email, which Docs renders as a "No access" state.
-const gatedDocs = (
-  <DocsGate>
-    <Suspense fallback={<DocsLoading />}>
-      <Docs />
-    </Suspense>
-  </DocsGate>
-);
+/** /docs: old bookmarks to the in-app API reference land on the external
+ *  docs site. replace() so the dead /docs entry never sits in history. */
+function DocsRedirect() {
+  useEffect(() => {
+    window.location.replace(API_DOCS_URL);
+  }, []);
+  return null;
+}
 
 export default function App() {
-  if (isDocsHost) {
-    // Docs host: only sign-in + the gated docs. Everything funnels to /docs
-    // so the host never exposes the app surface.
-    return (
-      <BrowserRouter>
-        <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
-          <SentryRoutes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/change-password" element={<ChangePassword />} />
-            <Route path="/docs" element={gatedDocs} />
-            <Route path="*" element={<Navigate to="/docs" replace />} />
-          </SentryRoutes>
-        </Sentry.ErrorBoundary>
-        <NotificationToaster />
-      </BrowserRouter>
-    );
-  }
-
-
   return (
     <BrowserRouter>
       <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
@@ -132,8 +101,8 @@ export default function App() {
               <Route path="/new-mother" element={<NewMother />} />
             </Route>
           </Route>
-          {/* API docs — sign-in + server-side docs_access allowlist */}
-          <Route path="/docs" element={gatedDocs} />
+          {/* API docs moved off this app — redirect old bookmarks. */}
+          <Route path="/docs" element={<DocsRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </SentryRoutes>
       </Sentry.ErrorBoundary>

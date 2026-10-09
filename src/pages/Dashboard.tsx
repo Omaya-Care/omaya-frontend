@@ -112,9 +112,21 @@ function StatCards({ data, loading }: CardsProps) {
 }
 
 function Panels({ data, loading }: CardsProps) {
+  const showEscalations = loading || !!data?.canEscalate;
+  const showCalls = loading || !!data?.canViewMothers;
+  const calls = (
+    <TodaysCalls
+      rows={data?.todayCalls ?? []}
+      loading={loading}
+      failed={data != null && data.todayCalls === null}
+    />
+  );
   return (
     <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
-      {(loading || data?.canEscalate) && (
+      {/* Left slot beside "This week": escalations when the role can act on
+          them, otherwise today's conversations moves up so the row isn't
+          left with a lone panel and a gap (e.g. Administrator). */}
+      {showEscalations ? (
         <div className="lg:col-span-2">
           <RecentEscalations
             rows={data?.escalations ?? []}
@@ -122,16 +134,12 @@ function Panels({ data, loading }: CardsProps) {
             failed={data != null && data.escalations === null}
           />
         </div>
+      ) : (
+        showCalls && <div className="lg:col-span-2">{calls}</div>
       )}
       <ThisWeekPanel data={data?.thisWeek ?? null} loading={loading} />
-      {(loading || data?.canViewMothers) && (
-        <div className="lg:col-span-3">
-          <TodaysCalls
-            rows={data?.todayCalls ?? []}
-            loading={loading}
-            failed={data != null && data.todayCalls === null}
-          />
-        </div>
+      {showEscalations && showCalls && (
+        <div className="lg:col-span-3">{calls}</div>
       )}
     </div>
   );
