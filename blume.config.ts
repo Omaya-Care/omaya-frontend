@@ -1,13 +1,15 @@
 import { defineConfig } from "blume";
 import { openapi } from "blume/reference";
 
-// Omaya API docs — team-only. Privacy is Cloudflare Access on the Worker, not
-// anything in this site: Blume has no sign-in, and every file in dist/ is
-// readable by whoever reaches the host. Never deploy without Access in front.
+// Omaya API docs — team-only. Privacy is the sign-in gate in worker/index.ts
+// (portal account + the backend's docs_access allowlist), not anything in
+// this site: Blume has no sign-in, and every file in dist/ is readable by
+// whoever reaches it. Never serve dist/ except through that Worker.
 //
-// The specs are build inputs in specs/, exported from the services by CI (or
-// `pnpm specs:local`), because the live /openapi.json routes are auth-gated
-// and Blume can't attach credentials when it fetches a spec.
+// The specs are build inputs in specs/, exported from the services' code by
+// CI's deploy.yml (or `pnpm specs:local`), because the live /openapi.json
+// routes are auth-gated and Blume can't attach credentials when it fetches a
+// spec.
 const API_REFERENCES = [
   {
     label: "Backend",
@@ -62,7 +64,7 @@ export default defineConfig({
     tabs: API_REFERENCES.map(({ label, route }) => ({ label, path: route })),
   },
 
-  // Everything sits behind Cloudflare Access, so outside services can't
+  // Everything sits behind the sign-in gate, so outside services can't
   // follow a link in — hide the actions that would hand one out.
   ai: { openInChat: false },
 });

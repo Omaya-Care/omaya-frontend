@@ -20,5 +20,10 @@ selected server, so you need a token for that API:
   carries.
 - **Call Service** endpoints that need auth take the internal token.
 
-The specs are regenerated from the services' code on every push to `staging` and `main`, so
-this reference matches what's deployed on that tier.
+The specs are regenerated from the services' code on every push to their `staging` and `main`
+branches, so this reference matches that tier's code. If a rebuild fails, the previous version
+stays up until the next successful one.
+
+## Signing out
+
+Your docs session lasts 12 hours. To end it sooner, open `/_auth/sign-out` on this site.

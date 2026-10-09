@@ -1,6 +1,7 @@
 #!/bin/sh
 # Export all three specs from the sibling service checkouts into specs/ for a
-# local `pnpm dev`. CI does the same per tier and ships the files via R2.
+# local `pnpm dev`. CI's deploy.yml does the same per tier from the services'
+# tier branches.
 #   BACKEND_DIR / CALL_SERVICE_DIR override the checkouts (e.g. a worktree).
 #   TIER=local|staging|prod picks the `servers` the Try it panel targets.
 set -eu

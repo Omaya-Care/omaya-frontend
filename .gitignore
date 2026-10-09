@@ -3,8 +3,9 @@ dist/
 .blume/
 .wrangler/
 .astro/
-# Specs are build inputs pulled from R2 (CI) or exported from sibling
-# checkouts (local) — never committed. They're team-gated content.
+# Specs are build inputs exported from the service repos (CI's deploy.yml) or
+# from sibling checkouts (local) — never committed. They're team-gated content.
 specs/*.json
 .env*
 .dev.vars*
+.blume-verify/
