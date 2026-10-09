@@ -37,7 +37,7 @@ Point `VITE_API_BASE_URL` at a running backend portal API (local FastAPI on `htt
 | `/calls` | `Calls` | Protected |
 | `/staff` | `Staff` | Protected |
 | `/settings` | `Settings` | Protected |
-| `/docs` | Redirects to `https://docs.omayacare.com` | Public redirect (the docs site itself is gated by Cloudflare Access) |
+| `/docs` | Redirects to `https://docs.omayacare.com` | Public redirect (the docs site has its own sign-in: an Omaya portal account on the `docs_access` allowlist) |
 
 `AddMother` and `NewDischarge` are not routes — they are lazy-loaded drawer panels rendered inside the app shell (opened from the dashboard's "New discharge" action).
 
@@ -97,7 +97,7 @@ Deployed to **Vercel via git integration** — pushing to `main` triggers a prod
 
 ## API docs
 
-The team-gated API reference lives in a separate Blume static site (the `api-docs` project, deployed as the Cloudflare Worker `omaya-api-docs`) at **`https://docs.omayacare.com`**, behind Cloudflare Access. This app no longer renders it — the old in-app `/docs` route redirects there.
+The team-gated API reference lives in a separate Blume static site (the `api-docs` project, deployed as the Cloudflare Worker `omaya-api-docs`) at **`https://docs.omayacare.com`**. That Worker has its own sign-in gate: you sign in with your portal account, and only emails on the backend's `docs_access` allowlist get in. This app no longer renders it — the old in-app `/docs` route redirects there.
 
 ## Reference
 

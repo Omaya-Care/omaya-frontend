@@ -23,7 +23,7 @@ import { ExpertDashboard } from "./components/expert-requests/ExpertDashboard";
 import { isExpertAccount } from "./lib/auth";
 
 // The API reference moved to the Blume docs site (Cloudflare Worker
-// `omaya-api-docs`, behind Cloudflare Access) on its own host.
+// `omaya-api-docs`, with its own sign-in gate) on its own host.
 const API_DOCS_URL = "https://docs.omayacare.com";
 
 // Sentry-instrumented <SentryRoutes> — parameterized route names on errors/breadcrumbs.

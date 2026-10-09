@@ -1,7 +1,7 @@
 name: deploy-prod-cloudflare
 
 # Push to `main` -> build with the prod env baked in -> `wrangler deploy` the
-# omaya-frontend Worker (app.omayacare.com + docs.omayacare.com). Replaces the
+# omaya-frontend Worker (app.omayacare.com). Replaces the
 # Vercel git integration: once the hostnames are routed to the Worker, a merge
 # to main IS the prod deploy again — through this workflow.
 #
