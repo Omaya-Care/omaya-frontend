@@ -80,8 +80,8 @@ function StatCards({ data, loading }: CardsProps) {
             to="/mothers"
           />
           <StatCard
-            label="Calls today"
-            sublabel="Scheduled & completed"
+            label="Conversations today"
+            sublabel="Calls & chats"
             value={data?.callsToday ?? "—"}
             loading={loading}
             to="/calls"

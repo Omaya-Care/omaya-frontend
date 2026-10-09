@@ -30,8 +30,9 @@ const STATUS: Record<string, { label: string; className: string }> = {
 };
 
 
-/** Right-hand panel of the Calls page: the selected call's details. */
-export function CallDetail({ callId }: { callId: string | null }) {
+/** Right-hand panel of the Calls and Chats pages: the selected call's (or
+ *  WhatsApp chat's) details. `noun` only words the empty/error states. */
+export function CallDetail({ callId, noun = "call" }: { callId: string | null; noun?: "call" | "chat" }) {
   const { data, loading, failed } = useCall(callId);
 
   if (!callId) {
@@ -40,9 +41,13 @@ export function CallDetail({ callId }: { callId: string | null }) {
         {/* Masked so the single-colour SVG takes our palette. */}
         <span
           aria-hidden="true"
-          className="block size-20 bg-gray-300 [mask:url(/icons/phone-chat.svg)_center/contain_no-repeat]"
+          className={`block size-20 bg-gray-300 ${
+            noun === "chat"
+              ? "[mask:url(/icons/chat-bubbles.svg)_center/contain_no-repeat]"
+              : "[mask:url(/icons/phone-chat.svg)_center/contain_no-repeat]"
+          }`}
         />
-        <p className="mt-3 text-sm text-gray-400">Select a call to view its details</p>
+        <p className="mt-3 text-sm text-gray-400">Select a {noun} to view its details</p>
       </Centered>
     );
   }
@@ -50,7 +55,7 @@ export function CallDetail({ callId }: { callId: string | null }) {
   if (failed || !data) {
     return (
       <Centered>
-        <p className="text-sm text-gray-400">Couldn't load this call.</p>
+        <p className="text-sm text-gray-400">Couldn't load this {noun}.</p>
       </Centered>
     );
   }

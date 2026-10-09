@@ -5,6 +5,7 @@ import {
   HeartHandshake,
   House,
   LogOut,
+  MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
   Phone,
@@ -45,6 +46,7 @@ const MAIN_NAV: NavItem[] = [
   { to: "/dashboard", label: "Home", icon: House },
   { to: "/mothers", label: "Mothers", icon: Users },
   { to: "/calls", label: "Calls", icon: Phone },
+  { to: "/chats", label: "Chats", icon: MessageCircle },
   { to: "/escalations", label: "Escalations", icon: TriangleAlert },
   { to: "/expert-requests", label: "Expert requests", icon: HeartHandshake },
   { to: "/staff", label: "Staff", icon: UserCog },
@@ -55,6 +57,7 @@ const MAIN_NAV: NavItem[] = [
 const NAV_PERMISSIONS: Partial<Record<string, Permission>> = {
   "/mothers": "view_mothers",
   "/calls": "view_mothers",
+  "/chats": "view_mothers",
   "/escalations": "escalate",
   "/expert-requests": "view_mothers",
   "/staff": "manage_staff",
@@ -63,7 +66,7 @@ const NAV_PERMISSIONS: Partial<Record<string, Permission>> = {
 // Mother-cohort pages are meaningless for an expert-roster account (it has no
 // mothers of its own; RLS returns nothing), so they're hidden for it on top of
 // the permission filter — hospital-name-gated, not permission-gated.
-const NON_EXPERT_ROUTES = new Set(["/mothers", "/calls", "/staff", "/escalations"]);
+const NON_EXPERT_ROUTES = new Set(["/mothers", "/calls", "/chats", "/staff", "/escalations"]);
 // The inverse: THE page for an expert account, pure noise for a hospital
 // clinician (even one holding view_mothers). <RequireExpert> enforces it.
 const EXPERT_ONLY_ROUTES = new Set(["/expert-requests"]);
