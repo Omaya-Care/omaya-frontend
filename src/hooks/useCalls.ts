@@ -40,6 +40,7 @@ export function useCalls(kind: CallKind) {
         const raw = (res.data?.calls ?? []) as Record<string, unknown>[];
         // Re-applied client-side: a backend that predates `kind` ignores it
         // and returns the merged list, which must not leak across the tabs.
+        // Removable once backend 6020d04 (GET /calls ?kind=) is on main.
         const rows = raw.filter((r) => isChat((r.channel as string) ?? "voice") === (kind === "chats"));
         setFailed(false);
         setData(
