@@ -109,7 +109,8 @@ const SIGN_IN_CSS = `
 @font-face{font-family:"Nb international pro webfont";font-weight:700;font-display:swap;src:url(/_auth/nb-international-pro-700.woff2) format("woff2")}
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;overscroll-behavior:none}
-body{font-family:"Nb international pro webfont",Arial,sans-serif;color:hsl(224 71% 4%);background:#fff;-webkit-font-smoothing:antialiased}
+body{font-family:"Nb international pro webfont",Arial,sans-serif;line-height:1.5;color:hsl(224 71% 4%);background:#fff;-webkit-font-smoothing:antialiased}
+button,input{line-height:inherit}
 .shell{height:100vh;height:100dvh;overflow:hidden;display:grid;grid-template-columns:2fr 3fr;background:#fff}
 .left{height:100%;overflow-y:auto;overscroll-behavior:none;display:flex;align-items:center;justify-content:center;padding:40px 32px}
 .panel{width:100%;max-width:24rem}
@@ -119,13 +120,13 @@ body{font-family:"Nb international pro webfont",Arial,sans-serif;color:hsl(224 7
 form{display:flex;flex-direction:column;gap:20px}
 .field{display:flex;flex-direction:column}
 label{font-size:14px;line-height:20px;font-weight:500;color:#374151;margin:0 0 6px 2px}
-input{height:40px;width:100%;border-radius:6px;border:1px solid hsl(220 13% 88%);background:#fff;padding:8px 12px;font:inherit;font-size:14px;color:#0F172A;outline:none;transition:box-shadow .15s}
+input{height:40px;width:100%;border-radius:6px;border:1px solid hsl(220 13% 88%);background:#fff;padding:8px 12px;font:inherit;font-size:14px;line-height:20px;color:#0F172A;outline:none;transition:box-shadow .15s}
 input::placeholder{color:#9CA3AF}
 input:focus{border-color:transparent;box-shadow:0 0 0 2px #fff,0 0 0 4px #7a2850}
 .pw{position:relative}.pw input{padding-right:40px}
 .eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);padding:4px;border:0;background:none;color:#9CA3AF;cursor:pointer;display:flex}
 .eye:hover{color:#7a2850}.eye:focus{outline:none}.eye svg{width:20px;height:20px}
-.submit{width:100%;height:44px;border:0;border-radius:6px;background:#7a2850;color:#fff;font:inherit;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .15s}
+.submit{width:100%;height:44px;border:0;border-radius:6px;background:#7a2850;color:#fff;font:inherit;font-size:14px;line-height:20px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .15s}
 .submit:hover{background:#5d1f3d}.submit:active{background:#4a1830}
 .submit:focus{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #7a2850}
 .submit:disabled{opacity:.6;cursor:not-allowed}
@@ -135,10 +136,11 @@ input:focus{border-color:transparent;box-shadow:0 0 0 2px #fff,0 0 0 4px #7a2850
 .alert svg{position:absolute;left:16px;top:16px;width:16px;height:16px}
 .alert strong{display:block;font-weight:500;margin-bottom:4px;line-height:1}
 .links{margin-top:24px;text-align:center}
-.links a,.foot a{font-size:14px;text-underline-offset:4px;text-decoration:none;transition:color .15s}
+.links a,.foot a{font-size:14px;line-height:20px;text-underline-offset:4px;text-decoration:none;transition:color .15s}
+.links a{display:inline-block;vertical-align:top;margin-top:3px}
 .links a{font-weight:500;color:#6B7280}.links a:hover{color:#7a2850;text-decoration:underline}
-.foot{margin-top:32px;padding-top:24px;border-top:1px solid hsl(220 13% 88%);text-align:center;font-size:14px;color:#6B7280}
-.foot p{margin:0}.foot a{font-weight:500;color:#7a2850}.foot a:hover{text-decoration:underline}
+.foot{margin-top:32px;padding-top:24px;border-top:1px solid hsl(220 13% 88%);text-align:center;color:#6B7280}
+.foot p{margin:0;font-size:14px;line-height:20px}.foot a{font-weight:500;color:#7a2850}.foot a:hover{text-decoration:underline}
 .photo{position:relative;overflow:hidden;height:100%;width:100%;border-radius:24px 0 0 24px}
 .photo>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
 .collab{position:absolute;bottom:24px;right:24px;z-index:1;width:20rem;max-width:calc(100% - 3rem);border-radius:16px;background:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.05);padding:16px;display:flex;align-items:center;gap:12px}
@@ -179,8 +181,8 @@ async function signInPage(next: string, error = "", status = 200, email = ""): P
 <form method="post" action="${SIGN_IN_PATH}">
 ${error ? `<div class="alert" role="alert">${ALERT_ICON}<div><strong>Error</strong>${escapeHtml(error)}</div></div>` : ""}
 <input type="hidden" name="next" value="${escapeHtml(next)}">
-<div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" placeholder="name@hospital.com" autocomplete="email" value="${escapeHtml(email)}" required${email ? "" : " autofocus"}></div>
-<div class="field"><label for="password">Password</label><div class="pw"><input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required${email ? " autofocus" : ""}><button type="button" id="eye" class="eye" aria-label="Show password">${EYE}</button></div></div>
+<div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" placeholder="name@hospital.com" autocomplete="email" value="${escapeHtml(email)}" required></div>
+<div class="field"><label for="password">Password</label><div class="pw"><input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required><button type="button" id="eye" class="eye" aria-label="Show password">${EYE}</button></div></div>
 <button type="submit" id="submit" class="submit">${SPINNER}Sign In</button>
 </form>
 <div class="links"><a href="https://app.omayacare.com/forgot-password">Forgot password?</a></div>
