@@ -1,0 +1,21 @@
+{
+  "name": "omaya-api-docs",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "specs:local": "sh scripts/export-local-specs.sh",
+    "dev": "blume dev",
+    "build": "blume build",
+    "check": "blume validate",
+    "cf:deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "blume": "2.1.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.139.0"
+  }
+}
