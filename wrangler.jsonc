@@ -1,0 +1,21 @@
+// Cloudflare Workers deploy for app.omayacare.com + docs.omayacare.com (replaces
+// Vercel; see worker/index.ts). Account comes from CLOUDFLARE_ACCOUNT_ID (env /
+// CI secret), never this file. Routes are attached per hostname at cutover —
+// until then the Worker serves no production traffic.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "omaya-frontend",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Unknown paths serve index.html with a 200 — the vercel.json SPA rewrite.
+    "not_found_handling": "single-page-application",
+    // The Worker runs first on every request so it can set the per-host CSP.
+    "run_worker_first": true
+  },
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true }
+}

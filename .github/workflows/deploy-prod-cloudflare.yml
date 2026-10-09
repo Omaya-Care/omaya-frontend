@@ -1,0 +1,74 @@
+name: deploy-prod-cloudflare
+
+# Push to `main` -> build with the prod env baked in -> `wrangler deploy` the
+# omaya-frontend Worker (app.omayacare.com + docs.omayacare.com). Replaces the
+# Vercel git integration: once the hostnames are routed to the Worker, a merge
+# to main IS the prod deploy again — through this workflow.
+#
+# Repo config (Settings -> Secrets and variables -> Actions):
+#   secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, SENTRY_AUTH_TOKEN
+#   vars:    VITE_API_BASE_URL, VITE_SENTRY_DSN, VITE_SENTRY_ENVIRONMENT,
+#            VITE_SENTRY_TRACES_SAMPLE_RATE, SENTRY_ORG, SENTRY_PROJECT
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never cancel a deploy mid-flight; queue the next one behind it.
+concurrency:
+  group: deploy-prod-cloudflare
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1  # v4.3.0
+        with:
+          version: 11
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: 22
+
+      # Same as deploy-staging.yml: the committed lockfile is the source of truth.
+      - name: Relax dev-only supply-chain guards for CI frozen install
+        run: sed -i '/^minimumReleaseAge:/d; /^trustPolicy:/d' pnpm-workspace.yaml
+      - run: pnpm install --frozen-lockfile
+
+      # Vite inlines VITE_* at build time; .env.production is the reliable channel
+      # for a production-mode `vite build`. These are public by design.
+      - name: Write prod build env
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          VITE_SENTRY_ENVIRONMENT: ${{ vars.VITE_SENTRY_ENVIRONMENT }}
+          VITE_SENTRY_TRACES_SAMPLE_RATE: ${{ vars.VITE_SENTRY_TRACES_SAMPLE_RATE }}
+        run: |
+          test -n "$VITE_API_BASE_URL" || { echo "vars.VITE_API_BASE_URL is not set"; exit 1; }
+          # Write only the vars that are set: an empty VITE_X= would beat the
+          # app's own fallback (e.g. Sentry environment -> import.meta.env.MODE).
+          for v in VITE_API_BASE_URL VITE_SENTRY_DSN VITE_SENTRY_ENVIRONMENT VITE_SENTRY_TRACES_SAMPLE_RATE; do
+            if [ -n "${!v}" ]; then echo "$v=${!v}"; fi
+          done > .env.production
+
+      # Gate the deploy on the unit tests, ahead of anything being published.
+      - run: pnpm test
+      - name: Build (tsc -b && vite build; uploads + deletes source maps)
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: pnpm build
+      - name: Refuse to publish source maps
+        run: "! find dist -name '*.map' | grep -q ."
+
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --message "${GITHUB_SHA::7}"

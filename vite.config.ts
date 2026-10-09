@@ -4,14 +4,17 @@ import path from 'path'
 import react from '@vitejs/plugin-react'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 
-// Sentry release = portal@<vercel-sha>, injected as the build-time constant
+// Sentry release = portal@<sha>, injected as the build-time constant
 // __SENTRY_RELEASE__ so the runtime SDK and the uploaded source maps agree.
-// VERCEL_GIT_COMMIT_SHA is exposed by Vercel at build (NOT VITE_-prefixed, so
-// it never reaches the bundle on its own).
-const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'local'
+// The SHA comes from whichever CI built it: Vercel (VERCEL_GIT_COMMIT_SHA),
+// GitHub Actions (GITHUB_SHA — the Cloudflare deploy), or an explicit GIT_SHA.
+// None are VITE_-prefixed, so they never reach the bundle on their own.
+const sha =
+  (process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? process.env.GIT_SHA)?.slice(0, 7) ??
+  'local'
 const release = `portal@${sha}`
 
-// Source-map upload only runs when SENTRY_AUTH_TOKEN is present (Vercel prod
+// Source-map upload only runs when SENTRY_AUTH_TOKEN is present (the prod
 // build). Local/preview builds without the token still build cleanly, and we
 // only emit maps when we're going to upload+delete them — so dist/*.map is
 // never served publicly.
@@ -59,7 +62,7 @@ export default defineConfig(({ command }) => ({
           project: process.env.SENTRY_PROJECT,
           authToken: sentryAuthToken,
           release: { name: release },
-          // Delete maps after upload so Vercel never serves them publicly.
+          // Delete maps after upload so they are never served publicly.
           sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
         })
       : undefined,

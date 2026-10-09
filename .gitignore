@@ -32,3 +32,7 @@ dist-ssr
 # env backups
 .env.bak
 .env.bak*
+
+# Cloudflare Workers local state / local secrets
+.wrangler
+.dev.vars
