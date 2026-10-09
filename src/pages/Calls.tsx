@@ -128,8 +128,8 @@ function emptyMessage({ failed, filtering, tab }: { failed: boolean; filtering: 
 
 /** Calls page — same split layout as Mothers: 1/3 call list | 2/3 the
  *  selected call's mother. Voice conversations only (phone + WhatsApp
- *  calls); WhatsApp text chats are on /chats. Recents = placed calls (newest first);
- *  Scheduled = upcoming placements (soonest first). */
+ *  calls); WhatsApp text chats are on /chats. Recents = placed calls
+ *  (newest first); Scheduled = upcoming placements (soonest first). */
 export default function Calls() {
   // WhatsApp text conversations live on the Chats page (/chats).
   const { data, loading, failed, reload } = useCalls("calls");
