@@ -8,17 +8,8 @@ import { initSentry } from './lib/sentry'
 // errors during the initial mount are captured.
 initSentry()
 
-// Both the app host and the docs.* host render <App/>; App routes the docs
-// host to the gated API reference internally. The docs host stays out of
-// StrictMode to avoid double-invoked effects in the heavy Scalar embed.
-const isDocsHost = window.location.hostname.startsWith('docs.')
-
 createRoot(document.getElementById('root')!).render(
-  isDocsHost ? (
+  <StrictMode>
     <App />
-  ) : (
-    <StrictMode>
-      <App />
-    </StrictMode>
-  ),
+  </StrictMode>,
 )
