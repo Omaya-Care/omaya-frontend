@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAddStaff } from "@/hooks/useStaffMutations";
 import { useRoles } from "@/hooks/useRoles";
-import { isCreatableRole, staffErrorMessage, type StaffRole } from "@/hooks/useStaff";
+import { creatableRoles, staffErrorMessage, type StaffRole } from "@/hooks/useStaff";
 import { toast } from "@/lib/notify";
 
 interface AddStaffModalProps {
@@ -32,7 +32,7 @@ const AddStaffModal = ({ isOpen, onClose }: AddStaffModalProps) => {
   const addStaff = useAddStaff();
   const { data: allRoles = [], isLoading: rolesLoading } = useRoles();
   // Only the system roles a seat can be created with (see `isCreatableRole`).
-  const roles = allRoles.filter((r) => r.isSystem && isCreatableRole(r.name));
+  const roles = creatableRoles(allRoles);
 
   const canSubmit =
     name.trim() !== "" &&

@@ -108,7 +108,7 @@ export function AuthShell({
   return (
     <div className="h-screen overflow-hidden grid bg-white grid-rows-1 grid-cols-[2fr_3fr] w-full max-lg:grid-cols-1">
       {/* Left — form panel */}
-      <div className="h-full overflow-y-auto flex items-center justify-center bg-white px-8 py-10">
+      <div className="h-full overflow-y-auto overscroll-none flex items-center justify-center bg-white px-8 py-10">
         <div className="w-full max-w-sm">
           {/* Logo mark */}
           <div className="flex justify-center mb-6">

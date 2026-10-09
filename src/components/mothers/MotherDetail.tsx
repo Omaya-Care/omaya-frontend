@@ -10,6 +10,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import {
   MEDICATION_OPTIONS,
   PREGNANCY_RISKS,
@@ -98,6 +99,11 @@ export function MotherDetail({
   );
 }
 
+const PROFILE_TABS = [
+  { value: "details", label: "Details" },
+  { value: "checkins", label: "Check-ins" },
+] as const;
+
 function Profile({
   mother,
   reload,
@@ -121,67 +127,13 @@ function Profile({
   return (
     <div className="flex min-h-0 flex-1 flex-col animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out motion-reduce:animate-none">
     <div className="min-h-0 flex-1 overflow-y-auto">
-      {/* ── Header ── */}
-      <header className="flex items-center gap-4 pb-6">
-        <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-[#7A2850]/10 text-xl text-[#7A2850]">
-          {initials(mother.name)}
-        </span>
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <h2 className="truncate text-2xl font-normal tracking-tight text-gray-900">
-            {mother.name}
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            {mother.severity && (
-              <span
-                className={`rounded-full px-2 py-px text-[11px] font-medium capitalize ${severityClass(mother.severity)}`}
-              >
-                {mother.severity}
-              </span>
-            )}
-            {mother.hospital && <span className="text-xs text-gray-500">{mother.hospital}</span>}
-          </div>
-          {isWithdrawn && (
-            <p className="text-xs text-red-500">Record is read-only. Consent has been withdrawn.</p>
-          )}
-        </div>
-        {/* PATCH /mothers/{id} has no backend permission dependency; gated on
-            `message_mothers` like the production portal. Hidden on a withdrawn
-            (read-only) record. */}
-        {canMessage && !isWithdrawn && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setEditOpen(true)}
-            className="ml-auto self-start"
-          >
-            <Pencil />
-            Edit
-          </Button>
-        )}
-        <InfoTip className={canMessage && !isWithdrawn ? "self-start" : "ml-auto self-start"}>
-          Severity labels are system-set and read-only for audit integrity.
-        </InfoTip>
-      </header>
-
-      {/* ── Key stats (same layout as call details) ── */}
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-5">
-        <Stat icon={<Clock className="size-3.5 text-[#7A2850]" />} label="Postpartum">
-          {mother.dayPostpartum != null ? `Day ${mother.dayPostpartum}` : "—"}
-        </Stat>
-        <Stat icon={<ShieldCheck className="size-3.5 text-[#7A2850]" />} label="Consent">
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${CONSENT_CLASS[mother.consentStatus] ?? "bg-gray-100 text-gray-500"}`}
-          >
-            {mother.consentStatus || "—"}
-          </span>
-        </Stat>
-        <Stat icon={<MessageCircle className="size-3.5 text-[#7A2850]" />} label="Last call">
-          {mother.lastInteraction ? formatDateTime(mother.lastInteraction) : "None"}
-        </Stat>
-        <Stat icon={<PhoneCall className="size-3.5 text-[#7A2850]" />} label="Check-ins">
-          {mother.checkIns.length}
-        </Stat>
-      </dl>
+      <ProfileHeader
+        mother={mother}
+        canEdit={canMessage && !isWithdrawn}
+        isWithdrawn={isWithdrawn}
+        onEdit={() => setEditOpen(true)}
+      />
+      <KeyStats mother={mother} />
 
       {mother.currentFlag && (
         <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
@@ -191,70 +143,21 @@ function Profile({
       )}
 
       {/* ── Tabs ── */}
-      <div role="tablist" className="relative mt-6 grid w-fit grid-cols-2 rounded-full bg-gray-100 p-1">
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none"
-          style={{ transform: tab === "checkins" ? "translateX(100%)" : "translateX(0)" }}
-        />
-        {(
-          [
-            { value: "details", label: "Details" },
-            { value: "checkins", label: "Check-ins" },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.value}
-            onClick={() => setTab(t.value)}
-            className={`relative z-10 rounded-full px-3.5 py-1 text-sm transition-colors ${
-              tab === t.value ? "text-[#7A2850]" : "text-gray-500 hover:text-gray-900"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedTabs tabs={PROFILE_TABS} value={tab} onChange={setTab} className="mt-6 w-fit" />
 
       <div className="py-6">
         {tab === "details" ? <DetailsTab mother={mother} /> : <CheckInsTab mother={mother} />}
       </div>
     </div>
 
-      {/* ── Actions (pinned footer) ── */}
-      <footer className="flex shrink-0 items-center justify-between border-t border-gray-100 pt-4">
-        {/* Withdrawing needs `message_mothers` — hidden rather than offered and 403'd. */}
-        {isWithdrawn || !canMessage ? (
-          <span />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setWithdrawOpen(true)}
-            title="This will stop all scheduled calls for this mother."
-            className="flex items-center gap-1.5 text-xs text-red-500 transition-colors hover:text-red-700"
-          >
-            <XCircle className="size-4" />
-            Withdraw from program
-          </button>
-        )}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setLogVisitOpen(true)}
-            disabled={!canMessage}
-            title={canMessage ? "Record a manual visit or note." : "You don't have permission to log visits"}
-          >
-            <ClipboardList />
-            Log visit
-          </Button>
-          {CALL_NOW_ENABLED && canMessage && (
-            <CallNowMenu mother={mother} disabled={isWithdrawn} onChanged={reload} />
-          )}
-        </div>
-      </footer>
+      <ProfileActions
+        mother={mother}
+        canMessage={canMessage}
+        isWithdrawn={isWithdrawn}
+        onWithdraw={() => setWithdrawOpen(true)}
+        onLogVisit={() => setLogVisitOpen(true)}
+        reload={reload}
+      />
 
       <WithdrawModal
         open={withdrawOpen}
@@ -275,6 +178,131 @@ function Profile({
         dayPostpartum={mother.dayPostpartum}
       />
     </div>
+  );
+}
+
+function ProfileHeader({
+  mother,
+  canEdit,
+  isWithdrawn,
+  onEdit,
+}: {
+  mother: MotherProfile;
+  canEdit: boolean;
+  isWithdrawn: boolean;
+  onEdit: () => void;
+}) {
+  return (
+    <header className="flex items-center gap-4 pb-6">
+      <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-[#7A2850]/10 text-xl text-[#7A2850]">
+        {initials(mother.name)}
+      </span>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <h2 className="truncate text-2xl font-normal tracking-tight text-gray-900">
+          {mother.name}
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          {mother.severity && (
+            <span
+              className={`rounded-full px-2 py-px text-[11px] font-medium capitalize ${severityClass(mother.severity)}`}
+            >
+              {mother.severity}
+            </span>
+          )}
+          {mother.hospital && <span className="text-xs text-gray-500">{mother.hospital}</span>}
+        </div>
+        {isWithdrawn && (
+          <p className="text-xs text-red-500">Record is read-only. Consent has been withdrawn.</p>
+        )}
+      </div>
+      {/* PATCH /mothers/{id} has no backend permission dependency; gated on
+          `message_mothers` like the production portal. Hidden on a withdrawn
+          (read-only) record. */}
+      {canEdit && (
+        <Button variant="outline" size="sm" onClick={onEdit} className="ml-auto self-start">
+          <Pencil />
+          Edit
+        </Button>
+      )}
+      <InfoTip className={canEdit ? "self-start" : "ml-auto self-start"}>
+        Severity labels are system-set and read-only for audit integrity.
+      </InfoTip>
+    </header>
+  );
+}
+
+/** Key stats (same layout as call details). */
+function KeyStats({ mother }: { mother: MotherProfile }) {
+  return (
+    <dl className="grid grid-cols-2 gap-x-8 gap-y-5">
+      <Stat icon={<Clock className="size-3.5 text-[#7A2850]" />} label="Postpartum">
+        {mother.dayPostpartum != null ? `Day ${mother.dayPostpartum}` : "—"}
+      </Stat>
+      <Stat icon={<ShieldCheck className="size-3.5 text-[#7A2850]" />} label="Consent">
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${CONSENT_CLASS[mother.consentStatus] ?? "bg-gray-100 text-gray-500"}`}
+        >
+          {mother.consentStatus || "—"}
+        </span>
+      </Stat>
+      <Stat icon={<MessageCircle className="size-3.5 text-[#7A2850]" />} label="Last call">
+        {mother.lastInteraction ? formatDateTime(mother.lastInteraction) : "None"}
+      </Stat>
+      <Stat icon={<PhoneCall className="size-3.5 text-[#7A2850]" />} label="Check-ins">
+        {mother.checkIns.length}
+      </Stat>
+    </dl>
+  );
+}
+
+/** Pinned footer: withdraw, log visit, call now. */
+function ProfileActions({
+  mother,
+  canMessage,
+  isWithdrawn,
+  onWithdraw,
+  onLogVisit,
+  reload,
+}: {
+  mother: MotherProfile;
+  canMessage: boolean;
+  isWithdrawn: boolean;
+  onWithdraw: () => void;
+  onLogVisit: () => void;
+  reload: () => void;
+}) {
+  return (
+    <footer className="flex shrink-0 items-center justify-between border-t border-gray-100 pt-4">
+      {/* Withdrawing needs `message_mothers` — hidden rather than offered and 403'd. */}
+      {isWithdrawn || !canMessage ? (
+        <span />
+      ) : (
+        <button
+          type="button"
+          onClick={onWithdraw}
+          title="This will stop all scheduled calls for this mother."
+          className="flex items-center gap-1.5 text-xs text-red-500 transition-colors hover:text-red-700"
+        >
+          <XCircle className="size-4" />
+          Withdraw from program
+        </button>
+      )}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onLogVisit}
+          disabled={!canMessage}
+          title={canMessage ? "Record a manual visit or note." : "You don't have permission to log visits"}
+        >
+          <ClipboardList />
+          Log visit
+        </Button>
+        {CALL_NOW_ENABLED && canMessage && (
+          <CallNowMenu mother={mother} disabled={isWithdrawn} onChanged={reload} />
+        )}
+      </div>
+    </footer>
   );
 }
 

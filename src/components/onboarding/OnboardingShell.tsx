@@ -76,7 +76,7 @@ const OnboardingShell = ({
 
       {/* Content area. overflow-x-hidden so the per-step slide animation can't
           flash a horizontal scrollbar (dropdowns here are portalled). */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-8 py-6 sm:py-10">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-none px-4 sm:px-8 py-6 sm:py-10">
         {showStepper && (
           <div className="max-w-2xl w-full mx-auto mt-6 mb-10">
             <Stepper current={currentStep!} total={totalSteps!} />

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, extractApiError } from "@/lib/api";
+import type { Role } from "@/hooks/useRoles";
 
 export type StaffRole = string;
 
@@ -7,11 +8,10 @@ export type StaffRole = string;
  *  (`app/schemas/enums.py`). Custom roles from /admin/roles can't be assigned
  *  to a clinician yet, so the pickers offer only these. */
 export const CLINICIAN_ROLES: readonly string[] = [
+  "Receptionist",
   "Administrator",
-  "Physician",
   "Midwife",
-  "Coordinator",
-  "Paediatrician",
+  "Doctor",
   "Psychologist",
   "Lactation Consultant",
   "Postpartum Wellness Expert",
@@ -21,6 +21,14 @@ export const CLINICIAN_ROLES: readonly string[] = [
  *  API (403 `administrator_create_forbidden`). */
 export const isCreatableRole = (name: string) =>
   name !== "Administrator" && CLINICIAN_ROLES.includes(name);
+
+/** The Edit Staff picker: the system roles a seat can hold. */
+export const assignableRoles = (roles: Role[]): Role[] =>
+  roles.filter((r) => r.isSystem && CLINICIAN_ROLES.includes(r.name));
+
+/** The Add Staff picker: assignable roles minus Administrator. */
+export const creatableRoles = (roles: Role[]): Role[] =>
+  roles.filter((r) => r.isSystem && isCreatableRole(r.name));
 
 /** Readable text for the staff endpoints' guard errors, or null if unknown. */
 export function staffErrorMessage(err: unknown): string | null {

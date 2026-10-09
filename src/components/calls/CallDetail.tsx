@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowDownLeft,
@@ -18,6 +18,7 @@ import { useMother } from "@/hooks/useMother";
 import { CHANNEL_LABEL, formatDuration } from "./call-display";
 import { CALL_NOW_ENABLED } from "@/lib/env";
 import { usePermissions } from "@/hooks/usePermissions";
+import { trackConversationOpened } from "@/lib/analytics";
 import { CallNowMenu } from "@/components/mothers/CallNowMenu";
 import { formatDateTime, humanize, initials, severityClass } from "@/components/mothers/mother-display";
 
@@ -211,6 +212,14 @@ function DetailsFooter({ call, mother }: { call: CallDetailData; mother: ReturnT
   );
 }
 
+/** Keyed by content. The classifier can repeat a signal; an identical
+ *  repeat says nothing new, so it is shown once. */
+function uniqueReasons(reasons: CallDetailData["flagReasons"]) {
+  const byKey = new Map<string, CallDetailData["flagReasons"][number]>();
+  for (const r of reasons) byKey.set(`${r.signal}|${r.severity}|${r.tier}|${r.description}`, r);
+  return [...byKey].map(([key, reason]) => ({ key, reason }));
+}
+
 export function FlagReasons({ reasons }: { reasons: CallDetailData["flagReasons"] }) {
   return (
     <div className="mb-6">
@@ -219,8 +228,8 @@ export function FlagReasons({ reasons }: { reasons: CallDetailData["flagReasons"
         Why this was flagged
       </p>
       <ul className="mt-2 divide-y divide-gray-200 rounded-2xl border border-gray-200">
-        {reasons.map((r, i) => (
-          <li key={`${r.signal}-${i}`} className="flex items-start justify-between gap-4 px-5 py-3.5 text-sm">
+        {uniqueReasons(reasons).map(({ key, reason: r }) => (
+          <li key={key} className="flex items-start justify-between gap-4 px-5 py-3.5 text-sm">
             <span className="text-gray-900">
               {r.description}
               {r.severity && <span className="text-gray-500"> · reported {r.severity}</span>}
@@ -241,6 +250,8 @@ export function FlagReasons({ reasons }: { reasons: CallDetailData["flagReasons"
 
 export function Transcript({ call, onBack }: { call: CallDetailData; onBack: () => void }) {
   const firstName = call.motherName.split(" ")[0] || "Mother";
+  // Tracking plan KPI 8: a clinician opened a transcript.
+  useEffect(() => trackConversationOpened(call.id), [call.id]);
   return (
     <div className="flex min-h-0 flex-1 flex-col animate-in fade-in slide-in-from-right-2 duration-200 motion-reduce:animate-none">
       <header className="flex items-center gap-3 border-b border-gray-100 pb-4">

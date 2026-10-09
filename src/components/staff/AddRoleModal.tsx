@@ -72,7 +72,7 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 409) {
-        setError('A role with this name already exists. Choose a different name.');
+        setError('That name is already taken or reserved for a built-in role. Choose a different name.');
       } else if (status === 403) {
         setError("You don't have permission to create roles.");
       } else {
@@ -101,7 +101,7 @@ const AddRoleModal = ({ isOpen, onClose }: AddRoleModalProps) => {
         <div className="mt-5 flex flex-col gap-4">
           <Input
             label="Role name"
-            placeholder="e.g. Lactation Consultant"
+            placeholder="e.g. Ward Clerk"
             value={name}
             onChange={(e) => setName(e.target.value)}
             fullWidth

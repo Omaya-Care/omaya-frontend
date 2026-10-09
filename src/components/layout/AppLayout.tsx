@@ -91,7 +91,9 @@ export function AppLayout() {
   }, [hospitalName, stale]);
 
   return (
-    <div className="flex h-screen bg-[#FAFAFA] font-sans">
+    // dvh, not vh: on iOS Safari 100vh runs under the browser toolbar, so the
+    // bottom of the scrolling panel could never be reached.
+    <div className="flex h-dvh bg-[#FAFAFA] font-sans">
       {/* Mobile drawer backdrop. */}
       <div
         aria-hidden="true"
@@ -126,7 +128,7 @@ export function AppLayout() {
           </Link>
         </div>
         <LiveAlertsPausedBanner stale={stale} lastSuccessAt={lastSuccessAt} />
-        <main className="min-h-0 flex-1 overflow-y-auto rounded-2xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.03)]">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.03)]">
           {/* A page crash stays inside the panel; keyed on the path so
               navigating away clears it. */}
           <Sentry.ErrorBoundary

@@ -38,7 +38,7 @@ export interface DashboardCards {
   callsToday: number | null;
   /** The caller has `view_mothers` — gates the Mothers in care / Calls
    *  today cards and the Today's calls panel (/mothers and /calls 403
-   *  without it, e.g. for a Coordinator). */
+   *  without it, e.g. for a Receptionist). */
   canViewMothers: boolean;
   /** The caller has `escalate` — gates the Need attention card and the
    *  Recent escalations panel. */
