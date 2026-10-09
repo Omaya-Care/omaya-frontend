@@ -41,7 +41,11 @@ export function CallDetail({ callId, noun = "call" }: { callId: string | null; n
         {/* Masked so the single-colour SVG takes our palette. */}
         <span
           aria-hidden="true"
-          className="block size-20 bg-gray-300 [mask:url(/icons/phone-chat.svg)_center/contain_no-repeat]"
+          className={`block size-20 bg-gray-300 ${
+            noun === "chat"
+              ? "[mask:url(/icons/chat-bubbles.svg)_center/contain_no-repeat]"
+              : "[mask:url(/icons/phone-chat.svg)_center/contain_no-repeat]"
+          }`}
         />
         <p className="mt-3 text-sm text-gray-400">Select a {noun} to view its details</p>
       </Centered>
