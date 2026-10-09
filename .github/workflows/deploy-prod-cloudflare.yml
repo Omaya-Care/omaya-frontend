@@ -58,6 +58,8 @@ jobs:
 
       # Gate the deploy on the unit tests, ahead of anything being published.
       - run: pnpm test
+      # wrangler bundles with esbuild, which skips type errors in worker/.
+      - run: pnpm cf:typecheck
       - name: Build (tsc -b && vite build; uploads + deletes source maps)
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
