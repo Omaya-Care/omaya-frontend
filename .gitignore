@@ -7,3 +7,4 @@ dist/
 # checkouts (local) — never committed. They're team-gated content.
 specs/*.json
 .env*
+.dev.vars*

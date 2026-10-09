@@ -1,27 +1,40 @@
-// Cloudflare Workers static-assets deploy for the Omaya API docs.
-// docs.omayacare.com (prod, main specs) and docs-staging.omayacare.com
-// (staging specs) are two Workers from this one config: `--env staging`.
+// Cloudflare Worker for the Omaya API docs: worker/index.ts is a sign-in gate
+// (portal account + backend `docs_access` allowlist) in front of the static
+// Blume build in dist/. docs.omayacare.com (prod, main specs) and
+// docs-staging.omayacare.com (staging specs) are two Workers from this one
+// config: `--env staging`.
 //
-// NEVER attach a route or enable workers.dev before the Cloudflare Access
-// application covers the hostname — every file in dist/ is the full API
-// spec, readable by anyone who reaches the Worker.
+// Before the first deploy of each Worker, set its session secret:
+//   wrangler secret put DOCS_SESSION_SECRET [--env staging]
+// Without it every session check fails closed (nobody gets in).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "omaya-api-docs",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
+    // The gate must see EVERY request — otherwise the asset layer would serve
+    // pages, the search index and llms.txt without a session.
+    "run_worker_first": true,
     // Blume writes <route>/index.html and links without a trailing slash;
     // the default (auto-trailing-slash) would 307 every page.
     "html_handling": "drop-trailing-slash",
     "not_found_handling": "404-page"
+  },
+  "vars": {
+    "BACKEND_URL": "https://backend-api.omayacare.com"
   },
   "workers_dev": false,
   "preview_urls": false,
   "observability": { "enabled": true },
   "env": {
     "staging": {
-      "name": "omaya-api-docs-staging"
+      "name": "omaya-api-docs-staging",
+      "vars": {
+        "BACKEND_URL": "https://backend-api-staging.omayacare.com"
+      }
     }
   }
 }
