@@ -1,0 +1,180 @@
+---
+title: "Operations"
+description: "Getting onto the box, checking health, draining, rollback rules, and when to stop."
+---
+
+:::warning
+This box carries live calls. Restarting **Asterisk** or **IPsec** ends every call in
+progress. The gateway unit has `Requires=asterisk.service`, so an Asterisk restart takes
+the gateway down with it, and calls are never resumed. Follow the runbook. Don't
+improvise.
+:::
+
+## Getting onto the box
+
+- **Use AWS SSM, not SSH.** SSH sits behind a dynamic-IP allowlist and has locked people
+  out before.
+- **SSM runs `sh`, not `bash`.** Wrap anything that sources `instance-env.sh` in
+  `bash -c '…'`.
+- **Long SSM parameters are truncated silently.** Keep each command short.
+- **On a flaky network, SSM calls can fail on DNS or TLS.** Retry before you conclude the
+  box is broken.
+
+## Health checks
+
+These are read-only **when run exactly as written**.
+
+```bash
+# Gateway service and logs (journalctl needs sudo under ssm-user)
+systemctl status omaya-telecel-gateway@staging
+sudo journalctl -u omaya-telecel-gateway@staging --since "15 min ago"
+
+# Gateway's own view. Always run gatewayctl as omaya-gateway, never as root (see below)
+sudo -u omaya-gateway /opt/omaya-telecel-gateway/current-staging/.venv/bin/gatewayctl --instance staging status
+
+# Asterisk
+sudo asterisk -rx "ari show apps"          # should list only omaya-agent
+sudo asterisk -rx "pjsip show endpoints"
+sudo asterisk -rx "pjsip show contacts"
+sudo asterisk -rx "core show channels"
+
+# IPsec and source routing
+sudo ipsec statusall
+systemctl status strongswan-starter omaya-vip omaya-telecel-route.timer
+ip route get <telecel-signalling-ip>       # src must be our public IP; the address is in infra/asterisk/ipsec/ipsec.conf
+```
+
+:::danger
+**Never run `gatewayctl` as root.** Even `status` opens the SQLite database in WAL mode.
+Run as root, it can leave a root-owned `-shm` file that the gateway then can't open. Also,
+a bare `gatewayctl status` with no `--instance` exits with an error on this box.
+:::
+
+### Reading `gatewayctl status`
+
+| Field | What it actually means |
+| --- | --- |
+| `active_calls` | Durable attempts not yet terminal, **not** live channels. On a wedged instance it never reaches 0, so check `core show channels` too. |
+| `pending_events` | Terminal-event outbox depth. It should drain toward 0. New work is shed at 85% of the cap (8500 at the default). |
+| `draining` | Whether the drain file is set, not what call-service believes (see below). |
+| `metrics.stale: true` | The counters are more than 90 s old and don't come from a live process. Don't trust them. |
+
+### IPsec can look healthy and still be broken
+
+The tunnel can show `ESTABLISHED` while the source route has fallen back to the private
+IP, so INVITEs bypass the tunnel. This has happened more than once.
+
+- `omaya-vip` and the `omaya-telecel-route` timer exist to pin the route.
+- Check that `ip route get` shows our public IP as `src`.
+- Check that the SA byte counters move during a call.
+
+### From the app side
+
+If outbound calls sit in the queue:
+
+1. Is `TELECEL_OUTBOUND_MODE` on call-service `enabled` or `test_only`? It defaults to
+   `disabled`.
+2. Is the gateway registered and accepting? call-service's authenticated
+   `GET /telecel/readiness` shows this.
+
+## Draining
+
+`gatewayctl` has three commands: `status`, `drain`, `resume`. **Drain is narrower than it
+sounds:**
+
+- **`drain` stops new outbound dials only.** Inbound calls are still admitted. It doesn't
+  wait for live calls or end them.
+- **call-service learns "accepting" only when the gateway registers.** After a `drain` on
+  a connected gateway, call-service keeps sending dials and the gateway keeps refusing
+  them. To make the gateway advertise not-accepting, `drain` and then restart it (with
+  `active_calls` at 0).
+- **`resume` does nothing visible until the next registration.** The order is `resume`,
+  **then** restart.
+- **The drain flag is a file, so it survives restarts.** `upgrade.sh` and `rollback.sh`
+  resume automatically.
+
+**To stop outbound calls, rely on stopping call-job claiming at call-service, not on
+drain.** In code, that means setting `TELECEL_OUTBOUND_MODE=disabled` on call-service.
+It's an env change, so it needs a call-service redeploy, which ends calls in progress.
+
+:::note
+The runbook refers to a `call-service-ops pause-telephony-claims` command. It doesn't exist
+in any repo, so don't count on it until someone confirms where it lives.
+:::
+
+## Deploy and rollback rules
+
+Deploys and rollbacks go **only through the workflow** (its `rollback` action with
+`rollback_release_sha`). Full procedure:
+`documentation/telecel-voice-gateway/INSTALL_DEPLOY_ROLLBACK.md`. The must-nots:
+
+- **Stop claims first** (see [Draining](#draining)).
+- **Confirm `active_calls` is 0 before a rollback.** `rollback.sh` doesn't wait for live
+  calls the way `upgrade.sh` does.
+- **Check `readlink -f /opt/omaya-telecel-gateway/current-*` first.** The host scripts
+  come from the most recent install, so deploying an older release downgrades them.
+- **Never** hand-repoint `current-<instance>`, hand-run an older release's scripts, or
+  copy a release directory in.
+- **If `pending_events` is ≥ 8500, don't roll back to v0.1.27.** It deadlocks on restart
+  discovery.
+- **A green deploy isn't "ready".** Afterwards, readiness must pass, the journal must show
+  no `ARI restart discovery failed`, and `pending_events` must be below 8500 and not
+  climbing.
+- **Never** delete outbox rows, replace the state DB with an empty one (see
+  [Gateway](/asterisk/gateway#durable-state)), or redial an `acceptance_unknown` attempt.
+- **Never** modify the managed AWS VPN, rotate the IPsec key on our side alone, or enable
+  inbound Stasis as a diagnostic.
+
+## When to stop
+
+If you see any of the following, **stop canaries and use the certified Telecel rollback
+set. Never switch carriers at runtime.**
+
+- a call placed twice, or an `acceptance_unknown` attempt being redialled
+- an attempt missing its ledger bind
+- `pending_events` growing instead of draining
+- orphaned channels in `core show channels` after calls end
+- one-way or silent audio
+- a completed call with no post-call record in the portal
+- a stale epoch, an unexpected listener, or `omaya-agent` missing from `ari show apps`
+- config drift, or a secret that may have been exposed or whose rotation isn't confirmed
+
+Log lines worth grepping for:
+
+| Log line | Meaning |
+| --- | --- |
+| `high-water mark reached` | Outbox near its cap, so new work is being shed |
+| `terminal event outbox hard cap reached` | Events are no longer being persisted |
+| `ARI restart discovery failed` | The restart didn't finish recovering channels |
+| `a gateway older than v0.1.27 is LIVE` | An unsafe old release is running |
+| `inbound offer shed` | Inbound calls are being refused for capacity |
+
+:::note
+`check-config-drift.sh` needs a rendered, secret-substituted candidate and its SHA256SUMS
+(`--source-dir`), so it can't be run ad hoc during an incident.
+:::
+
+## Alerts
+
+Alert rules are in `infra/monitoring/telecel-alerts.yml`, with the runbook in
+`documentation/telecel-voice-gateway/ALERTS.md`. They cover the oldest eligible job being
+over 120 s old, a stalled consumer, and a missing gateway heartbeat for over 60 s.
+
+:::warning
+As of the last check there was **no Prometheus scraper on staging**, so these rules may not
+fire anywhere. Confirm alerting is actually wired before you rely on it. `ALERTS.md` also
+still refers to the old single-instance unit name and a bare `gatewayctl status`.
+:::
+
+## Runbooks
+
+These live in the repos. The shared docs folder isn't published on this site.
+
+| Doc | Use it for |
+| --- | --- |
+| `documentation/telecel-voice-gateway/INSTALL_DEPLOY_ROLLBACK.md` | Pinned install, drained deploy, activation hold points, rollback |
+| `documentation/telecel-voice-gateway/runbook-index.md` | Entry point and stop conditions |
+| `documentation/telecel-voice-gateway/CLINIC_PROVISIONING.md` | Giving a hospital a number |
+| `documentation/telecel-voice-gateway/WHATSAPP_NUMBER_OTP.md` | Capturing Meta's voice OTP on a DID |
+| `infra/asterisk/C12_BOX_CHECKLIST.md` | What to read off the box before rendering; log-line reference |
+| `infra/asterisk/templates/README.md` | Rendering and staging Asterisk config |

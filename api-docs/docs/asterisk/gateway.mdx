@@ -1,0 +1,98 @@
+---
+title: "Gateway"
+description: "The Telecel gateway service: control protocol, media format, durable state, and restart rules."
+---
+
+The gateway is the thin layer between Asterisk and call-service. Its code is in
+`call-service/telecel-gateway/`. Both sides share the wire contract in the vendored
+`omaya_telephony_protocol` package.
+
+## What it owns, and what it doesn't
+
+| The gateway owns | call-service owns |
+| --- | --- |
+| Asterisk channels and bridges (via ARI) | Claiming jobs from `job_queue` |
+| AudioSocket framing and the 20 ms media clock | The AI session, VAD, barge-in, tools |
+| Normalising SIP outcomes (busy, no answer, …) | Recording, transcript, post-call |
+| Command receipts and the terminal-event outbox | The backend-facing, carrier-neutral result |
+
+The gateway never receives prompts, transcripts, classifications, recordings or clinical
+data.
+
+## Connections
+
+The gateway dials **out** to call-service on two WebSocket routes:
+
+| Route | Purpose |
+| --- | --- |
+| `/internal/telephony/gateway` | One long-lived control socket: registration, heartbeats, commands, events. |
+| `/internal/telephony/media/{call_id}` | One socket per live call, carrying PCM audio. It opens on the call's first audio frame and uses a single-use media token tied to the call, the gateway call and the connection epoch. |
+
+With `OMAYA_ENV=prod`, the control URL must be `wss://`, or the gateway refuses to start.
+Outside `dev`, ARI and AudioSocket must be on loopback.
+
+## Control protocol
+
+- **Registration** agrees on a protocol version range, the `gateway_id` and a
+  **connection epoch**. It also tells call-service whether the gateway is
+  `accepting_outbound`. That flag is sent **only at registration**; heartbeats don't carry
+  it.
+- **Fencing.** Only the current epoch may send commands, acks or events, so a stale or
+  replaced connection is fenced out.
+- **Commands** are `dial`, `cancel`, `hangup`, `accept_inbound` and `reject_inbound`.
+  Each carries an idempotent `command_id`, so a duplicate is safe.
+- **Events** carry an `event_id` and a per-call sequence number. Key events include
+  `initiated`, ringing, `answered`, `media_ready` and the terminal outcome.
+- **Gaps.** If the backend reports a gap in the sequence, call-service holds back the ack
+  for that event. The gateway retransmits a bounded number of times, then again on
+  reconnect.
+- **Delivery is at least once in both directions.** A successful socket send doesn't count
+  as accepted. Only an ack does.
+
+## Media
+
+- AudioSocket audio is **signed 16-bit little-endian mono PCM at 8 kHz**: 320 bytes per
+  20 ms frame.
+- The gateway is the only pacing clock.
+- Barge-in: call-service sends an in-band `flush_playback` text frame on the **media**
+  socket, and the gateway drops queued agent audio. (A `flush_playback` control command
+  exists in the protocol but isn't used.)
+
+## Durable state
+
+Each instance keeps a SQLite database under `/var/lib/omaya-telecel-gateway/<instance>/`.
+It holds command receipts, the terminal-event outbox, pending inbound offers and
+acceptance state. It is a receipt store, not the record of truth: that's the backend's
+`call_attempts` ledger.
+
+:::warning
+Never replace an unreadable or full state database with an empty one. Keep it as
+evidence, and repair or restore it. A fresh database forgets which calls were already
+placed.
+:::
+
+## Restarts
+
+Live calls are never resumed after a restart. The recovery rule is **no double dials**:
+
+| Phase when it broke | What happens |
+| --- | --- |
+| Before `dial` ack | Marked `acceptance_unknown` and reconciled from receipts, live calls and the ledger. Never redialled just because the socket closed. |
+| Receipt committed, originate in doubt | Replaying the receipt returns the same answer. Originate uses deterministic channel ids, so there's no second call. |
+| Outbound, ringing | The leg isn't in Stasis yet, so discovery can't adopt it. The attempt is closed as `failed` (`gateway_restart_missing_channel`) and both legs are hung up. |
+| Inbound, ringing | The offer is in Stasis, so it's restored and offered to call-service again. |
+| Mid-conversation | The AudioSocket connection dies with the old process. The SIP leg is adopted as a managed channel, not swept. No redial. |
+| Terminal event pending | Resent until the backend commits it. Never produces a second outcome. |
+
+:::warning
+A restart in the middle of a conversation may leave a **silent SIP leg** that is still
+connected, since nothing tears down the adopted leg once its audio is gone. Check
+`core show channels` after any restart with calls in progress.
+:::
+
+## Logging
+
+By convention, logs carry the release, gateway id and epoch, UUIDs, outcomes and counters,
+and leave out auth headers, media tokens, full phone numbers, clinical content and audio.
+This is enforced by care at each log call, not by a filter (the redaction helpers in
+`logging.py` aren't installed), so review new log lines with that in mind.

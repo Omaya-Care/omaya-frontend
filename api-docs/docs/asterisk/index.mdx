@@ -1,0 +1,60 @@
+---
+title: "Asterisk overview"
+description: "What runs on the Asterisk box, and how a Telecel phone call reaches Oma."
+sidebar:
+  label: Overview
+---
+
+This section covers the voice box that sits between the Telecel SIP trunk and call-service.
+It has no HTTP API of its own. The endpoints it talks to are in the
+[Call Service](/call-service) reference.
+
+:::note
+These pages are written from the configuration and code in the repos
+(`infra/asterisk/`, `call-service/telecel-gateway/`). The live box can differ from the
+repo. Before you act on a detail here, check it on the box.
+:::
+
+## What's on the box
+
+The box is an EC2 instance in `eu-central-1`, separate from the app servers. It runs
+three things:
+
+| Component | What it does |
+| --- | --- |
+| **strongSwan** | An IPsec tunnel to Telecel, covering our public IP and Telecel's signalling host. SIP and RTP to the carrier go through it. |
+| **Asterisk 20** | Ends the SIP trunk, converts the carrier's A-law/μ-law audio to raw PCM, and hands every call to the gateway through ARI (`Stasis`). It never runs a dialplan conversation of its own. |
+| **Omaya Telecel gateway** | A Python service (`omaya-telecel-gateway@<instance>`, systemd). It owns the calls Asterisk hands it, opens the media leg over AudioSocket, and connects *outbound* over WSS to call-service. |
+
+Nothing about the AI, prompts, transcripts or clinical data lives here. The gateway only
+sees phone numbers and call identifiers. Everything clinical stays in call-service and
+the backend.
+
+## The big picture
+
+```text
+ Mother's phone
+      │  PSTN
+      ▼
+ Telecel switch ──SIP/RTP over IPsec──▶ Asterisk (UDP 5060, RTP 1024–5999)
+                                          │  ARI (127.0.0.1:8088)
+                                          │  AudioSocket (127.0.0.1:9000)
+                                          ▼
+                                   Telecel gateway
+                                          │  outbound WSS (control + media)
+                                          ▼
+                                   call-service ──▶ xAI realtime (Oma)
+                                          │
+                                          ▼
+                                   backend (records, alerts)
+```
+
+ARI and AudioSocket listen on loopback only. The box exposes no public listener for the
+app side. The gateway dials out to call-service, never the other way round.
+
+## Where to go next
+
+- [Call flow](/asterisk/call-flow): step by step for an outbound and an inbound call.
+- [Gateway](/asterisk/gateway): the control protocol, media format, and restart rules.
+- [Configuration](/asterisk/configuration): the dialplan, SIP endpoints and numbers.
+- [Operations](/asterisk/operations): how to check health, drain, and where the runbooks are.

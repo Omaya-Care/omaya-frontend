@@ -15,29 +15,38 @@ const API_REFERENCES = [
     label: "Backend",
     route: "/backend",
     spec: "./specs/backend.json",
-    icon: "server",
     description: "Portal, auth, and internal ingest endpoints",
   },
   {
     label: "Ops",
     route: "/ops",
     spec: "./specs/ops.json",
-    icon: "shield",
     description: "Omaya-team ops endpoints behind admin.omayacare.com",
   },
   {
     label: "Call Service",
     route: "/call-service",
     spec: "./specs/call-service.json",
-    icon: "phone",
     description: "Telephony runtime health and gateway endpoints",
   },
 ];
 
+// Hand-written sections that aren't endpoint references (pages under docs/).
+const GUIDES = [
+  {
+    label: "Asterisk",
+    route: "/asterisk",
+    description: "The Telecel voice box: Asterisk, the gateway, and call flow",
+  },
+];
+
+const SECTIONS = [...API_REFERENCES, ...GUIDES];
+
 export default defineConfig({
   title: "Omaya API",
-  description: "Team-only API reference for the Omaya backend, ops, and call-service.",
-  logo: "/logo.png",
+  description: "Team-only reference for the Omaya backend, ops, and call-service APIs, plus the Asterisk voice box.",
+  // Mark only, no text beside it — matches the portal sidebar's brand row.
+  logo: { image: "/logo.png", text: "" },
 
   theme: {
     accent: { light: "#7a2850", dark: "#c45a8a" },
@@ -47,21 +56,20 @@ export default defineConfig({
   reference: API_REFERENCES.map(({ route, spec }) => openapi({ route, spec })),
 
   navigation: {
-    // One header dropdown switches between the three APIs; each reference's
-    // route scopes the sidebar to its own operations.
+    // One header dropdown switches between the APIs and the guide sections;
+    // each route scopes the sidebar to its own pages.
     selectors: [
       {
         kind: "product",
-        label: "API",
-        items: API_REFERENCES.map(({ label, route, icon, description }) => ({
+        label: "Docs",
+        items: SECTIONS.map(({ label, route, description }) => ({
           label,
           path: route,
-          icon,
           description,
         })),
       },
     ],
-    tabs: API_REFERENCES.map(({ label, route }) => ({ label, path: route })),
+    tabs: SECTIONS.map(({ label, route }) => ({ label, path: route })),
   },
 
   // Everything sits behind the sign-in gate, so outside services can't

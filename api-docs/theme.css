@@ -1,0 +1,4 @@
+/* Header brand mark at the portal sidebar's size (28px; Blume renders 20px). */
+[data-blume-header] a[href="/"] > img {
+  height: 28px;
+}

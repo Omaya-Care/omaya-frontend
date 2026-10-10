@@ -1,0 +1,119 @@
+---
+title: "Configuration"
+description: "Asterisk dialplan, SIP endpoints, ports, and how Telecel numbers map to gateway instances."
+---
+
+Asterisk config is generated from sanitised templates in `infra/asterisk/templates/` by
+`infra/asterisk/generate-config.sh`. The templates contain no credentials. Secrets are read
+from a root-owned file on the box at render time. The generated `pjsip`, `rtp`, `http` and
+`ari` files are headed *"Do not edit on the host"*, and `check-config-drift.sh` compares
+the live files against a rendered candidate.
+
+## Numbers
+
+| Number | Role | Outbound SIP endpoint |
+| --- | --- | --- |
+| `0302748470` (`+233302748470`) | DID 1, the default caller ID | `telecel` |
+| `0302748473` (`+233302748473`) | DID 2 | `telecel-8473` |
+
+Both numbers are owned by one gateway instance. A hospital's inbound DID and outbound
+caller ID are set on the hospital in the backend, not on the box.
+
+**Caller ID format matters.** The gateway puts the caller ID in PAI/RPID as **subscriber
+digits only** (`302748470`). Telecel answers the `0302748470` form with 100 Trying and then
+silently drops the call.
+
+## SIP (`pjsip.conf`)
+
+- **Transport:** UDP 5060. Traffic to and from Telecel's signalling host goes through the
+  IPsec tunnel. TLS/SRTP is off until Telecel confirms it supports them.
+- **`[telecel]` endpoint:** the trunk.
+  - Inbound, it matches traffic from Telecel's signalling IP.
+  - Outbound, it presents `from_user=0302748470`, the national-format identity Telecel
+    uses to recognise the trunk.
+- **`[telecel-8473]` endpoint:** outbound only, for DID 2.
+  - It's identical to `[telecel]` except for `from_user`.
+  - It has no `identify` block, so inbound always matches `[telecel]`.
+  - The gateway picks the endpoint per call from `OMAYA_DID_ENDPOINTS`.
+- **Codecs:** A-law and μ-law only. `direct_media=no`, so media always flows through
+  Asterisk.
+- **Telecel's SBC address is hard-coded** in the gateway's dial string
+  (`telecel_gateway/ari_http.py`). Changing it needs a gateway release, not just config.
+
+## Media and ARI
+
+| File | Setting |
+| --- | --- |
+| `rtp.conf` | RTP ports `1024–5999` (inside the carrier's range), `strictrtp=yes` |
+| `http.conf` | Asterisk HTTP bound to `127.0.0.1:8088`, loopback only |
+| `ari.conf` | One ARI user shared by every gateway instance on the box. The username is a render-time parameter, so read it off the box first. |
+
+## Dialplan (`extensions.conf`)
+
+The release template is **fail-closed**. It has one exact-match stanza per DID and per
+number format Telecel might send (national, `+233…` and `233…`, so three per DID by
+default):
+
+```ini
+[from-telecel]
+exten => 0302748470,1,NoOp(Telecel inbound DID=${EXTEN} ...)
+ same => n,Set(__OMAYA_GATEWAY_MANAGED=1)
+ same => n,Set(__OMAYA_GATEWAY_ID=omaya-asterisk-staging)
+ same => n,Set(__OMAYA_GATEWAY_CALL_ID=${UUID()})
+ same => n,Stasis(omaya-agent,inbound,gateway_id=omaya-asterisk-staging,${EXTEN},${CALLERID(num)})
+ same => n,Hangup(21)         ; only reached if the Stasis app is absent
+
+; any other called number
+exten => _X.,1,NoOp(unrouted DID ...)
+ same => n,Hangup(21)
+exten => _+X.,1,NoOp(unrouted DID ...)
+ same => n,Hangup(21)
+```
+
+- `Stasis` runs **before** `Answer`. The gateway answers only after call-service admits the
+  call.
+- The `__OMAYA_GATEWAY_*` variables tag the channel as managed by that instance.
+- `gateway_id=` is passed as a keyed argument, because Asterisk splits Stasis arguments on
+  commas and a comma in a presented caller ID would shift positional ones.
+  - A stanza naming a **different** gateway id is always refused.
+  - A stanza with **no** `gateway_id` is admitted unless
+    `OMAYA_REQUIRE_STASIS_GATEWAY_ARG=true` (default `false`).
+- There's no outbound context in the template. ARI originates outbound calls directly into
+  the Stasis app.
+
+:::warning
+The repo holds **three different dialplans**. Don't assume which one is live:
+
+- `infra/asterisk/templates/extensions.conf.tmpl`: the per-DID template above.
+- `infra/asterisk/staged/extensions.conf`: an older catch-all, `_X.` →
+  `Stasis(omaya-agent,inbound,…)` with no `gateway_id`, plus `[outbound-ai]` and
+  `[outbound-test]` contexts.
+- `infra/asterisk/extensions.conf`: the original bring-up route, with Answer, Playback and
+  Echo.
+
+Read `/etc/asterisk/extensions.conf` on the box.
+:::
+
+## Gateway instances
+
+The unit is a systemd template, `omaya-telecel-gateway@<instance>.service`, with its env in
+`/etc/omaya-telecel-gateway/<instance>.env`. One instance can own several numbers. A second
+instance would only exist to keep *environments* apart on one box.
+
+| Setting | Why it matters |
+| --- | --- |
+| `OMAYA_ARI_APP_NAME` | Must match the dialplan's `Stasis()` app. Asterisk keeps one subscriber per app name, so two instances can't share one. |
+| `OMAYA_GATEWAY_ID` | Tags every channel and bridge the instance creates. Restart cleanup filters on it. Never rename a live instance. |
+| `OMAYA_AUDIOSOCKET_PORT` | Loopback port the instance binds (default `9000`). It must be unique per instance. |
+| `OMAYA_OWNED_DIDS` | Caller IDs this instance may present. The gateway won't start without it. |
+| `OMAYA_DID_ENDPOINTS` | Maps non-default numbers to their PJSIP endpoint, for example `+233302748473=telecel-8473`. |
+| `OMAYA_CONTROL_URL` | Which call-service this instance serves. |
+| `OMAYA_MAX_ACTIVE_CALLS` | Concurrent-call cap. Further dials are rejected with `capacity` and retried. |
+| `OMAYA_OUTBOX_MAX_ENTRIES` | Terminal-event outbox cap. New work is shed at 85% of it. |
+| `OMAYA_GATEWAY_STATE_PATH` | Durable state DB. |
+| `OMAYA_GATEWAY_DRAIN_FILE` | Required by the packaging scripts, which refuse any value other than `drain.state` beside the state DB. The gateway, and `gatewayctl --instance`, always use that path regardless. |
+
+Other settings (control token, allowed hostnames, pending-offer cap, …) are documented in
+`call-service/telecel-gateway/packaging/gateway.env.example`.
+
+The staging instance runs as gateway id `omaya-asterisk-staging` with app `omaya-agent`.

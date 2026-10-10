@@ -1,0 +1,92 @@
+---
+title: "Call flow"
+description: "Step by step for an outbound check-in call and an inbound call from a mother."
+---
+
+## Outbound: Oma calls a mother
+
+1. **Backend enqueues a `call_job`.** The scheduler writes a self-contained job row to
+   `job_queue`.
+2. **call-service claims it**, but only when all of these hold:
+   - `TELECEL_OUTBOUND_MODE` is `enabled` or `test_only` (the default is `disabled`)
+   - the ledger is configured
+   - a gateway with the expected id is registered and reported `accepting_outbound` when
+     it registered
+
+   Clinician `page` jobs share the same consumer and are taken first.
+3. **The backend reserves the attempt** (`reserve_outbound`) in the `call_attempts` ledger.
+4. **call-service sends `dial`** over the control WSS. The `command_id` comes from the
+   `job_queue` row, so a retried command is the same command.
+5. **The gateway places the call.** It checks the caller ID is one it owns, checks its
+   drain flag and capacity, commits a durable receipt, then originates over ARI
+   (`POST /ari/channels`). It uses the PJSIP endpoint for the caller ID and goes straight
+   into its own Stasis app, with no dialplan context.
+6. **The gateway replies.**
+   - Originate taken: `command_ack`, which means ARI accepted the originate, not that the
+     phone is ringing.
+   - Refused: `command_rejected`. Some refusals happen before any originate (`draining`,
+     `capacity`); `ari_unavailable` means the originate itself failed.
+   - **Transient codes are retried:** call-service releases the job to try again later.
+     These are `ari_unavailable`, `capacity`, `draining`, `gateway_unavailable`,
+     `control_not_registered`, `stale_connection_epoch` and `state_unavailable`.
+   - **Any other code is a permanent failure,** with no retry and a Sentry error. Examples:
+     `caller_id_not_owned` and `command_conflict`.
+   - A job refused over and over is dead-lettered once
+     `TELECEL_DIAL_REFUSAL_CEILING_SECONDS` passes.
+7. **The backend binds** the `gateway_call_id` to the attempt. If that fails after an ack,
+   the job is quarantined (`accepted_but_unbound`) rather than redialled.
+8. **Asterisk sends the INVITE** to Telecel. Ringing, busy, no-answer and so on come back
+   as lifecycle events.
+9. **On answer**, the channel enters Stasis and the gateway builds the media path:
+   - It creates a bridge and adds the phone leg.
+   - It originates an `AudioSocket/127.0.0.1:<port>/<gateway_call_id>` channel and adds
+     that too.
+   - Asterisk then connects *into* the gateway's loopback listener.
+10. **First audio frame.** The gateway opens the per-call media WSS to call-service and
+    emits `media_ready`. call-service starts the xAI session when it sees `media_ready`.
+11. **The conversation runs.** The gateway paces audio in 20 ms frames.
+12. **Hang-up.**
+    - The gateway writes the terminal event to its durable outbox and resends it until the
+      backend ledger commits it.
+    - Separately, call-service's media session closing triggers the post-call worker
+      (classify, upload, ingest).
+
+### Missed calls
+
+Calls that end before answer (`no_answer`, `busy`, `failed`, `canceled`) become minimal
+`calls` rows and show as "missed" in the portal. An attempt with no matching mother goes
+to `operator_required` instead.
+
+## Inbound: someone calls a hospital number
+
+1. **Telecel delivers an INVITE** for one of our DIDs. Asterisk matches the
+   `[from-telecel]` context.
+2. **Stasis comes before Answer.** The dialplan hands the still-ringing channel to the
+   gateway's Stasis app. If the app isn't connected, the next priority hangs up with cause
+   21, so the call is never answered with nothing behind it.
+3. **The gateway emits `incoming_call`** with a `gateway_call_id`, the called DID and the
+   caller's number.
+4. **call-service runs local guards** (pending and active capacity, a per-caller cooldown),
+   then asks the backend to resolve the call (`POST /internal/telephony/call-attempts/inbound/resolve`).
+   It has 4 seconds to decide by default. A timeout rejects with `backend_unavailable`.
+5. **The backend resolves and binds.**
+   - The DID must belong to a hospital with Telecel voice active. Several hospitals can
+     share a DID.
+   - The hospital is taken from the **caller's mother record**, not from the DID.
+   - The backend binds `gateway_call_id` to a `call_id` here, before anything is answered.
+   - The result is one of three modes:
+
+| Result | What happens |
+| --- | --- |
+| **Known mother** | `accept_inbound`. The gateway answers over ARI, emits `answered`, builds the same bridge and AudioSocket media path as outbound, and Oma takes the call. |
+| **Redirect** (unknown caller, escalation phone, …) | Also sent as `accept_inbound`, in redirect mode. The gateway answers and builds the same media path, call-service plays a stored announcement, then it hangs up. There is no AI session. |
+| **Reject** (withheld caller ID, no tenant resolvable, …) | `reject_inbound`. The gateway deletes the channel over ARI without answering. Asterisk's default cause applies, not 21. |
+
+## When things go wrong
+
+- **The control socket drops before an ack.** The attempt is marked `acceptance_unknown`
+  and quarantined. It's never redialled just because the socket closed, since the INVITE
+  may already have gone out.
+- **The media socket drops mid-call.** The phone leg is torn down. Media is deliberately
+  not resumable.
+- **The gateway restarts.** See the [restart table](/asterisk/gateway#restarts).

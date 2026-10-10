@@ -3,13 +3,19 @@ title: Omaya API reference
 description: Team-only reference for the Omaya backend, ops, and call-service APIs.
 ---
 
-Pick an API from the **API** dropdown in the header.
+Pick a section from the **Docs** dropdown in the header.
 
 | API | What it covers | Base URL (prod) |
 | --- | --- | --- |
 | [Backend](/backend) | Hospital portal, auth, mothers, alerts, and the `/internal/*` ingest endpoints the other services call | `https://backend-api.omayacare.com` |
 | [Ops](/ops) | Omaya-team operations behind `admin.omayacare.com` (`/ops/*`), gated to `platform_admin` | `https://backend-api.omayacare.com` |
 | [Call Service](/call-service) | Telephony runtime health, readiness, and gateway endpoints | `https://call-service.omayacare.com` |
+
+Not every section is an API:
+
+| Section | What it covers |
+| --- | --- |
+| [Asterisk](/asterisk) | The Telecel voice box: Asterisk, the gateway service, how calls flow, and how to operate it |
 
 ## Trying requests
 
