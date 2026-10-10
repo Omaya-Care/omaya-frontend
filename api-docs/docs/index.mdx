@@ -5,11 +5,11 @@ description: Team-only reference for the Omaya backend, ops, and call-service AP
 
 Pick a section from the **Docs** dropdown in the header.
 
-| API | What it covers | Base URL (prod) |
+| API | What it covers | Base URL (staging) |
 | --- | --- | --- |
-| [Backend](/backend) | Hospital portal, auth, mothers, alerts, and the `/internal/*` ingest endpoints the other services call | `https://backend-api.omayacare.com` |
-| [Ops](/ops) | Omaya-team operations behind `admin.omayacare.com` (`/ops/*`), gated to `platform_admin` | `https://backend-api.omayacare.com` |
-| [Call Service](/call-service) | Telephony runtime health, readiness, and gateway endpoints | `https://call-service.omayacare.com` |
+| [Backend](/backend) | Hospital portal, auth, mothers, alerts, and the `/internal/*` ingest endpoints the other services call | `https://backend-api-staging.omayacare.com` |
+| [Ops](/ops) | Omaya-team operations behind `admin.omayacare.com` (`/ops/*`), gated to `platform_admin` | `https://backend-api-staging.omayacare.com` |
+| [Call Service](/call-service) | Telephony runtime health, readiness, and gateway endpoints | `https://call-service-staging.omayacare.com` |
 
 Not every section is an API:
 
@@ -26,9 +26,10 @@ selected server, so you need a token for that API:
   carries.
 - **Call Service** endpoints that need auth take the internal token.
 
-The specs are regenerated from the services' code on every push to their `staging` and `main`
-branches, so this reference matches that tier's code. If a rebuild fails, the previous version
-stays up until the next successful one.
+This site is backed by **staging**. You sign in with your staging portal account, the
+reference is built from the services' `staging` branches, and **Try it** sends requests to the
+staging servers. If a rebuild fails, the previous version stays up until the next successful
+one.
 
 ## Signing out
 

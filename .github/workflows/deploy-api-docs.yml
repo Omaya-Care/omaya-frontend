@@ -1,26 +1,27 @@
 name: deploy-api-docs
 
 # Build the API docs site (api-docs/) from the services' own code, then deploy
-# the tier's Worker. api-docs/ is its own package; nothing here touches the portal.
-# No spec storage: this job checks out backend + call-service at the tier's
+# its one Worker. api-docs/ is its own package; nothing here touches the portal.
+# No spec storage: this job checks out backend + call-service at their staging
 # branch and runs their scripts/export_openapi.py (app.openapi() needs no
-# database or secrets). Triggered by the services' `docs-dispatch` workflow
-# on staging/main pushes, by pushes here that touch api-docs/, or by hand.
+# database or secrets). Triggered by the services' `docs-dispatch` workflow,
+# by pushes to staging here that touch api-docs/, or by hand.
 #
-#   tier=main    -> services@main    (prod servers)    -> omaya-api-docs         (docs.omayacare.com)
-#   tier=staging -> services@staging (staging servers) -> omaya-api-docs-staging (docs-staging.omayacare.com)
+# The docs site is backed by STAGING only:
+#   tier=staging -> services@staging (staging servers) -> omaya-api-docs (docs.omayacare.com)
+#   tier=main    -> skipped (kept so the services' main-push dispatch doesn't error)
 #
 # Repo config (Settings -> Secrets and variables -> Actions):
 #   secrets: CLOUDFLARE_API_TOKEN (Workers Scripts: Edit), CLOUDFLARE_ACCOUNT_ID,
 #            DOCS_SOURCE_TOKEN (fine-grained PAT: Contents read on bloom-backend + omaya-call-service)
 on:
   push:
-    branches: [main, staging]
+    branches: [staging]
     paths: ["api-docs/**", ".github/workflows/deploy-api-docs.yml"]
   workflow_dispatch:
     inputs:
       tier:
-        description: Which tier to build and deploy
+        description: Which tier triggered this (only staging builds; main is a no-op)
         type: choice
         options: [main, staging]
         required: true
@@ -35,6 +36,7 @@ permissions:
 
 jobs:
   build-deploy:
+    if: ${{ (inputs.tier || github.ref_name) == 'staging' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -69,7 +71,6 @@ jobs:
       - name: Export specs
         run: |
           case "$TIER" in
-            main) servers=prod ;;
             staging) servers=staging ;;
             *) echo "unsupported tier $TIER"; exit 1 ;;
           esac
@@ -91,8 +92,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ "$TIER" = main ]; then
-            pnpm exec wrangler deploy --message "${GITHUB_SHA::7}"
-          else
-            pnpm exec wrangler deploy --env "$TIER" --message "${GITHUB_SHA::7}"
-          fi
+          pnpm exec wrangler deploy --message "${GITHUB_SHA::7}"

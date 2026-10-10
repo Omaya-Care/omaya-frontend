@@ -97,25 +97,33 @@ The live `/openapi.json` routes are auth-gated and Blume can't attach credential
 fetches a spec, so the specs are exported from code at build time. Nothing stores them
 between runs:
 
-1. A push to `staging` or `main` in **backend** or **call-service** runs that repo's
+The site is backed by **staging** only. There is one Worker, `omaya-api-docs` on
+`docs.omayacare.com`:
+
+- sign-in checks the staging backend (`BACKEND_URL` in `wrangler.jsonc`), so readers use their
+  staging portal account and staging's `docs_access` list;
+- the reference is built from the services' `staging` branches;
+- **Try it** targets the staging servers.
+
+How a rebuild happens:
+
+1. A push in **backend** or **call-service** runs that repo's
    `.github/workflows/docs-dispatch.yml`. It uploads nothing. It runs
    `gh workflow run deploy-api-docs.yml -R Omaya-Care/omaya-frontend -f tier=<branch>`.
-2. The frontend repo's `.github/workflows/deploy-api-docs.yml` checks out `Omaya-Care/bloom-backend` and
-   `Omaya-Care/omaya-call-service` at the tier's branch, runs each one's
-   `scripts/export_openapi.py` (no database or secrets needed) into `specs/`, runs
-   `pnpm build`, and deploys the tier's Worker. It also runs on a frontend push to `main` or
-   `staging` that touches `api-docs/`, and by hand (`workflow_dispatch`).
+2. The frontend repo's `.github/workflows/deploy-api-docs.yml` builds only for
+   `tier=staging` (a `main` dispatch is a no-op). It checks out `Omaya-Care/bloom-backend` and
+   `Omaya-Care/omaya-call-service` at `staging`, runs each one's `scripts/export_openapi.py`
+   (no database or secrets needed) into `specs/`, runs `pnpm build`, and deploys the Worker.
+   It also runs on a frontend push to `staging` that touches `api-docs/`, and by hand
+   (`workflow_dispatch`).
 
-| Tier | Services built from | Try it targets | Worker | Host |
-|---|---|---|---|---|
-| `main` | `main` | prod servers | `omaya-api-docs` | `docs.omayacare.com` |
-| `staging` | `staging` | staging servers | `omaya-api-docs-staging` | `docs-staging.omayacare.com` |
+`workers_dev` and preview URLs are off. The reference is only as fresh as the last successful
+run. If a run fails, the site keeps serving the previous build.
 
-Both Workers come from `wrangler.jsonc` (`--env staging` for staging), each with its own
-`BACKEND_URL` var. `workers_dev` and preview URLs are off.
-
-The reference is only as fresh as the last successful run for its tier. If a run fails, the
-site keeps serving the previous build.
+To deploy by hand (no `DOCS_SOURCE_TOKEN` needed): export the specs with
+`TIER=staging pnpm specs:local` from checkouts of the services' `staging` branches, then
+`pnpm build && direnv exec . npx wrangler deploy` (`direnv exec` loads the Omaya Cloudflare
+token from the Keychain; plain `wrangler` may pick up a different account).
 
 ### Required secrets
 
@@ -128,11 +136,10 @@ GitHub Actions secrets, under **Settings → Secrets and variables → Actions**
 | `omaya-frontend` | `DOCS_SOURCE_TOKEN` (not set yet) | fine-grained PAT: Contents read on `bloom-backend` and `omaya-call-service` only |
 | backend, call-service | `DOCS_DISPATCH_TOKEN` | fine-grained PAT: Actions read/write on `omaya-frontend` only |
 
-Worker secret, set once per Worker with Wrangler before its first deploy:
+Worker secret, set once with Wrangler before the first deploy (already set):
 
 ```bash
 wrangler secret put DOCS_SESSION_SECRET                 # omaya-api-docs
-wrangler secret put DOCS_SESSION_SECRET --env staging   # omaya-api-docs-staging
 ```
 
 Without `DOCS_SESSION_SECRET` the gate fails closed: nobody gets in.
