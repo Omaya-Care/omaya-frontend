@@ -7,7 +7,7 @@ import { openapi } from "blume/reference";
 // whoever reaches it. Never serve dist/ except through that Worker.
 //
 // The specs are build inputs in specs/, exported from the services' code by
-// CI's deploy.yml (or `pnpm specs:local`), because the live /openapi.json
+// CI's deploy-api-docs.yml (or `pnpm specs:local`), because the live /openapi.json
 // routes are auth-gated and Blume can't attach credentials when it fetches a
 // spec.
 const API_REFERENCES = [

@@ -9,8 +9,10 @@ is readable by whoever reaches it. The gate Worker in `worker/index.ts` is what 
 private: you sign in with your Omaya portal account, and only accounts on the backend's
 `docs_access` allowlist get in. See [Access control](#access-control).
 
-**Status:** not cut over. `docs.omayacare.com` still serves the old Scalar page from the
-`omaya-frontend` Worker. Intended GitHub repo: `Omaya-Care/omaya-api-docs` (no remote yet).
+**Status:** live on `docs.omayacare.com` (Worker `omaya-api-docs`, custom domain) since
+2026-10-09. It lives in the frontend repo (`Omaya-Care/omaya-frontend`) under `api-docs/`, but
+it's its own package: own `package.json`, lockfile, `pnpm-workspace.yaml` and Worker, and the
+portal's lint, build and tests never touch it. Run every command below from `api-docs/`.
 
 ## What's in it
 
@@ -32,8 +34,8 @@ the docs origin.
 
 ## Local development
 
-**Prerequisites:** Node.js 22.19+, pnpm, and sibling `backend/` and `call-service/` checkouts
-with `uv sync` already run (the export imports each service's FastAPI app).
+**Prerequisites:** Node.js 22.19+, pnpm, and `backend/` and `call-service/` checkouts next to
+`frontend/` (the polyrepo root) with `uv sync` already run (the export imports each service's FastAPI app).
 
 ```bash
 pnpm install
@@ -46,12 +48,12 @@ pnpm dev           # blume dev server
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `BACKEND_DIR` | `../backend` | backend checkout to export from (for example a worktree) |
-| `CALL_SERVICE_DIR` | `../call-service` | call-service checkout to export from |
+| `BACKEND_DIR` | `../../backend` | backend checkout to export from (for example a worktree) |
+| `CALL_SERVICE_DIR` | `../../call-service` | call-service checkout to export from |
 | `TIER` | `local` | which `servers` Try it targets: `local`, `staging` or `prod` |
 
 ```bash
-BACKEND_DIR=../.worktrees/backend--blume-docs TIER=staging pnpm specs:local
+BACKEND_DIR=../../.worktrees/backend--blume-docs TIER=staging pnpm specs:local
 ```
 
 The specs in `specs/*.json` are gitignored. They are build inputs, never committed.
@@ -97,12 +99,12 @@ between runs:
 
 1. A push to `staging` or `main` in **backend** or **call-service** runs that repo's
    `.github/workflows/docs-dispatch.yml`. It uploads nothing. It runs
-   `gh workflow run deploy.yml -R Omaya-Care/omaya-api-docs -f tier=<branch>`.
-2. `.github/workflows/deploy.yml` here checks out `Omaya-Care/bloom-backend` and
+   `gh workflow run deploy-api-docs.yml -R Omaya-Care/omaya-frontend -f tier=<branch>`.
+2. The frontend repo's `.github/workflows/deploy-api-docs.yml` checks out `Omaya-Care/bloom-backend` and
    `Omaya-Care/omaya-call-service` at the tier's branch, runs each one's
    `scripts/export_openapi.py` (no database or secrets needed) into `specs/`, runs
-   `pnpm build`, and deploys the tier's Worker. It also runs on a push to `main` or `staging`
-   here, and by hand (`workflow_dispatch`).
+   `pnpm build`, and deploys the tier's Worker. It also runs on a frontend push to `main` or
+   `staging` that touches `api-docs/`, and by hand (`workflow_dispatch`).
 
 | Tier | Services built from | Try it targets | Worker | Host |
 |---|---|---|---|---|
@@ -121,10 +123,10 @@ GitHub Actions secrets, under **Settings → Secrets and variables → Actions**
 
 | Repo | Secret | Scope |
 |---|---|---|
-| `omaya-api-docs` | `CLOUDFLARE_API_TOKEN` | Workers Scripts: Edit |
-| `omaya-api-docs` | `CLOUDFLARE_ACCOUNT_ID` | the Cloudflare account |
-| `omaya-api-docs` | `DOCS_SOURCE_TOKEN` | fine-grained PAT: Contents read on `bloom-backend` and `omaya-call-service` only |
-| backend, call-service | `DOCS_DISPATCH_TOKEN` | fine-grained PAT: Actions read/write on `omaya-api-docs` only |
+| `omaya-frontend` | `CLOUDFLARE_API_TOKEN` | Workers Scripts: Edit (already set — the portal's Cloudflare deploy uses it) |
+| `omaya-frontend` | `CLOUDFLARE_ACCOUNT_ID` | the Cloudflare account (already set) |
+| `omaya-frontend` | `DOCS_SOURCE_TOKEN` (not set yet) | fine-grained PAT: Contents read on `bloom-backend` and `omaya-call-service` only |
+| backend, call-service | `DOCS_DISPATCH_TOKEN` | fine-grained PAT: Actions read/write on `omaya-frontend` only |
 
 Worker secret, set once per Worker with Wrangler before its first deploy:
 
@@ -175,14 +177,12 @@ The gate itself is server-to-server and needs no CORS. Only **Try it** calls the
 your browser, so add the docs origin to a service's `CORS_ORIGINS` only if Try it must work
 against it.
 
-Cutover order:
-
-1. Set `DOCS_SESSION_SECRET` on the Worker.
-2. Deploy the Worker, with no route yet.
-3. Only if Try it must work from the browser: add `https://docs.omayacare.com` (and
-   `https://docs-staging.omayacare.com`) to the backend's `CORS_ORIGINS`.
-4. Route `docs.omayacare.com` to `omaya-api-docs`.
-5. Merge the frontend change (`54325e9`) that redirects the portal's `/docs` here.
+Prod cutover (done 2026-10-09): `DOCS_SESSION_SECRET` set, Worker deployed, the
+`docs.omayacare.com` A records replaced by a Workers custom domain, the old zone route
+`docs.omayacare.com/*` → `omaya-frontend` deleted (a zone route beats a custom domain), then
+frontend `54325e9` (portal `/docs` redirect) merged to `main`. Rollback: remove the custom
+domain and recreate that route. Try it from the browser still needs the docs origin in the
+backend's `CORS_ORIGINS` (not done).
 
 ## Supply-chain policy
 
