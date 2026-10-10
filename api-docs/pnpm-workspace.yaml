@@ -1,0 +1,19 @@
+# Same supply-chain hardening as frontend/: delay installs of brand-new
+# releases (7 days) and never accept a package whose trust signals weakened.
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
+
+# Pinned trust-policy exceptions, approved 2026-10-09: Blume 2.1.0's
+# transitive deps published without the provenance attestation earlier
+# versions carried. Exact versions only — never a blanket opt-out. Review on
+# every Blume upgrade and drop any entry the new lockfile no longer needs.
+trustPolicyExclude:
+  - chokidar@4.0.3
+  - '@pierre/theme@2.0.0'
+  - undici-types@6.21.0
+  - semver@6.3.1

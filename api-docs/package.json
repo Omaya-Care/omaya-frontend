@@ -1,0 +1,25 @@
+{
+  "name": "omaya-api-docs",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "specs:local": "sh scripts/export-local-specs.sh",
+    "dev": "blume dev",
+    "build": "blume build",
+    "check": "blume validate",
+    "cf:deploy": "wrangler deploy",
+    "cf:typecheck": "tsc -p worker/tsconfig.json",
+    "cf:dev": "wrangler dev"
+  },
+  "dependencies": {
+    "blume": "2.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260924.1",
+    "typescript": "5.7.2",
+    "wrangler": "4.139.0"
+  }
+}

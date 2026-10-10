@@ -1,0 +1,29 @@
+---
+title: Omaya API reference
+description: Team-only reference for the Omaya backend, ops, and call-service APIs.
+---
+
+Pick an API from the **API** dropdown in the header.
+
+| API | What it covers | Base URL (prod) |
+| --- | --- | --- |
+| [Backend](/backend) | Hospital portal, auth, mothers, alerts, and the `/internal/*` ingest endpoints the other services call | `https://backend-api.omayacare.com` |
+| [Ops](/ops) | Omaya-team operations behind `admin.omayacare.com` (`/ops/*`), gated to `platform_admin` | `https://backend-api.omayacare.com` |
+| [Call Service](/call-service) | Telephony runtime health, readiness, and gateway endpoints | `https://call-service.omayacare.com` |
+
+## Trying requests
+
+Each operation has a **Try it** panel. Requests go straight from your browser to the
+selected server, so you need a token for that API:
+
+- **Backend and Ops** take `Authorization: Bearer <JWT>` — the same token the portal session
+  carries.
+- **Call Service** endpoints that need auth take the internal token.
+
+The specs are regenerated from the services' code on every push to their `staging` and `main`
+branches, so this reference matches that tier's code. If a rebuild fails, the previous version
+stays up until the next successful one.
+
+## Signing out
+
+Your docs session lasts 12 hours. To end it sooner, open `/_auth/sign-out` on this site.
